@@ -7,6 +7,7 @@ import { ThemeSwitcher } from "./theme-switcher";
 import { Logo } from "./logo";
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
+import { Flame } from "lucide-react";
 
 interface HeaderProps {
   user: any;
@@ -15,6 +16,7 @@ interface HeaderProps {
 interface NavItem {
   label: string;
   href: string;
+  icon?: typeof Flame;
 }
 
 export default function Header({ user }: HeaderProps) {
@@ -28,8 +30,14 @@ export default function Header({ user }: HeaderProps) {
     { label: "Pricing", href: "/#pricing" },
   ];
 
-  // Dashboard items - empty array as we don't want navigation items in dashboard
-  const dashboardItems: NavItem[] = [];
+  // Dashboard items - navigation entries shown inside the dashboard area
+  const dashboardItems: NavItem[] = [
+    {
+      label: "毒舌扫雷",
+      href: "/dashboard/scanner",
+      icon: Flame,
+    },
+  ];
 
   // Choose which navigation items to show
   const navItems = isDashboard ? dashboardItems : mainNavItems;
@@ -49,7 +57,10 @@ export default function Header({ user }: HeaderProps) {
               href={item.href}
               className="text-lg font-semibold text-muted-foreground transition-colors hover:text-primary"
             >
-              {item.label}
+              <span className="inline-flex items-center gap-2">
+                {item.icon && <item.icon className="h-4 w-4" />}
+                <span>{item.label}</span>
+              </span>
             </Link>
           ))}
         </nav>

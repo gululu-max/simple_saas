@@ -11,9 +11,16 @@ import {
 import { Menu } from "lucide-react";
 import Link from "next/link";
 import { signOutAction } from "@/app/actions";
+import type { LucideIcon } from "lucide-react";
+
+interface MobileNavItem {
+  label: string;
+  href: string;
+  icon?: LucideIcon;
+}
 
 interface MobileNavProps {
-  items: { label: string; href: string }[];
+  items: MobileNavItem[];
   user: any;
   isDashboard: boolean;
 }
@@ -38,7 +45,10 @@ export function MobileNav({ items, user, isDashboard }: MobileNavProps) {
               href={item.href}
               className="text-lg font-semibold text-muted-foreground transition-colors hover:text-primary"
             >
-              {item.label}
+              <span className="inline-flex items-center gap-2">
+                {item.icon && <item.icon className="h-4 w-4" />}
+                <span>{item.label}</span>
+              </span>
             </Link>
           ))}
         </nav>
