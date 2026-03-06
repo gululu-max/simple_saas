@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Shield, Eye, Database, Lock, UserCheck, Globe } from "lucide-react";
+import { ArrowLeft, Shield, Eye, Database, Lock, UserCheck, Globe, Mail } from "lucide-react";
 
 export default function PrivacyPage() {
   return (
@@ -44,14 +44,14 @@ export default function PrivacyPage() {
               Your Privacy Matters
             </div>
             <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-              Privacy Policy
+              Privacy Policy for Matchfix
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
               We are committed to protecting your privacy and being transparent about how we collect, 
-              use, and protect your personal information when you use our Chinese name generation service.
+              use, and protect your personal information when you use our AI-powered dating profile analysis service.
             </p>
             <p className="text-sm text-muted-foreground">
-              <strong>Last updated:</strong> January 31, 2025
+              <strong>Effective Date:</strong> March 6, 2026
             </p>
           </motion.div>
 
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  We clearly explain what data we collect and how we use it to provide you with the best Chinese name generation experience.
+                  We clearly explain what data we collect and how we use it to provide you with the most accurate and insightful profile analysis.
                 </p>
               </CardContent>
             </Card>
@@ -85,7 +85,7 @@ export default function PrivacyPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  Your personal information is protected with industry-standard security measures and encryption protocols.
+                  Your uploaded screenshots and profile texts are processed securely and are never publicly displayed or sold to third parties.
                 </p>
               </CardContent>
             </Card>
@@ -99,7 +99,7 @@ export default function PrivacyPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  You have full control over your data, including the ability to access, update, or delete your information.
+                  You have full control over your account. You can request to delete your account, generated reports, and payment history at any time.
                 </p>
               </CardContent>
             </Card>
@@ -122,19 +122,17 @@ export default function PrivacyPage() {
                 <div>
                   <h4 className="font-semibold mb-3">Information You Provide</h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• <strong>Personal Details:</strong> English name, gender, birth year (optional)</li>
-                    <li>• <strong>Preferences:</strong> Personality traits and name preferences you share</li>
-                    <li>• <strong>Account Information:</strong> Email address when you create an account</li>
-                    <li>• <strong>Generated Names:</strong> Chinese names you generate and save to your profile</li>
+                    <li>• <strong>Account Information:</strong> Your email address when you sign in via our secure provider.</li>
+                    <li>• <strong>Uploaded Content:</strong> Screenshots, photos, or text from dating profiles you submit for AI analysis.</li>
+                    <li>• <strong>Payment Information:</strong> Handled entirely by our secure third-party processor (Creem.io). We do not store your credit card details.</li>
                   </ul>
                 </div>
                 
                 <div>
                   <h4 className="font-semibold mb-3">Information We Collect Automatically</h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• <strong>Usage Data:</strong> How you interact with our service</li>
-                    <li>• <strong>Device Information:</strong> Browser type, operating system, IP address</li>
-                    <li>• <strong>Cookies:</strong> To improve your experience and remember your preferences</li>
+                    <li>• <strong>Usage Data:</strong> How you interact with our website to help us improve the user experience.</li>
+                    <li>• <strong>Device Information:</strong> Basic browser type and operating system analytics.</li>
                   </ul>
                 </div>
               </div>
@@ -155,20 +153,19 @@ export default function PrivacyPage() {
                 <div>
                   <h4 className="font-semibold mb-3">Service Provision</h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Generate personalized Chinese names</li>
-                    <li>• Save your generated names and preferences</li>
-                    <li>• Provide customer support</li>
-                    <li>• Process payments for premium features</li>
+                    <li>• Generate AI-powered dating profile analysis and "roasts".</li>
+                    <li>• Manage your account and track your available analysis credits.</li>
+                    <li>• Process your payments and subscriptions securely.</li>
+                    <li>• Send essential service updates and payment receipts.</li>
                   </ul>
                 </div>
                 
                 <div>
                   <h4 className="font-semibold mb-3">Service Improvement</h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Analyze service usage to improve functionality</li>
-                    <li>• Develop new features and capabilities</li>
-                    <li>• Ensure service security and prevent fraud</li>
-                    <li>• Send service-related communications</li>
+                    <li>• Analyze platform usage to optimize our AI prompts.</li>
+                    <li>• Develop new features and capabilities for Matchfix.</li>
+                    <li>• Ensure service security and prevent fraudulent transactions.</li>
                   </ul>
                 </div>
               </div>
@@ -190,90 +187,15 @@ export default function PrivacyPage() {
               
               <div className="space-y-4 text-muted-foreground">
                 <p>
-                  <strong>We do not sell your personal information.</strong> We may share your information only in these limited circumstances:
+                  <strong>We do not sell your personal information.</strong> We share your data only with trusted infrastructure partners to keep the service running:
                 </p>
                 
                 <ul className="space-y-2">
-                  <li>• <strong>Service Providers:</strong> Trusted third parties who help us operate our service (payment processing, hosting, analytics)</li>
-                  <li>• <strong>Legal Requirements:</strong> When required by law or to protect our rights and safety</li>
-                  <li>• <strong>Business Transfers:</strong> In the event of a merger, acquisition, or sale of assets</li>
-                  <li>• <strong>With Your Consent:</strong> When you explicitly agree to share information</li>
+                  <li>• <strong>AI Providers:</strong> To process the text/images and generate the analysis reports.</li>
+                  <li>• <strong>Supabase:</strong> For secure database hosting and user authentication.</li>
+                  <li>• <strong>Creem.io:</strong> To securely process payments and manage premium credits.</li>
+                  <li>• <strong>Vercel:</strong> For hosting our website infrastructure.</li>
                 </ul>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Your Rights */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.0 }}
-            className="space-y-8"
-          >
-            <div className="bg-muted/30 rounded-2xl p-8">
-              <h3 className="text-2xl font-bold mb-6">Your Rights and Choices</h3>
-              
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <h4 className="font-semibold mb-3">Access and Control</h4>
-                  <ul className="space-y-2 text-muted-foreground">
-                    <li>• Access your personal information</li>
-                    <li>• Update or correct your data</li>
-                    <li>• Delete your account and data</li>
-                    <li>• Download your data</li>
-                  </ul>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold mb-3">Communication Preferences</h4>
-                  <ul className="space-y-2 text-muted-foreground">
-                    <li>• Opt out of marketing communications</li>
-                    <li>• Manage cookie preferences</li>
-                    <li>• Control data processing</li>
-                    <li>• Request data portability</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Data Security */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.2 }}
-            className="space-y-8"
-          >
-            <div className="bg-muted/30 rounded-2xl p-8">
-              <h3 className="text-2xl font-bold mb-6">Data Security and Retention</h3>
-              
-              <div className="space-y-4 text-muted-foreground">
-                <p>
-                  We implement appropriate technical and organizational measures to protect your personal information against 
-                  unauthorized access, alteration, disclosure, or destruction.
-                </p>
-                
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <h4 className="font-semibold mb-2 text-foreground">Security Measures</h4>
-                    <ul className="space-y-1">
-                      <li>• Encryption in transit and at rest</li>
-                      <li>• Regular security audits</li>
-                      <li>• Access controls and monitoring</li>
-                      <li>• Secure data centers</li>
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-foreground">Data Retention</h4>
-                    <ul className="space-y-1">
-                      <li>• Account data: Until account deletion</li>
-                      <li>• Generated names: Until you delete them</li>
-                      <li>• Usage logs: Up to 2 years</li>
-                      <li>• Marketing data: Until opt-out</li>
-                    </ul>
-                  </div>
-                </div>
               </div>
             </div>
           </motion.div>
@@ -287,11 +209,16 @@ export default function PrivacyPage() {
           >
             <h3 className="text-2xl font-bold mb-4">Questions About Privacy?</h3>
             <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-              If you have any questions about this Privacy Policy or our data practices, 
-              please don't hesitate to contact us. We're here to help and ensure your privacy is protected.
+              If you have any questions about this Privacy Policy, our data practices, or if you'd like to request account deletion, please don't hesitate to contact us.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild>
+              <Button asChild className="gap-2">
+                <a href="mailto:gululumax01@gmail.com">
+                  <Mail className="h-4 w-4" />
+                  gululumax01@gmail.com
+                </a>
+              </Button>
+              <Button asChild variant="outline">
                 <Link href="/">
                   Back to Home
                 </Link>

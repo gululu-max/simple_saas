@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, FileText, Scale, AlertTriangle, CheckCircle, XCircle, Users } from "lucide-react";
+import { ArrowLeft, Scale, AlertTriangle, FileText, Gavel, CreditCard, Mail, CheckCircle, XCircle } from "lucide-react";
 
 export default function TermsPage() {
   return (
@@ -22,7 +22,7 @@ export default function TermsPage() {
             <div>
               <h1 className="text-xl font-bold">Terms of Service</h1>
               <p className="text-sm text-muted-foreground">
-                Terms and conditions for using our service
+                The rules and guidelines for using Matchfix
               </p>
             </div>
           </div>
@@ -47,11 +47,11 @@ export default function TermsPage() {
               Terms of Service
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              These terms govern your use of our Chinese name generation service. 
+              These terms govern your use of Matchfix, an AI-powered dating profile analysis service. 
               By using our service, you agree to these terms and conditions.
             </p>
             <p className="text-sm text-muted-foreground">
-              <strong>Last updated:</strong> January 31, 2025
+              <strong>Effective Date:</strong> March 6, 2026
             </p>
           </motion.div>
 
@@ -64,28 +64,14 @@ export default function TermsPage() {
           >
             <Card className="border-2">
               <CardHeader>
-                <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center mb-4">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
+                <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center mb-4">
+                  <AlertTriangle className="h-6 w-6 text-amber-600" />
                 </div>
-                <CardTitle className="text-lg">What You Can Do</CardTitle>
+                <CardTitle className="text-lg">For Entertainment</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  Use our service to generate Chinese names, save your favorites, and share your generated names with others.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2">
-              <CardHeader>
-                <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center mb-4">
-                  <XCircle className="h-6 w-6 text-red-600" />
-                </div>
-                <CardTitle className="text-lg">What You Cannot Do</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-sm">
-                  Misuse our service, violate others' rights, or use generated names for illegal or harmful purposes.
+                  Our AI analysis and "roasts" are for entertainment purposes only, not professional dating or psychological advice.
                 </p>
               </CardContent>
             </Card>
@@ -93,19 +79,33 @@ export default function TermsPage() {
             <Card className="border-2">
               <CardHeader>
                 <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
-                  <Users className="h-6 w-6 text-blue-600" />
+                  <FileText className="h-6 w-6 text-blue-600" />
                 </div>
-                <CardTitle className="text-lg">Our Commitment</CardTitle>
+                <CardTitle className="text-lg">Your Content</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  Provide reliable service, protect your privacy, and maintain the quality of our name generation.
+                  You are solely responsible for the screenshots you upload. Do not upload content that violates third-party privacy.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center mb-4">
+                  <Gavel className="h-6 w-6 text-red-600" />
+                </div>
+                <CardTitle className="text-lg">No Liability</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">
+                  We are not responsible for your dating outcomes, rejected matches, or any emotional distress caused by the AI.
                 </p>
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* Service Description */}
+          {/* Service Description & AI Nature */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -114,21 +114,19 @@ export default function TermsPage() {
           >
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                <FileText className="h-6 w-6 text-primary" />
-                Our Service
+                <AlertTriangle className="h-6 w-6 text-primary" />
+                AI Nature & Entertainment Disclaimer
               </h3>
               
               <div className="space-y-4 text-muted-foreground">
                 <p>
-                  Chinese Name Generator is an AI-powered platform that creates personalized Chinese names based on 
-                  your preferences, personality traits, and cultural considerations. Our service includes:
+                  Matchfix uses generative Artificial Intelligence (AI) to analyze dating profiles and provide "roasts", red-flag detection, and comedic insights. By using the Service, you acknowledge that:
                 </p>
                 
                 <ul className="space-y-2">
-                  <li>• <strong>Free Generation:</strong> Limited daily name generation for non-registered users</li>
-                  <li>• <strong>Premium Features:</strong> Unlimited generation, personalized matching, and name saving for registered users</li>
-                  <li>• <strong>Cultural Education:</strong> Detailed meanings, pronunciations, and cultural context for generated names</li>
-                  <li>• <strong>Personal Collections:</strong> Save and manage your favorite generated names</li>
+                  <li>• <strong>AI is unpredictable:</strong> The generated reports may contain errors, inaccuracies, or subjective opinions that do not reflect reality.</li>
+                  <li>• <strong>Edgy Content:</strong> The AI is programmed to be witty, brutally honest, and sometimes highly critical. If you are easily offended, this service may not be for you.</li>
+                  <li>• <strong>No Professional Advice:</strong> The insights provided are strictly for entertainment purposes and should not be used as a substitute for professional relationship counseling.</li>
                 </ul>
               </div>
             </div>
@@ -146,31 +144,33 @@ export default function TermsPage() {
               
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
-                  <h4 className="font-semibold mb-3 text-green-700">Acceptable Use</h4>
+                  <h4 className="font-semibold mb-3 text-green-700 flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" /> Acceptable Use
+                  </h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Use the service for personal, educational, or cultural purposes</li>
-                    <li>• Provide accurate information when creating an account</li>
-                    <li>• Respect intellectual property rights</li>
+                    <li>• Ensure you have the right to upload the screenshots/text</li>
+                    <li>• Use the service for personal entertainment</li>
                     <li>• Keep your account credentials secure</li>
-                    <li>• Report any technical issues or misuse</li>
+                    <li>• Report any technical issues to our support team</li>
                   </ul>
                 </div>
                 
                 <div>
-                  <h4 className="font-semibold mb-3 text-red-700">Prohibited Activities</h4>
+                  <h4 className="font-semibold mb-3 text-red-700 flex items-center gap-2">
+                    <XCircle className="h-4 w-4" /> Prohibited Activities
+                  </h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Using generated names for fraudulent purposes</li>
-                    <li>• Attempting to reverse-engineer our algorithms</li>
-                    <li>• Sharing account credentials with others</li>
-                    <li>• Using automated tools to bulk-generate names</li>
-                    <li>• Violating any applicable laws or regulations</li>
+                    <li>• Uploading highly sensitive, illegal, or non-consensual explicit content</li>
+                    <li>• Using the service to harass, dox, bully, or stalk individuals</li>
+                    <li>• Attempting to reverse-engineer our AI prompts</li>
+                    <li>• Using automated tools to bulk-generate requests</li>
                   </ul>
                 </div>
               </div>
             </div>
           </motion.div>
 
-          {/* Intellectual Property */}
+          {/* Limitation of Liability */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -178,75 +178,20 @@ export default function TermsPage() {
             className="space-y-8"
           >
             <div className="bg-muted/30 rounded-2xl p-8">
-              <h3 className="text-2xl font-bold mb-6">Intellectual Property and Generated Names</h3>
-              
-              <div className="space-y-4 text-muted-foreground">
-                <div>
-                  <h4 className="font-semibold mb-3 text-foreground">Your Rights to Generated Names</h4>
-                  <p>
-                    You have the right to use any Chinese names generated through our service for personal purposes. 
-                    However, please note that traditional Chinese names are part of cultural heritage and cannot be 
-                    exclusively owned by any individual.
-                  </p>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold mb-3 text-foreground">Our Intellectual Property</h4>
-                  <p>
-                    The Chinese Name Generator platform, including our AI algorithms, website design, brand elements, 
-                    and proprietary technology, remains our intellectual property. You may not copy, modify, or 
-                    redistribute our platform or technology.
-                  </p>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold mb-3 text-foreground">Cultural Respect</h4>
-                  <p>
-                    We encourage respectful use of Chinese names and understanding of their cultural significance. 
-                    Generated names should be used with appreciation for Chinese culture and traditions.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Service Availability */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.0 }}
-            className="space-y-8"
-          >
-            <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                <AlertTriangle className="h-6 w-6 text-amber-500" />
-                Service Availability and Disclaimers
+                <Gavel className="h-6 w-6 text-primary" />
+                Limitation of Liability
               </h3>
               
               <div className="space-y-4 text-muted-foreground">
-                <div>
-                  <h4 className="font-semibold mb-2 text-foreground">Service Availability</h4>
-                  <p>
-                    While we strive to maintain 24/7 service availability, we cannot guarantee uninterrupted access. 
-                    We may temporarily suspend service for maintenance, updates, or due to circumstances beyond our control.
-                  </p>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold mb-2 text-foreground">AI-Generated Content</h4>
-                  <p>
-                    Our Chinese names are generated by AI technology. While we strive for cultural accuracy and appropriateness, 
-                    we recommend consulting with native speakers or cultural experts for important use cases.
-                  </p>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold mb-2 text-foreground">No Warranties</h4>
-                  <p>
-                    Our service is provided "as is" without warranties of any kind. We do not guarantee the suitability 
-                    of generated names for any specific purpose or their acceptance in all cultural contexts.
-                  </p>
-                </div>
+                <p>
+                  To the maximum extent permitted by law, Matchfix and its creators shall not be liable for any indirect, incidental, special, consequential, or punitive damages, resulting from:
+                </p>
+                <ul className="space-y-2">
+                  <li>• Your access to or use of or inability to access or use the Service.</li>
+                  <li>• Any conduct or content of any third party on the Service.</li>
+                  <li>• Any relationship decisions, dating outcomes, or emotional distress resulting from our AI-generated reports.</li>
+                </ul>
               </div>
             </div>
           </motion.div>
@@ -255,30 +200,31 @@ export default function TermsPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.2 }}
+            transition={{ duration: 0.5, delay: 1.0 }}
             className="space-y-8"
           >
             <div className="bg-muted/30 rounded-2xl p-8">
-              <h3 className="text-2xl font-bold mb-6">Payment and Subscription Terms</h3>
+              <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                <CreditCard className="h-6 w-6 text-primary" />
+                Payment and Refund Terms
+              </h3>
               
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
-                  <h4 className="font-semibold mb-3">Premium Subscriptions</h4>
+                  <h4 className="font-semibold mb-3">Purchasing Credits</h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Monthly and annual subscription options available</li>
-                    <li>• Automatic renewal unless cancelled</li>
-                    <li>• Access to unlimited name generation</li>
-                    <li>• Premium features and personalization</li>
+                    <li>• Services are accessed via purchasing digital credits/packages</li>
+                    <li>• Payments are securely processed by Creem.io</li>
+                    <li>• We do not store your credit card information</li>
                   </ul>
                 </div>
                 
                 <div>
-                  <h4 className="font-semibold mb-3">Cancellation and Refunds</h4>
+                  <h4 className="font-semibold mb-3">Refund Policy</h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Cancel anytime through your account settings</li>
-                    <li>• Refunds processed according to our refund policy</li>
-                    <li>• No refunds for partially used subscription periods</li>
-                    <li>• Free trial cancellations take effect immediately</li>
+                    <li>• Due to the digital AI nature, all purchases are <strong>final and non-refundable</strong></li>
+                    <li>• Disagreeing with the AI's opinion is not grounds for a refund</li>
+                    <li>• If a technical error prevents generation, contact support for credit restoration</li>
                   </ul>
                 </div>
               </div>
@@ -289,7 +235,7 @@ export default function TermsPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.4 }}
+            transition={{ duration: 0.5, delay: 1.2 }}
             className="space-y-8"
           >
             <div className="bg-muted/30 rounded-2xl p-8">
@@ -302,8 +248,7 @@ export default function TermsPage() {
                 </p>
                 
                 <ul className="space-y-2">
-                  <li>• We will update the "Last updated" date at the top of this page</li>
-                  <li>• For significant changes, we will notify users via email or service notifications</li>
+                  <li>• We will update the "Effective Date" at the top of this page</li>
                   <li>• Continued use of our service after changes constitutes acceptance of new terms</li>
                   <li>• You can always find the current version of our terms on this page</li>
                 </ul>
@@ -315,7 +260,7 @@ export default function TermsPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.6 }}
+            transition={{ duration: 0.5, delay: 1.4 }}
             className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8"
           >
             <h3 className="text-2xl font-bold mb-4">Questions About These Terms?</h3>
@@ -324,10 +269,11 @@ export default function TermsPage() {
               please contact us. We're here to help ensure you understand and can comply with these terms.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild>
-                <Link href="/">
-                  Start Using Service
-                </Link>
+              <Button asChild className="gap-2">
+                <a href="mailto:gululumax01@gmail.com">
+                  <Mail className="h-4 w-4" />
+                  gululumax01@gmail.com
+                </a>
               </Button>
             </div>
           </motion.div>
