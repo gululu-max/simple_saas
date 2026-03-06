@@ -44,11 +44,6 @@ export default function Home() {
                   🔥 Get Roasted <ArrowRight className="w-4 h-4" />
                 </Button>
               </Link>
-              <Link href="#features">
-                <Button variant="outline" size="lg" className="w-full sm:w-auto h-12 px-8 text-lg">
-                  👀 See the Carnage
-                </Button>
-              </Link>
             </motion.div>
 
             <motion.div
