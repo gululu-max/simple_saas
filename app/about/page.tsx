@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Heart, Users, Globe, Sparkles } from "lucide-react";
+import { ArrowLeft, ShieldAlert, Crosshair, BrainCircuit, HeartCrack, Flame } from "lucide-react";
 
 export default function AboutPage() {
   return (
@@ -20,9 +20,9 @@ export default function AboutPage() {
               </Link>
             </Button>
             <div>
-              <h1 className="text-xl font-bold">About Us</h1>
+              <h1 className="text-xl font-bold">About Matchfix</h1>
               <p className="text-sm text-muted-foreground">
-                Learn more about our mission and story
+                The story behind the ultimate BS detector
               </p>
             </div>
           </div>
@@ -40,17 +40,17 @@ export default function AboutPage() {
             className="text-center space-y-6"
           >
             <div className="inline-flex items-center rounded-full px-3 py-1 text-sm bg-primary/10 text-primary mb-4">
-              <span className="mr-2">🇨🇳</span>
-              Connecting Cultures Through Names
+              <span className="mr-2">🚩</span>
+              Saving You From Dating Disasters
             </div>
             <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-              Bridging Cultures with
+              Modern Dating is a Minefield.
               <br />
-              <span className="text-primary">Meaningful Chinese Names</span>
+              <span className="text-primary">We Are the Minesweeper.</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              We believe that a name is more than just words - it's a bridge between cultures, 
-              a reflection of identity, and a connection to the rich heritage of Chinese tradition.
+              We built Matchfix because we got tired of friends swiping right on walking red flags. 
+              It's time to bring brutally honest AI analysis to the chaotic world of online dating.
             </p>
           </motion.div>
 
@@ -63,45 +63,42 @@ export default function AboutPage() {
           >
             <Card className="border-2 hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <Heart className="h-6 w-6 text-primary" />
+                <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center mb-4">
+                  <ShieldAlert className="h-6 w-6 text-red-600" />
                 </div>
-                <CardTitle>Our Mission</CardTitle>
+                <CardTitle>Detect Red Flags</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  To help people from all backgrounds discover meaningful Chinese names that reflect 
-                  their personality while honoring traditional Chinese naming conventions and cultural significance.
+                  "I'm fluent in sarcasm" usually just means "I'm mean." We decode the clichés so you don't have to waste your Friday night.
                 </p>
               </CardContent>
             </Card>
 
             <Card className="border-2 hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <Users className="h-6 w-6 text-primary" />
+                <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center mb-4">
+                  <Crosshair className="h-6 w-6 text-orange-600" />
                 </div>
-                <CardTitle>Our Community</CardTitle>
+                <CardTitle>Brutal Honesty</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  We've helped thousands of people worldwide discover their perfect Chinese names, 
-                  fostering cultural appreciation and personal connection to Chinese heritage.
+                  Your friends might lie to spare your feelings, but our AI won't. Expect a roast that hits close to home.
                 </p>
               </CardContent>
             </Card>
 
             <Card className="border-2 hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <Globe className="h-6 w-6 text-primary" />
+                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
+                  <BrainCircuit className="h-6 w-6 text-blue-600" />
                 </div>
-                <CardTitle>Global Impact</CardTitle>
+                <CardTitle>AI-Powered Insights</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  From students studying abroad to business professionals working in China, 
-                  our platform serves people seeking authentic cultural connection worldwide.
+                  Powered by advanced vision and text models, we analyze the subtext behind the gym selfies and generic bios.
                 </p>
               </CardContent>
             </Card>
@@ -116,26 +113,18 @@ export default function AboutPage() {
           >
             <div className="bg-muted/30 rounded-2xl p-8 md:p-12">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                <Sparkles className="h-6 w-6 text-primary" />
-                Our Story
+                <Flame className="h-6 w-6 text-primary" />
+                Our Story: Why We Built This
               </h3>
               <div className="space-y-6 text-muted-foreground">
                 <p>
-                  Chinese Name Generator was born from a simple observation: in our increasingly 
-                  connected world, many people desire meaningful connections to Chinese culture, 
-                  but finding an authentic Chinese name that truly represents their identity can be challenging.
+                  Matchfix was born out of pure frustration. After sitting through countless brunches listening to friends complain about matches who looked great on paper but were total disasters in real life, we realized something: <strong>people are terrible at reading dating profiles objectively.</strong>
                 </p>
                 <p>
-                  Traditional Chinese naming is a beautiful art form that considers not just the sound 
-                  of a name, but its meaning, cultural significance, and how it reflects the person's 
-                  character and aspirations. Our advanced AI technology combines this ancient wisdom 
-                  with modern personalization to create names that are both culturally authentic and personally meaningful.
+                  When you're looking for love (or just a fun weekend), you tend to wear rose-colored glasses. You ignore the fact that their only personality trait is "liking dogs" or that all 6 photos are group shots where you can't tell who they are.
                 </p>
                 <p>
-                  Whether you're a student preparing for study in China, a professional working with 
-                  Chinese colleagues, or simply someone fascinated by Chinese culture, we're here to 
-                  help you discover a name that truly represents who you are while honoring the rich 
-                  traditions of Chinese naming conventions.
+                  We decided to train an AI to be the ultimate wingman—the kind that slaps the phone out of your hand when you're about to make a bad decision. By combining image recognition with natural language processing, Matchfix rips apart the carefully curated facade of dating profiles to give you the harsh truth, wrapped in a healthy layer of comedy.
                 </p>
               </div>
             </div>
@@ -149,9 +138,9 @@ export default function AboutPage() {
             className="space-y-8"
           >
             <div className="text-center">
-              <h3 className="text-3xl font-bold mb-4">Our Values</h3>
+              <h3 className="text-3xl font-bold mb-4">Our Core Tenets</h3>
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                These principles guide everything we do
+                What drives our merciless AI engine
               </p>
             </div>
             
@@ -161,10 +150,9 @@ export default function AboutPage() {
                   <span className="text-primary font-bold">1</span>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">Cultural Authenticity</h4>
+                  <h4 className="font-semibold mb-2">No Sugarcoating</h4>
                   <p className="text-muted-foreground">
-                    Every name we generate respects traditional Chinese naming conventions 
-                    and cultural significance, ensuring authenticity and appropriateness.
+                    We deliver the truth straight up. If a profile screams "narcissist with commitment issues," our AI will say exactly that.
                   </p>
                 </div>
               </div>
@@ -174,10 +162,9 @@ export default function AboutPage() {
                   <span className="text-primary font-bold">2</span>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">Personal Meaning</h4>
+                  <h4 className="font-semibold mb-2">Humor is Coping</h4>
                   <p className="text-muted-foreground">
-                    We believe names should reflect who you are. Our AI considers your personality, 
-                    preferences, and individual characteristics to create truly personalized names.
+                    Dating is hard enough. If we're going to point out red flags, we're going to make you laugh while doing it.
                   </p>
                 </div>
               </div>
@@ -187,10 +174,9 @@ export default function AboutPage() {
                   <span className="text-primary font-bold">3</span>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">Educational Value</h4>
+                  <h4 className="font-semibold mb-2">Privacy First</h4>
                   <p className="text-muted-foreground">
-                    Beyond just providing names, we help users understand the meaning, 
-                    pronunciation, and cultural context of their Chinese names.
+                    We process the screenshots to give you the roast, but we don't save or share the identities of your potential matches.
                   </p>
                 </div>
               </div>
@@ -200,10 +186,9 @@ export default function AboutPage() {
                   <span className="text-primary font-bold">4</span>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">Accessibility</h4>
+                  <h4 className="font-semibold mb-2">Save Time & Energy</h4>
                   <p className="text-muted-foreground">
-                    We make Chinese name generation accessible to everyone, regardless of their 
-                    background or familiarity with Chinese culture.
+                    Every minute spent texting a walking red flag is a minute wasted. We help you filter the noise fast.
                   </p>
                 </div>
               </div>
@@ -217,14 +202,14 @@ export default function AboutPage() {
             transition={{ duration: 0.5, delay: 0.8 }}
             className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8 md:p-12"
           >
-            <h3 className="text-2xl font-bold mb-4">Ready to Discover Your Chinese Name?</h3>
+            <HeartCrack className="h-12 w-12 text-primary mx-auto mb-6" />
+            <h3 className="text-2xl font-bold mb-4">Stop Guessing. Start Roasting.</h3>
             <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-              Join thousands of others who have found their perfect Chinese name. 
-              Start your cultural journey today with our AI-powered name generator.
+              Got a screenshot of someone you just matched with? Let our AI tear their profile apart before you commit to that coffee date.
             </p>
             <Button asChild size="lg" className="font-medium">
               <Link href="/">
-                Get Started Now
+                Roast a Profile Now
               </Link>
             </Button>
           </motion.div>
