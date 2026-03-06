@@ -3,8 +3,8 @@ import { ProductTier } from "@/types/subscriptions";
 export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Starter",
-    id: "tier-hobby",
-    productId: "prod_6E43JxQebqP1JmRXdM5OmQ", // $11 monthly subscription
+    id: "灵魂处刑包",
+    productId: "prod_1rNEuSQ2d54QXUlPQ7UW9z", // $11 monthly subscription
     priceMonthly: "$11",
     description: "Perfect for individual developers and small projects.",
     features: [
@@ -21,7 +21,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Business",
     id: "tier-pro",
-    productId: "prod_6E43JxQebqP1JmRXdM5OmQ", // $29 monthly subscription
+    productId: "prod_1rNEuSQ2d54QXUlPQ7UW9z", // $29 monthly subscription
     priceMonthly: "$29",
     description: "Ideal for growing businesses and development teams.",
     features: [
@@ -38,7 +38,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Enterprise",
     id: "tier-enterprise",
-    productId: "prod_6E43JxQebqP1JmRXdM5OmQ", // $99 monthly subscription
+    productId: "prod_1rNEuSQ2d54QXUlPQ7UW9z", // $99 monthly subscription
     priceMonthly: "$99",
     description: "For large organizations with advanced requirements.",
     features: [
