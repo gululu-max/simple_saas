@@ -2,9 +2,8 @@
 
 import React, { useRef, useState } from 'react';
 import { useCompletion } from 'ai/react';
-import { Image as ImageIcon, Sparkles, Upload } from 'lucide-react';
+import { Image as ImageIcon, Wand2, Upload, XCircle } from 'lucide-react'; // 换成了魔法棒和X图标
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -15,7 +14,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 
-// ================= 图片压缩工具 =================
+// ================= 图片压缩工具 (逻辑完全保留) =================
 async function compressImage(
   file: File,
   options?: { maxSize?: number; quality?: number }
@@ -52,7 +51,7 @@ async function compressImage(
   return canvas.toDataURL('image/jpeg', quality);
 }
 
-export default function Home() {
+export default function RoastScanner() {
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +59,7 @@ export default function Home() {
     api: '/api/chat',
   });
 
-  // ================= 选择图片 =================
+  // ================= 选择图片 (逻辑完全保留) =================
   const handleFileSelect = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -85,7 +84,7 @@ export default function Home() {
     setPreview(compressed);
   };
 
-  // ================= 提交 =================
+  // ================= 提交 (逻辑完全保留) =================
   const handleSubmit = async () => {
     if (!preview || isLoading) return;
 
@@ -98,49 +97,40 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-50">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
-        <div className="flex flex-col gap-3">
+    // 去掉了固定黑底，完全融入外部的白底环境
+    <div className="w-full text-foreground">
+      <div className="mx-auto flex w-full flex-col gap-6">
+        
+        {/* 标题区域 */}
+        <div className="flex flex-col gap-3 mb-2">
           <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-xl border border-neutral-800 bg-neutral-900/60">
-              <Sparkles className="size-5 text-rose-400" />
+            <div className="grid size-12 place-items-center rounded-xl bg-primary/10">
+              <Wand2 className="size-6 text-primary" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
+              <h1 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
                 Tinder 毒舌鉴渣师
               </h1>
-              <p className="text-sm text-neutral-400">
-                上传照片 → 走大模型 → 输出一份“专业且刻薄”的分析报告
+              <p className="text-sm text-muted-foreground mt-1">
+                Matchfix 灵魂处刑场
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="secondary"
-              className="border border-neutral-800 bg-neutral-900/60 text-neutral-200"
-            >
-              Deep dark UI
-            </Badge>
-            <Badge
-              variant="secondary"
-              className="border border-neutral-800 bg-neutral-900/60 text-neutral-200"
-            >
-              Image → /api/chat
-            </Badge>
-          </div>
+          {/* 删除了之前的 Badge 程序员标签，界面更清爽 */}
         </div>
 
-        <Card className="border-neutral-800 bg-neutral-950/40">
+        {/* 上传卡片 */}
+        <Card className="border-border bg-card shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ImageIcon className="size-5 text-neutral-300" />
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <ImageIcon className="size-5 text-muted-foreground" />
               照片上传
             </CardTitle>
-            <CardDescription className="text-neutral-400">
+            <CardDescription className="text-muted-foreground">
               支持 JPG/PNG 等常见格式。图片会在浏览器本地压缩后再发送。
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div
               role="button"
               tabIndex={0}
@@ -151,7 +141,7 @@ export default function Home() {
                   fileInputRef.current?.click();
                 }
               }}
-              className="group relative grid min-h-[260px] w-full place-items-center overflow-hidden rounded-xl border border-dashed border-neutral-800 bg-neutral-950/60 outline-none transition hover:border-neutral-700 hover:bg-neutral-900/30 focus-visible:ring-2 focus-visible:ring-rose-400/60"
+              className="group relative grid min-h-[260px] w-full cursor-pointer place-items-center overflow-hidden rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/30 outline-none transition-all hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/60"
             >
               {preview ? (
                 <img
@@ -160,15 +150,15 @@ export default function Home() {
                   className="h-full w-full object-contain p-3"
                 />
               ) : (
-                <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-                  <div className="grid size-12 place-items-center rounded-2xl border border-neutral-800 bg-neutral-900/60">
-                    <Upload className="size-5 text-neutral-300" />
+                <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
+                  <div className="grid size-14 place-items-center rounded-2xl bg-background border border-border shadow-sm">
+                    <Upload className="size-6 text-muted-foreground/70" />
                   </div>
                   <div className="space-y-1">
-                    <div className="text-sm font-medium text-neutral-200">
+                    <div className="text-base font-semibold text-foreground">
                       点击上传你的“照骗” 📸
                     </div>
-                    <div className="text-xs text-neutral-500">
+                    <div className="text-sm text-muted-foreground">
                       或者把文件拖到这里（可选）
                     </div>
                   </div>
@@ -184,49 +174,49 @@ export default function Home() {
               />
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-xs text-neutral-500">
-                {preview ? '已选择图片，准备开始分析。' : '还没有选择图片。'}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-border">
+              <div className="text-sm text-muted-foreground">
+                {preview ? '✅ 已选择图片，准备接受处刑。' : '还没有选择图片。'}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <Button
                   type="button"
-                  variant="secondary"
-                  className="border border-neutral-800 bg-neutral-900/60 text-neutral-100 hover:bg-neutral-900"
+                  variant="outline"
+                  className="flex-1 sm:flex-none h-11 text-muted-foreground gap-2"
                   onClick={() => {
                     setPreview(null);
                     if (fileInputRef.current) fileInputRef.current.value = '';
                   }}
                   disabled={isLoading || !preview}
                 >
-                  重新选择
+                  <XCircle className="w-4 h-4" /> 重新选择
                 </Button>
                 <Button
                   type="button"
                   onClick={handleSubmit}
                   disabled={isLoading || !preview}
-                  className="bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-60"
+                  className="flex-1 sm:flex-none h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-8"
                 >
                   {isLoading ? '正在酝酿毒液...' : '开始喷我 🔥'}
                 </Button>
               </div>
             </div>
           </CardContent>
-          <CardFooter className="text-xs text-neutral-500">
+          <CardFooter className="text-xs text-muted-foreground/60 bg-muted/20 py-4 rounded-b-xl">
             备注：仅用于演示/娱乐用途，请勿用于真实人身攻击。
           </CardFooter>
         </Card>
 
+        {/* 结果展示卡片 */}
         {(completion || isLoading) && (
-          <Card className="border-neutral-800 bg-neutral-950/40">
-            <CardHeader>
-              <CardTitle className="text-rose-400">☠️ 毒舌诊断报告：</CardTitle>
-              <CardDescription className="text-neutral-400">
-                输出为纯文本，保留换行格式。
-              </CardDescription>
+          <Card className="border-border bg-card shadow-sm overflow-hidden">
+            <CardHeader className="bg-primary/5 border-b border-border">
+              <CardTitle className="text-primary flex items-center gap-2">
+                ☠️ 毒舌诊断报告：
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="whitespace-pre-wrap rounded-xl border border-neutral-800 bg-neutral-950/60 p-4 text-sm leading-relaxed text-neutral-100">
+            <CardContent className="pt-6">
+              <div className="whitespace-pre-wrap rounded-xl border border-border bg-muted/30 p-5 text-sm md:text-base leading-relaxed text-foreground">
                 {completion}
               </div>
             </CardContent>
