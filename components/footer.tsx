@@ -34,8 +34,7 @@ export function Footer() {
           <div className="col-span-full lg:col-span-2">
             <Logo />
             <p className="mt-4 text-sm text-muted-foreground">
-              Starter kit for your next project. Built with Next.js and
-              Creem.io.
+            Stop guessing. Start roasting.
             </p>
           </div>
           <div className="col-span-2 grid grid-cols-2 gap-8 sm:grid-cols-3 lg:col-span-4">
