@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     // Create a local Google AI instance to avoid polluting global fetch
     const googleCustom = createGoogleGenerativeAI({
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      fetch: (url: string, options: any) => fetch(url, { ...options, ...fetchOptions }),
+      fetch: (url: any, options: any) => fetch(url, { ...options, ...fetchOptions }),
     });
 
     const mimeType = receivedMimeType || 'image/jpeg';
