@@ -13,7 +13,8 @@ export function CreditsBalanceCard({
   recentHistory,
 }: CreditsBalanceCardProps) {
   return (
-    <div className="rounded-xl border bg-card p-6">
+    // 在这里去掉了 border 类，现在它只保留了圆角和背景色
+    <div className="rounded-xl bg-card p-6">
       <div className="flex items-center gap-4">
         <div className="p-2 bg-primary/10 rounded-lg">
           <Coins className="h-6 w-6 text-primary" />

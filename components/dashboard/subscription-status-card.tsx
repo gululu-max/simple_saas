@@ -111,7 +111,8 @@ export function SubscriptionStatusCard({
   subscription,
 }: SubscriptionStatusCardProps) {
   return (
-    <div className="rounded-xl border bg-card p-6">
+    // 注意这里：去掉了 border 类，现在它和左边的卡片一样干干净净了
+    <div className="rounded-xl bg-card p-6">
       <div className="flex items-center gap-4">
         <div className="p-2 bg-primary/10 rounded-lg">
           <CreditCard className="h-6 w-6 text-primary" />

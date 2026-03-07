@@ -42,9 +42,9 @@ export default async function DashboardPage() {
   const recentCreditsHistory = customerData?.credits_history?.slice(0, 2) || [];
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-6 sm:gap-8 px-4 sm:px-8 container">
+    <div className="flex-1 w-full flex flex-col gap-6 sm:gap-8 px-4 sm:px-8 container pb-10">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border rounded-lg p-6 sm:p-8 mt-6 sm:mt-8">
+      <div className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-lg p-6 sm:p-8 mt-6 sm:mt-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">
           Welcome back, {customerData?.name || user.email?.split("@")[0]}
         </h1>
@@ -60,12 +60,6 @@ export default async function DashboardPage() {
         
         {/* Subscription Status */}
         <SubscriptionStatusCard subscription={subscription} />
-
-      </div>
-
-      {/* Placeholder for New Business Logic */}
-      <div className="border border-dashed rounded-lg p-10 flex flex-col items-center justify-center text-center text-muted-foreground bg-muted/20">
-
       </div>
     </div>
   );
