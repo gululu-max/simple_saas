@@ -11,7 +11,7 @@ export default function ScannerPage() {
             <Flame className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-            Matchfix 灵魂处刑场
+          Upload Photo → AI Deep Scan → Brutally Honest Roast
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             别害怕。上传你的 Tinder / Hinge 截图或对镜自拍，让 AI 用最恶毒（但真实）的眼光，帮你扫清那些让你匹配率暴跌的致命雷区。

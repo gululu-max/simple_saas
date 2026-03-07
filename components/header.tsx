@@ -43,7 +43,7 @@ export default function Header({ user }: HeaderProps) {
   const navItems = isDashboard ? dashboardItems : mainNavItems;
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-slate-950/80 backdrop-blur supports-[backdrop-filter]:bg-slate-950/60 text-slate-50">
       <div className="container flex h-16 items-center justify-between px-4">
         <div className="flex items-center">
           <Logo />
@@ -55,7 +55,7 @@ export default function Header({ user }: HeaderProps) {
             <Link
               key={item.href}
               href={item.href}
-              className="text-lg font-semibold text-muted-foreground transition-colors hover:text-primary"
+              className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100"
             >
               <span className="inline-flex items-center gap-2">
                 {item.icon && <item.icon className="h-4 w-4" />}
@@ -70,27 +70,27 @@ export default function Header({ user }: HeaderProps) {
           {user ? (
             <div className="hidden md:flex items-center gap-2">
               {isDashboard && (
-                <span className="hidden sm:inline text-sm text-muted-foreground">
+                <span className="hidden sm:inline text-sm text-slate-500">
                   {user.email}
                 </span>
               )}
               {!isDashboard && (
-                <Button asChild size="sm" variant="outline">
+                <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                   <Link href="/dashboard">Dashboard</Link>
                 </Button>
               )}
               <form action={signOutAction}>
-                <Button type="submit" variant="outline" size="sm">
+                <Button type="submit" variant="outline" size="sm" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                   Sign out
                 </Button>
               </form>
             </div>
           ) : (
             <div className="hidden md:flex gap-2">
-              <Button asChild size="sm" variant="outline">
+              <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                 <Link href="/sign-in">Sign in</Link>
               </Button>
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="bg-red-600 text-white hover:bg-red-700 border-0">
                 <Link href="/sign-up">Sign up</Link>
               </Button>
             </div>

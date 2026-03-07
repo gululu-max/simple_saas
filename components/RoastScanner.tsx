@@ -112,7 +112,7 @@ export default function RoastScanner() {
                 Tinder 毒舌鉴渣师
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Matchfix 灵魂处刑场
+              Upload Photo → AI Deep Scan → Brutally Honest Roast
               </p>
             </div>
           </div>

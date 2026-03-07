@@ -11,19 +11,19 @@ const baseUrl = process.env.BASE_URL
 
 export const metadata = {
   metadataBase: new URL(baseUrl),
-  title: "Simple Saas Starter Kit",
-  description: "The ultimate Next.js starter kit with Supabase Auth, Creem Payments, and a production-ready dashboard.",
-  keywords: "Next.js starter kit, SaaS boilerplate, Supabase, Creem payments, TypeScript",
+  title: "Matchfix | The Ultimate AI Profile Roaster", // 帮你顺手把标题改成了你的产品名
+  description: "Stop blaming the algorithm. Let AI destroy your dating delusions.", // 描述也换成了你的文案
+  keywords: "Matchfix, AI profile review, dating app tips, Tinder roast",
   openGraph: {
-    title: "Simple Saas Starter Kit",
-    description: "The ultimate Next.js starter kit with Supabase Auth, Creem Payments, and a production-ready dashboard.",
+    title: "Matchfix | The Ultimate AI Profile Roaster",
+    description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
     type: "website",
     url: baseUrl,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Simple Saas Starter Kit",
-    description: "The ultimate Next.js starter kit with Supabase Auth, Creem Payments, and a production-ready dashboard.",
+    title: "Matchfix | The Ultimate AI Profile Roaster",
+    description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
   },
 };
 
@@ -39,11 +39,12 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-background text-foreground" suppressHydrationWarning>
+      <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark" // 1. 默认改为深色
+          forcedTheme="dark"  // 2. 强制锁定深色模式，彻底消灭白条隐患
+          enableSystem={false} // 3. 关闭跟随系统设定
           disableTransitionOnChange
         >
           <div className="relative min-h-screen">
