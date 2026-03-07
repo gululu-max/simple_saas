@@ -7,7 +7,7 @@ import { Button } from "./ui/button";
 import { Logo } from "./logo";
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
-import { Flame } from "lucide-react";
+// 已移除无用的 Flame 图标引入
 
 interface HeaderProps {
   user: any;
@@ -16,7 +16,7 @@ interface HeaderProps {
 interface NavItem {
   label: string;
   href: string;
-  icon?: typeof Flame;
+  icon?: any; // 将原来的 typeof Flame 改为了更通用的类型，方便以后加其他图标
 }
 
 export default function Header({ user }: HeaderProps) {
@@ -30,14 +30,8 @@ export default function Header({ user }: HeaderProps) {
     { label: "Pricing", href: "/#pricing" },
   ];
 
-  // Dashboard items - navigation entries shown inside the dashboard area
-  const dashboardItems: NavItem[] = [
-    {
-      label: "毒舌扫雷",
-      href: "/dashboard/scanner",
-      icon: Flame,
-    },
-  ];
+  // Dashboard items - 导航条目已清空，移除了“毒舌扫雷”
+  const dashboardItems: NavItem[] = [];
 
   // Choose which navigation items to show
   const navItems = isDashboard ? dashboardItems : mainNavItems;
