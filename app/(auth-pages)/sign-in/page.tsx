@@ -40,15 +40,15 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
   return (
     <>
       <div className="flex flex-col space-y-2 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Welcome back</h1>
+        <p className="text-sm text-slate-400">
           Enter your email to sign in to your account
         </p>
       </div>
       <div className="grid gap-6">
         <form className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input
               id="email"
               name="email"
@@ -62,10 +62,10 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
           </div>
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-slate-300">Password</Label>
               <Link
                 href="/forgot-password"
-                className="text-sm font-medium text-primary hover:underline"
+                className="text-sm font-medium text-slate-400 hover:text-slate-100 transition-colors"
               >
                 Forgot password?
               </Link>
@@ -80,7 +80,7 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
             />
           </div>
           <SubmitButton
-            className="w-full"
+            className="w-full bg-red-600 hover:bg-red-700 text-white border-0"
             pendingText="Signing in..."
             formAction={signInAction}
           >
@@ -88,21 +88,24 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
           </SubmitButton>
           <FormMessage message={searchParams} />
         </form>
+
+        {/* 分割线部分：改 border 为 border-slate-800 */}
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+            <span className="w-full border-t border-slate-800" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
+            <span className="bg-slate-950 px-2 text-slate-500">
               Or continue with
             </span>
           </div>
         </div>
+
         <form action={signInWithGoogle}>
           <Button
             type="submit"
             variant="outline"
-            className="w-full flex items-center justify-center gap-2"
+            className="w-full flex items-center justify-center gap-2 border-slate-800 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition-all"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5">
               <path
@@ -125,11 +128,12 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
             Sign in with Google
           </Button>
         </form>
-        <div className="text-sm text-muted-foreground text-center">
+
+        <div className="text-sm text-slate-500 text-center">
           Don't have an account?{" "}
           <Link
             href="/sign-up"
-            className="text-primary underline underline-offset-4 hover:text-primary/90"
+            className="text-slate-400 underline underline-offset-4 hover:text-slate-100"
           >
             Sign up
           </Link>

@@ -42,15 +42,15 @@ export default async function SignUp(props: {
   return (
     <>
       <div className="flex flex-col space-y-2 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
-        <p className="text-sm text-muted-foreground">
-          Sign up to access global authentication and payment solutions
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Create your account</h1>
+        <p className="text-sm text-slate-400">
+        Stop guessing. Start roasting. Spot the flaws others overlook.
         </p>
       </div>
       <div className="grid gap-6">
         <form className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input
               id="email"
               name="email"
@@ -63,7 +63,7 @@ export default async function SignUp(props: {
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-slate-300">Password</Label>
             <Input
               id="password"
               name="password"
@@ -74,7 +74,7 @@ export default async function SignUp(props: {
             />
           </div>
           <SubmitButton
-            className="w-full"
+            className="w-full bg-red-600 hover:bg-red-700 text-white border-0 transition-colors"
             pendingText="Creating account..."
             formAction={signUpAction}
           >
@@ -82,21 +82,24 @@ export default async function SignUp(props: {
           </SubmitButton>
           <FormMessage message={searchParams} />
         </form>
+
+        {/* 分割线：改为 Slate-800 边框 */}
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+            <span className="w-full border-t border-slate-800" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
+            <span className="bg-slate-950 px-2 text-slate-500">
               Or continue with
             </span>
           </div>
         </div>
+
         <form action={signUpWithGoogle}>
           <Button
             type="submit"
             variant="outline"
-            className="w-full flex items-center justify-center gap-2"
+            className="w-full flex items-center justify-center gap-2 border-slate-800 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition-all"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5">
               <path
@@ -119,11 +122,12 @@ export default async function SignUp(props: {
             Sign up with Google
           </Button>
         </form>
-        <div className="text-sm text-muted-foreground text-center">
+
+        <div className="text-sm text-slate-500 text-center">
           Already have an account?{" "}
           <Link
             href="/sign-in"
-            className="text-primary underline underline-offset-4 hover:text-primary/90"
+            className="text-slate-400 underline underline-offset-4 hover:text-slate-100"
           >
             Sign in
           </Link>
