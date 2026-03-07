@@ -5,6 +5,9 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+/**
+ * 注册逻辑
+ */
 export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const password = formData.get("password")?.toString();
@@ -31,10 +34,18 @@ export const signUpAction = async (formData: FormData) => {
     console.error(error.code + " " + error.message);
     return encodedRedirect("error", "/sign-up", error.message);
   } else {
-    return encodedRedirect("success", "/dashboard", "Thanks for signing up!");
+    // 成功后跳转带上 success=true，触发前端的绿色成功卡片
+    return encodedRedirect(
+      "success",
+      "/sign-up",
+      "Account created! Please check your email to verify your account."
+    );
   }
 };
 
+/**
+ * 登录逻辑
+ */
 export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -52,6 +63,9 @@ export const signInAction = async (formData: FormData) => {
   return redirect("/dashboard");
 };
 
+/**
+ * 忘记密码（发送重置邮件）
+ */
 export const forgotPasswordAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const supabase = await createClient();
@@ -86,6 +100,10 @@ export const forgotPasswordAction = async (formData: FormData) => {
   );
 };
 
+/**
+ * 重置密码（更新新密码）
+ * 修复了之前缺失 return 的 Bug
+ */
 export const resetPasswordAction = async (formData: FormData) => {
   const supabase = await createClient();
 
@@ -93,7 +111,7 @@ export const resetPasswordAction = async (formData: FormData) => {
   const confirmPassword = formData.get("confirmPassword") as string;
 
   if (!password || !confirmPassword) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
       "/dashboard/reset-password",
       "Password and confirm password are required"
@@ -101,7 +119,7 @@ export const resetPasswordAction = async (formData: FormData) => {
   }
 
   if (password !== confirmPassword) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
       "/dashboard/reset-password",
       "Passwords do not match"
@@ -113,19 +131,21 @@ export const resetPasswordAction = async (formData: FormData) => {
   });
 
   if (error) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
       "/dashboard/reset-password",
       "Password update failed"
     );
   }
 
-  encodedRedirect("success", "/dashboard/reset-password", "Password updated");
+  return encodedRedirect("success", "/dashboard/reset-password", "Password updated");
 };
 
+/**
+ * 退出登录
+ */
 export const signOutAction = async () => {
   const supabase = await createClient();
   await supabase.auth.signOut();
   return redirect("/sign-in");
 };
-
