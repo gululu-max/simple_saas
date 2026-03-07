@@ -379,17 +379,26 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 6. CTA Section */}
-      <section className="py-24 bg-red-600 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
+      {/* 6. CTA Section (荷尔蒙暧昧粉红版) */}
+      <section className="py-20 bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700 text-white relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.2)]">
+        
+        {/* 保留了纹理层，但改了混合模式，让背景更有肉感 */}
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 mix-blend-overlay" />
+        
         <div className="container px-4 md:px-6 text-center relative z-10">
-            <h2 className="text-3xl md:text-5xl font-extrabold mb-6">Ready to face reality?</h2>
-            <p className="text-red-100 mb-10 max-w-2xl mx-auto text-lg">
+            {/* 之前深色渐变的字在粉色背景下会看不清，这里给你改成了带阴影的纯白，视觉冲击力极强 */}
+            <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white drop-shadow-lg tracking-tight">
+              Ready to face reality?
+            </h2>
+            
+            <p className="text-pink-50 mb-10 max-w-2xl mx-auto text-lg drop-shadow-md">
                 Don't let terrible photos ruin your dating life. Upload a screenshot and let our AI give you the reality check you desperately need.
             </p>
+            
             <Link href="/dashboard/scanner">
-                <Button size="lg" className="h-14 px-10 text-lg gap-2 bg-slate-950 text-white hover:bg-slate-900 border border-slate-800">
-                  Upload Profile <ArrowRight className="w-4 h-4" />
+                {/* 按钮用深渊黑 (slate-950) 压住阵脚，在亮粉色背景中形成极其强烈的反差，拉满点击欲 */}
+                <Button size="lg" className="h-14 px-10 text-lg gap-2 bg-slate-950 text-white hover:bg-slate-900 shadow-2xl border border-pink-400/50 transition-transform hover:scale-105">
+                  Upload Profile <ArrowRight className="w-5 h-5" />
                 </Button>
             </Link>
         </div>

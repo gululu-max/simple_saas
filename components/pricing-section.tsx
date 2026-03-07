@@ -75,21 +75,31 @@ export function PricingSection({ className }: PricingSectionProps) {
   };
 
   return (
-    <section id="pricing" className={`w-full py-16 bg-muted/30 ${className}`}>
+    <section id="pricing" className={`w-full py-16 bg-transparent ${className}`}>
       <div className="container px-4 md:px-6">
         <div className="text-center space-y-4 mb-12">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Simple, Transparent Pricing
           </h2>
-          <p className="mx-auto max-w-2xl text-muted-foreground text-lg">
+          <p className="mx-auto max-w-2xl text-slate-400 text-lg">
             Choose the perfect plan for your needs.
           </p>
         </div>
 
         <Tabs defaultValue="subscription" className="w-full flex flex-col items-center">
-          <TabsList className="mb-8">
-            <TabsTrigger value="subscription">Subscriptions</TabsTrigger>
-            <TabsTrigger value="credits">Credit Packs</TabsTrigger>
+          <TabsList className="mb-8 bg-slate-900/80 border border-slate-800 p-1">
+            <TabsTrigger 
+              value="subscription" 
+              className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400"
+            >
+              Subscriptions
+            </TabsTrigger>
+            <TabsTrigger 
+              value="credits" 
+              className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400"
+            >
+              Credit Packs
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="subscription" className="w-full">
@@ -145,25 +155,40 @@ function PricingCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="relative"
+      className="relative h-full pt-4"
     >
-      <Card className={`h-full flex flex-col ${
+      {/* Most Popular 徽章独立在 Card 外层，避免被 overflow-hidden 裁切 */}
+      {tier.featured && (
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20">
+          <Badge className="bg-gradient-to-r from-rose-500 to-pink-600 text-white border-0 px-4 py-1 shadow-[0_0_15px_rgba(225,29,72,0.4)] font-bold tracking-wide">
+            Most Popular
+          </Badge>
+        </div>
+      )}
+
+      <Card className={`h-full flex flex-col relative overflow-hidden transition-all duration-300 ${
         tier.featured 
-          ? 'border-primary shadow-lg scale-105 z-10' 
-          : 'border-border'
+          ? 'bg-slate-900 border-rose-500/50 shadow-[0_0_30px_rgba(225,29,72,0.15)] scale-105 z-10' 
+          : 'bg-slate-900/50 border-slate-800 text-slate-50 hover:border-slate-700'
       }`}>
+        
+        {/* 背景右上角的环境光晕 */}
         {tier.featured && (
-          <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-            <Badge className="bg-primary px-3 py-1">Most Popular</Badge>
-          </div>
+          <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/10 blur-3xl -z-10 pointer-events-none" />
         )}
         
-        <CardHeader>
-          <CardTitle className="text-2xl">{tier.name}</CardTitle>
-          <CardDescription>{tier.description}</CardDescription>
+        <CardHeader className="pt-8">
+          <CardTitle className={`text-2xl ${tier.featured ? 'text-white' : 'text-slate-100'}`}>
+            {tier.name}
+          </CardTitle>
+          <CardDescription className="text-slate-400">
+            {tier.description}
+          </CardDescription>
           <div className="mt-4 flex items-baseline">
-            <span className="text-4xl font-bold">{tier.priceMonthly}</span>
-            <span className="text-muted-foreground ml-1">
+            <span className={`text-4xl font-extrabold ${tier.featured ? 'text-white' : 'text-slate-100'}`}>
+              {tier.priceMonthly}
+            </span>
+            <span className="text-slate-500 ml-1 font-medium">
               {type === 'subscription' ? '/month' : ' one-time'}
             </span>
           </div>
@@ -172,23 +197,32 @@ function PricingCard({
         <CardContent className="flex-1">
           <ul className="space-y-3">
             {tier.features?.map((feature, i) => (
-              <li key={i} className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-primary shrink-0" />
-                <span className="text-sm text-muted-foreground">{feature}</span>
+              <li key={i} className="flex items-center gap-3">
+                <Check className="h-4 w-4 text-emerald-500 shrink-0 font-bold" />
+                <span className="text-sm text-slate-300">{feature}</span>
               </li>
             ))}
           </ul>
         </CardContent>
 
         <CardFooter>
-          <Button 
-            className="w-full" 
-            variant={tier.featured ? "default" : "outline"}
-            onClick={() => onPurchase(tier)}
-            disabled={isProcessing === tier.id}
-          >
-            {isProcessing === tier.id ? "Processing..." : "Get Started"}
-          </Button>
+          {tier.featured ? (
+            <Button 
+              className="w-full h-12 text-md font-bold bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white border-0 shadow-lg transition-transform hover:scale-105"
+              onClick={() => onPurchase(tier)}
+              disabled={isProcessing === tier.id}
+            >
+              {isProcessing === tier.id ? "Processing..." : "Get Started"}
+            </Button>
+          ) : (
+            <Button 
+              className="w-full h-12 text-md font-semibold bg-slate-950 text-slate-300 border border-slate-800 hover:bg-slate-800 hover:text-white transition-all"
+              onClick={() => onPurchase(tier)}
+              disabled={isProcessing === tier.id}
+            >
+              {isProcessing === tier.id ? "Processing..." : "Get Started"}
+            </Button>
+          )}
         </CardFooter>
       </Card>
     </motion.div>

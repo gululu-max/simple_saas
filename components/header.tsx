@@ -3,7 +3,7 @@
 import { signOutAction } from "@/app/actions";
 import Link from "next/link";
 import { Button } from "./ui/button";
-import { ThemeSwitcher } from "./theme-switcher";
+// 已移除 ThemeSwitcher 引用
 import { Logo } from "./logo";
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
@@ -66,7 +66,7 @@ export default function Header({ user }: HeaderProps) {
         </nav>
 
         <div className="flex items-center gap-2">
-          <ThemeSwitcher />
+          {/* ThemeSwitcher 已从此处移除 */}
           {user ? (
             <div className="hidden md:flex items-center gap-2">
               {isDashboard && (
