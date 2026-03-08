@@ -2,7 +2,8 @@
 
 import React, { useRef, useState } from 'react';
 import { useCompletion } from 'ai/react';
-import { Image as ImageIcon, Wand2, Upload, XCircle } from 'lucide-react';
+// 新增引入 Copy 和 Check 图标
+import { Image as ImageIcon, Wand2, Upload, XCircle, Copy, Check } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -54,10 +55,21 @@ async function compressImage(
 export default function RoastScanner() {
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 新增：管理复制状态
+  const [isCopied, setIsCopied] = useState(false);
 
   const { complete, completion, isLoading } = useCompletion({
     api: '/api/chat',
   });
+
+  // 新增：处理复制操作
+  const handleCopy = () => {
+    if (!completion) return;
+    navigator.clipboard.writeText(completion);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
 
   // ================= File Selection =================
   const handleFileSelect = async (
@@ -208,14 +220,53 @@ export default function RoastScanner() {
         {/* Result Card */}
         {(completion || isLoading) && (
           <Card className="border-border bg-card shadow-sm overflow-hidden mt-6">
-            <CardHeader className="bg-primary/5 border-b border-border">
-              <CardTitle className="text-primary flex items-center gap-2">
+            <CardHeader className="bg-primary/5 border-b border-border flex flex-row items-center justify-between py-4">
+              <CardTitle className="text-primary flex items-center gap-2 text-lg">
                 ☠️ The Matchfix Verdict:
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="whitespace-pre-wrap rounded-xl border border-border bg-muted/30 p-5 text-sm md:text-base leading-relaxed text-foreground">
-                {completion}
+              {/* 加入 relative 确保复制按钮可以绝对定位，以及 min-h-[120px] 撑起初始高度 */}
+              <div className="relative whitespace-pre-wrap rounded-xl border border-border bg-muted/30 p-5 text-sm md:text-base leading-relaxed text-foreground min-h-[120px]">
+                
+                {/* 复制按钮，只在有结果且不在加载时显示 */}
+                {completion && !isLoading && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    onClick={handleCopy}
+                    title="Copy Roast"
+                  >
+                    {isCopied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+
+                {/* 核心判断：正在加载中，且 AI 还没吐出第一个字的时候 */}
+                {!completion && isLoading ? (
+                  <div className="flex flex-col items-center justify-center h-full py-6 space-y-4">
+                    {/* 跳动的三个点动效 */}
+                    <div className="flex space-x-1.5 items-center">
+                      <div className="w-2.5 h-2.5 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2.5 h-2.5 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2.5 h-2.5 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                    {/* 毒舌文案配合呼吸效果 */}
+                    <p className="text-muted-foreground italic text-sm font-medium animate-pulse text-center">
+                      Scanning for red flags and tragic life choices...
+                    </p>
+                  </div>
+                ) : (
+                  /* AI 开始回复后，正常流式渲染结果，加 pr-8 防止文字被复制按钮遮挡 */
+                  <div className="pr-8">
+                    {completion}
+                  </div>
+                )}
+
               </div>
             </CardContent>
           </Card>
