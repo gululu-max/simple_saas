@@ -49,7 +49,7 @@ export default async function DashboardPage() {
           Welcome back, {customerData?.name || user.email?.split("@")[0]}
         </h1>
         <p className="text-muted-foreground">
-          Manage your subscription, check your credits, and access your dashboard features.
+          Manage your subscription, check your credits.
         </p>
       </div>
 

@@ -11,8 +11,8 @@ const baseUrl = process.env.BASE_URL
 
 export const metadata = {
   metadataBase: new URL(baseUrl),
-  title: "Matchfix | The Ultimate AI Profile Roaster", // 帮你顺手把标题改成了你的产品名
-  description: "Stop blaming the algorithm. Let AI destroy your dating delusions.", // 描述也换成了你的文案
+  title: "Matchfix | The Ultimate AI Profile Roaster",
+  description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
   keywords: "Matchfix, AI profile review, dating app tips, Tinder roast",
   openGraph: {
     title: "Matchfix | The Ultimate AI Profile Roaster",
@@ -33,22 +33,40 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const supabase = await createClient();
+  
+  // 1. 获取当前登录用户
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // 2. 查询用户的 credits 余额
+  let credits = 0;
+  if (user) {
+    // 根据 dashboard 的逻辑，正确查询 customers 表
+    const { data } = await supabase
+      .from("customers") 
+      .select("credits") // 因为 Header 只需要额度，所以只 select credits 即可，不用像 dashboard 查那么多
+      .eq("user_id", user.id) // 注意：这里是 user_id
+      .single();
+      
+    if (data?.credits) {
+      credits = data.credits;
+    }
+  }
 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark" // 1. 默认改为深色
-          forcedTheme="dark"  // 2. 强制锁定深色模式，彻底消灭白条隐患
-          enableSystem={false} // 3. 关闭跟随系统设定
+          defaultTheme="dark"
+          forcedTheme="dark"
+          enableSystem={false}
           disableTransitionOnChange
         >
           <div className="relative min-h-screen">
-            <Header user={user} />
+            {/* 3. 修改：将查询到的 credits 传给 Header 组件 */}
+            <Header user={user} credits={credits} />
             <main className="flex-1">{children}</main>
             <Footer />
           </div>
