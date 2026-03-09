@@ -12,10 +12,10 @@ import {
   AlertTriangle,
   Zap,
   Loader2,
-  FileImage, // 🔴 新引入：文件图片图标
-  Download   // 🔴 新引入：下载图标
+  FileImage, // 🔴 New import: File image icon
+  Download   // 🔴 New import: Download icon
 } from 'lucide-react';
-import { toPng } from 'html-to-image'; // 🔴 新引入：html-to-image 核心函数
+import { toPng } from 'html-to-image'; // 🔴 New import: html-to-image core function
 
 import { Button } from '@/components/ui/button';
 import {
@@ -76,11 +76,11 @@ export default function PhotoScorer() {
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   
-  // 🔴 救命修复 1：添加导出时的 loading 状态
+  // 🔴 Lifesaving fix 1: Add loading state during export
   const [isExporting, setIsExporting] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // 🔴 救命修复 2：创建一个 ref 绑定到你想截图的容器上
+  // 🔴 Lifesaving fix 2: Create a ref bound to the container you want to screenshot
   const reportRef = useRef<HTMLDivElement>(null);
 
   // ================= File Selection =================
@@ -90,20 +90,20 @@ export default function PhotoScorer() {
 
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     if (imageFiles.length !== files.length) {
-      alert('只能上传图片文件');
+      alert('Only image files can be uploaded');
       return;
     }
 
     const oversizedFiles = imageFiles.filter(file => file.size > 10 * 1024 * 1024);
     if (oversizedFiles.length > 0) {
-      alert('部分文件过大，请压缩后再上传（最大10MB）');
+      alert('Some files are too large, please compress before uploading (Max 10MB)');
       return;
     }
 
     const newPhotos: PhotoPreview[] = [];
     for (const file of imageFiles) {
       const compressed = await compressImage(file, {
-        maxSize: 1024, // 保证发给后端的图片不会太大
+        maxSize: 1024, // Ensure the image sent to the backend is not too large
         quality: 0.75,
       });
       newPhotos.push({
@@ -115,7 +115,7 @@ export default function PhotoScorer() {
 
     const totalPhotos = photos.length + newPhotos.length;
     if (totalPhotos > 9) {
-      alert('最多只能上传9张照片');
+      alert('You can only upload up to 9 photos');
       const remaining = 9 - photos.length;
       setPhotos([...photos, ...newPhotos.slice(0, remaining)]);
     } else {
@@ -135,7 +135,7 @@ export default function PhotoScorer() {
   const handleSubmit = async () => {
     if (photos.length < 3 || isLoading) return;
     setIsLoading(true);
-    setAnalysisResult(null); // 清空上次结果
+    setAnalysisResult(null); // Clear previous results
 
     try {
       const images = photos.map(p => ({
@@ -149,29 +149,29 @@ export default function PhotoScorer() {
         body: JSON.stringify({ images }),
       });
 
-      if (!response.ok) throw new Error('AI 解析失败');
+      if (!response.ok) throw new Error('AI parsing failed');
       
       const data = await response.json();
       setAnalysisResult(data);
 
     } catch (error) {
       console.error(error);
-      alert('服务器开小差了，请重试！');
+      alert('The server wandered off, please try again!');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 🔴 新功能：导出图片逻辑
+  // 🔴 New feature: Export image logic
   const handleExportImage = async () => {
     if (reportRef.current === null) return;
     setIsExporting(true);
 
     try {
-      // 解决高DPI屏幕导出模糊的问题，设置 pixelRatio 为 2
+      // Fix blurry export on high DPI screens, set pixelRatio to 2
       const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 2 });
       
-      // 创建一个临时的 <a> 标签来触发下载
+      // Create a temporary <a> tag to trigger download
       const link = document.createElement('a');
       link.download = `Matchfix-Dating-Analysis-${Date.now()}.png`;
       link.href = dataUrl;
@@ -179,7 +179,7 @@ export default function PhotoScorer() {
 
     } catch (err) {
       console.error('oops, something went wrong!', err);
-      alert('图片生成失败，请稍后重试！');
+      alert('Image generation failed, please try again later!');
     } finally {
       setIsExporting(false);
     }
@@ -200,7 +200,7 @@ export default function PhotoScorer() {
                 AI Photo Scorer
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                上传3-9张照片 → AI评分排名 → 设计Profile顺序
+                Upload 3-9 photos → AI scoring & ranking → Design Profile order
               </p>
             </div>
           </div>
@@ -211,10 +211,10 @@ export default function PhotoScorer() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
               <ImageIcon className="size-5 text-muted-foreground" />
-              上传你的照片（3-9张）
+              Upload your photos (3-9 photos)
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              支持JPG/PNG。AI将为每张照片评分、排名，并设计最佳的Profile展示顺序。
+              Supports JPG/PNG. AI will score and rank each photo, and design the best Profile display order.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -241,7 +241,7 @@ export default function PhotoScorer() {
                     </button>
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
                       <div className="text-xs text-white font-medium">
-                        照片 {index + 1}
+                        Photo {index + 1}
                       </div>
                     </div>
                   </div>
@@ -264,11 +264,11 @@ export default function PhotoScorer() {
                   <div className="space-y-1">
                     <div className="text-base font-semibold text-foreground">
                       {photos.length === 0 
-                        ? '点击上传照片（至少3张，最多9张）📸'
-                        : `已上传 ${photos.length}/9 张，继续添加...`}
+                        ? 'Click to upload photos (at least 3, up to 9) 📸'
+                        : `Uploaded ${photos.length}/9 photos, continue adding...`}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      支持多选，或拖拽文件到这里
+                      Supports multiple selection, or drag and drop files here
                     </div>
                   </div>
                 </div>
@@ -287,10 +287,10 @@ export default function PhotoScorer() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-border">
               <div className="text-sm text-muted-foreground">
                 {photos.length >= 3 
-                  ? `✅ 已上传 ${photos.length} 张照片，可以开始评分了` 
+                  ? `✅ Uploaded ${photos.length} photos, ready to score` 
                   : photos.length > 0
-                  ? `⚠️ 还需要上传 ${3 - photos.length} 张照片（至少3张）`
-                  : '还没有上传照片'}
+                  ? `⚠️ Need to upload ${3 - photos.length} more photos (at least 3)`
+                  : 'No photos uploaded yet'}
               </div>
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <Button
@@ -304,7 +304,7 @@ export default function PhotoScorer() {
                   }}
                   disabled={isLoading}
                 >
-                  <XCircle className="w-4 h-4" /> 清空所有
+                  <XCircle className="w-4 h-4" /> Clear all
                 </Button>
                 
                 <Button
@@ -314,11 +314,11 @@ export default function PhotoScorer() {
                   className="flex-1 sm:flex-none h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-6"
                 >
                   {isLoading ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 分析中...</>
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
                   ) : (
                     <span className="flex items-center gap-2">
                       <BarChart3 className="w-4 h-4" />
-                      开始评分排名
+                      Start Scoring & Ranking
                       <span className="inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
                         🪙 1 Credit
                       </span>
@@ -329,7 +329,7 @@ export default function PhotoScorer() {
             </div>
           </CardContent>
           <CardFooter className="text-xs text-muted-foreground/60 bg-muted/20 py-4 rounded-b-xl">
-            AI将为你完成：1️⃣ 每张照片评分 2️⃣ 排名 3️⃣ 详细解释 4️⃣ 设计Profile顺序
+            AI will do for you: 1️⃣ Score each photo 2️⃣ Rank 3️⃣ Detailed explanation 4️⃣ Design Profile order
           </CardFooter>
         </Card>
 
@@ -341,12 +341,12 @@ export default function PhotoScorer() {
             <CardHeader className="bg-primary/5 border-b border-border flex flex-row items-center justify-between py-4">
               <CardTitle className="text-primary flex items-center gap-2 text-lg">
                 <Trophy className="size-5 text-amber-500" />
-                AI评分与策略报告
+                AI Scoring & Strategy Report
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               
-              {/* 加载状态 */}
+              {/* Loading state */}
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
                   <div className="flex space-x-1.5 items-center">
@@ -355,27 +355,27 @@ export default function PhotoScorer() {
                     <div className="w-2.5 h-2.5 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
                   <p className="text-muted-foreground italic text-sm font-medium animate-pulse text-center">
-                    AI正在化身顶级约会教练，分析你的展示面...
+                    AI is transforming into a top dating coach, analyzing your profile...
                   </p>
                 </div>
               ) : (
                 
-                /* 分析结果展示 */
+                /* Analysis results display */
                 <div className="flex flex-col gap-10">
                   
-                  {/* 🔴 救命修复 3：创建一个容器包裹你想截图的所有内容，并在这个 div 上绑定 reportRef */}
-                  {/* 我们在这个 div 上加上 bg-card，保证生成的图片背景也是暗色，不裂开 */}
+                  {/* 🔴 Lifesaving fix 3: Create a container wrapping everything you want to screenshot, and bind reportRef to this div */}
+                  {/* We add bg-card to this div to ensure the generated image background is also dark, preventing glitches */}
                   <div ref={reportRef} className="bg-card flex flex-col gap-10 p-2 rounded-xl">
-                    {/* 🏆 模块 A：最佳出场顺序 */}
+                    {/* 🏆 Module A: Best appearance order */}
                     <div>
                       <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
                         <Zap className="w-5 h-5 text-amber-500" />
-                        最佳出场顺序 (The Perfect Lineup)
+                        Best Profile Order (The Perfect Lineup)
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {analysisResult.profileSequence?.map((item: any, index: number) => {
                           const photoData = photos[item.imageIndex];
-                          if (!photoData) return null; // 防止越界
+                          if (!photoData) return null; // Prevent out of bounds
                           return (
                             <div key={index} className="flex flex-col bg-muted/30 rounded-xl border border-border overflow-hidden">
                               <div className="relative aspect-square">
@@ -394,11 +394,11 @@ export default function PhotoScorer() {
                       </div>
                     </div>
 
-                    {/* 🔍 模块 B：单图深度剖析 */}
+                    {/* 🔍 Module B: Single photo in-depth analysis */}
                     <div>
                       <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
                         <Target className="w-5 h-5 text-primary" /> 
-                        每张照片的毒舌剖析
+                        Brutally Honest Analysis of Each Photo
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {analysisResult.photoDetails?.map((detail: any, index: number) => {
@@ -415,7 +415,7 @@ export default function PhotoScorer() {
                                     <div className="flex justify-between items-center mb-3">
                                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Photo {detail.imageIndex + 1}</span>
                                       <Badge variant={detail.score >= 70 ? "default" : "destructive"}>
-                                        得分: {detail.score}
+                                        Score: {detail.score}
                                       </Badge>
                                     </div>
                                     <ul className="space-y-2 text-sm">
@@ -430,7 +430,7 @@ export default function PhotoScorer() {
                                     </ul>
                                   </div>
                                   <div className="mt-4 pt-3 border-t border-border/50 text-sm">
-                                    <span className="font-semibold text-primary">🔨 抢救方案：</span> 
+                                    <span className="font-semibold text-primary">🔨 Rescue Plan:</span> 
                                     <span className="text-muted-foreground ml-1">{detail.action}</span>
                                   </div>
                                 </div>
@@ -441,29 +441,29 @@ export default function PhotoScorer() {
                       </div>
                     </div>
                     
-                    {/* 🔴 模块 C：添加一个带品牌标识的页脚，让生成的图片看起来更专业 */}
+                    {/* 🔴 Module C: Add a footer with brand logo to make the generated image look more professional */}
                     <div className="flex justify-between items-center pt-6 mt-6 border-t border-border text-xs text-muted-foreground/60">
                         <span>Generated by Matchfix - Your Brutally Honest Dating Profile Coach</span>
                         <span>matchfix.site</span>
                     </div>
                   </div>
 
-                  {/* 🔴 在底部添加按钮操作区 */}
+                  {/* 🔴 Add a button operation area at the bottom */}
                   <div className="flex items-center gap-3 pt-6 border-t border-border">
                     <Button variant="outline" onClick={() => setAnalysisResult(null)} className="h-12 flex-none px-6 text-muted-foreground">
-                      重新测试
+                      Retest
                     </Button>
                     
-                    {/* 👉 这里是核心：一键导出为图片按钮 */}
+                    {/* 👉 Here is the core: One-click export to image button */}
                     <Button 
                       onClick={handleExportImage} 
                       disabled={isExporting}
                       className="flex-1 h-12 bg-primary text-primary-foreground font-bold text-base gap-2"
                     >
                       {isExporting ? (
-                        <><Loader2 className="w-5 h-5 animate-spin" /> 图片生成中...</>
+                        <><Loader2 className="w-5 h-5 animate-spin" /> Generating image...</>
                       ) : (
-                        <><FileImage className="w-5 h-5" /> 导出分析报告图片</>
+                        <><FileImage className="w-5 h-5" /> Export Analysis Report Image</>
                       )}
                     </Button>
                   </div>

@@ -13,7 +13,7 @@ export default function PhotoScorerPage() {
             AI Photo Scorer
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            上传3-9张你的约会照片，AI将为你完成：每张照片评分、排名、详细解释，并设计最佳的Profile展示顺序。让AI帮你找到最吸引人的照片组合。
+            Upload 3-9 of your dating photos, AI will do for you: score each photo, rank, detailed explanation, and design the best Profile display order. Let AI help you find the most attractive photo combination.
           </p>
         </div>
         
