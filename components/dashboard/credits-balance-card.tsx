@@ -40,7 +40,8 @@ export function CreditsBalanceCard({
                 {history.type === "add" ? "+" : "-"}
                 {history.amount}
               </span>
-              <span className="text-muted-foreground">
+              {/* 核心修复：在这里加上 suppressHydrationWarning 属性 */}
+              <span className="text-muted-foreground" suppressHydrationWarning>
                 {new Date(history.created_at).toLocaleDateString()}
               </span>
             </div>

@@ -3,104 +3,109 @@ import { ProductTier } from "@/types/subscriptions";
 export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Starter",
-    id: "灵魂处刑包",
-    productId: "prod_1rNEuSQ2d54QXUlPQ7UW9z", // $11 monthly subscription
-    priceMonthly: "$11",
-    description: "Perfect for individual developers and small projects.",
+    id: "tier-starter",
+    productId: "prod_xxxxxx_starter", // 替换为真实的支付网关 Product ID
+    priceMonthly: "$6.99",
+    description: "Quickly diagnose what’s hurting your dating profile and fix your worst photos.",
     features: [
-      "Global authentication system",
-      "Database integration",
-      "Secure API routes",
-      "Modern UI components",
-      "Dark/Light mode",
-      "Community forum access",
+      "40 Credits per month",
+      "Analyze up to 8 photos with AI",
+      "Rank your best photos for dating apps",
+      "Find red flags hurting your match rate",
+      "Access to Matchfix Scanner",
+      "Access to AI Photo Scorer",
     ],
     featured: false,
-    discountCode: "", // Optional discount code
+    discountCode: "",
   },
   {
-    name: "Business",
+    name: "Pro",
     id: "tier-pro",
-    productId: "prod_1rNEuSQ2d54QXUlPQ7UW9z", // $29 monthly subscription
-    priceMonthly: "$29",
-    description: "Ideal for growing businesses and development teams.",
+    productId: "prod_xxxxxx_pro", // 替换为真实的支付网关 Product ID
+    priceMonthly: "$19.99",
+    description: "Optimize your entire dating profile and dramatically increase your swipe-right rate.",
     features: [
-      "Everything in Starter",
-      "Multi-currency payments",
-      "Priority support",
-      "Advanced analytics",
-      "Custom branding options",
-      "API usage dashboard",
+      "200 Credits per month",
+      "Analyze up to 40 photos with AI",
+      "Find your highest-performing dating photos",
+      "Spot hidden profile red flags instantly",
+      "Perfect for testing multiple photo combinations",
+      "Access to Matchfix Scanner",
+      "Access to AI Photo Scorer",
     ],
     featured: true,
-    discountCode: "", // Optional discount code
+    discountCode: "",
   },
   {
-    name: "Enterprise",
-    id: "tier-enterprise",
-    productId: "prod_1rNEuSQ2d54QXUlPQ7UW9z", // $99 monthly subscription
-    priceMonthly: "$99",
-    description: "For large organizations with advanced requirements.",
+    name: "Ultra",
+    id: "tier-ultra",
+    productId: "prod_xxxxxx_ultra", // 替换为真实的支付网关 Product ID
+    priceMonthly: "$39.99",
+    description: "Built for power users who constantly test and optimize dating profiles.",
     features: [
-      "Everything in Business",
-      "Dedicated account manager",
-      "Custom implementation support",
-      "High-volume transaction processing",
-      "Advanced security features",
-      "Service Level Agreement (SLA)",
+      "500 Credits per month",
+      "Analyze up to 100 photos with AI",
+      "Bulk photo scoring and ranking",
+      "Ideal for A/B testing dating photos",
+      "Perfect for dating coaches and profile reviews",
+      "Access to Matchfix Scanner",
+      "Access to AI Photo Scorer",
     ],
     featured: false,
-    discountCode: "", // Optional discount code
+    discountCode: "",
   },
 ];
 
 export const CREDITS_TIERS: ProductTier[] = [
   {
-    name: "Basic Package",
-    id: "tier-3-credits",
-    productId: "prod_2bymcy0C954NkxwZAoSIFL", // $9 one-time purchase
-    priceMonthly: "$9",
-    description: "3 credits for testing and small-scale projects.",
-    creditAmount: 3,
+    name: "Basic Pack",
+    id: "pack-25-credits",
+    productId: "prod_xxxxxx_basic_pack", // 替换为真实的支付网关 Product ID
+    priceMonthly: "$5", 
+    description: "Quickly test how your dating photos perform.",
+    creditAmount: 25,
     features: [
-      "3 credits for use across all features",
-      "No expiration date",
-      "Access to standard features",
-      "Community support"
+      "25 Credits",
+      "Score up to 5 photos",
+      "Rank your best dating pictures",
+      "Credits never expire",
+      "Full access to Matchfix tools"
     ],
     featured: false,
-    discountCode: "", // Optional discount code
+    discountCode: "",
   },
   {
-    name: "Standard Package",
-    id: "tier-6-credits",
-    productId: "prod_2bymcy0C954NkxwZAoSIFL", // $13 one-time purchase
-    priceMonthly: "$13",
-    description: "6 credits for medium-sized applications.",
-    creditAmount: 6,
+    name: "Value Pack",
+    id: "pack-100-credits",
+    productId: "prod_xxxxxx_value_pack", // 替换为真实的支付网关 Product ID
+    priceMonthly: "$12",
+    description: "The most popular choice for fully optimizing your dating profile.",
+    creditAmount: 100,
     features: [
-      "6 credits for use across all features",
-      "No expiration date",
-      "Priority processing",
-      "Basic email support"
+      "100 Credits",
+      "Score up to 20 photos",
+      "Find your best-performing dating pictures",
+      "Credits never expire",
+      "Full access to Matchfix tools"
     ],
     featured: true,
-    discountCode: "", // Optional discount code
+    discountCode: "",
   },
   {
-    name: "Premium Package",
-    id: "tier-9-credits",
-    productId: "prod_2bymcy0C954NkxwZAoSIFL", // $29 one-time purchase
-    priceMonthly: "$29",
-    description: "9 credits for larger applications and production use.",
-    creditAmount: 9,
+    name: "Pro Pack",
+    id: "pack-300-credits",
+    productId: "prod_xxxxxx_pro_pack", // 替换为真实的支付网关 Product ID
+    priceMonthly: "$25",
+    description: "Best value for continuous profile testing and optimization.",
+    creditAmount: 300,
     features: [
-      "9 credits for use across all features",
-      "No expiration date",
-      "Premium support",
-      "Advanced analytics access"
+      "300 Credits",
+      "Score up to 60 photos",
+      "Perfect for testing multiple photo combinations",
+      "Credits never expire",
+      "Full access to Matchfix tools"
     ],
     featured: false,
-    discountCode: "", // Optional discount code
+    discountCode: "",
   },
 ];

@@ -150,6 +150,9 @@ function PricingCard({
   onPurchase: (tier: ProductTier) => void;
   type: 'subscription' | 'credits';
 }) {
+  // 根据类型动态设置按钮文案
+  const buttonText = type === 'subscription' ? "Subscribe" : "Purchase";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -161,7 +164,7 @@ function PricingCard({
       {tier.featured && (
         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20">
           <Badge className="bg-gradient-to-r from-rose-500 to-pink-600 text-white border-0 px-4 py-1 shadow-[0_0_15px_rgba(225,29,72,0.4)] font-bold tracking-wide">
-            Most Popular
+            {type === 'subscription' ? 'Most Popular' : 'Best Value'}
           </Badge>
         </div>
       )}
@@ -212,7 +215,7 @@ function PricingCard({
               onClick={() => onPurchase(tier)}
               disabled={isProcessing === tier.id}
             >
-              {isProcessing === tier.id ? "Processing..." : "Get Started"}
+              {isProcessing === tier.id ? "Processing..." : buttonText}
             </Button>
           ) : (
             <Button 
@@ -220,7 +223,7 @@ function PricingCard({
               onClick={() => onPurchase(tier)}
               disabled={isProcessing === tier.id}
             >
-              {isProcessing === tier.id ? "Processing..." : "Get Started"}
+              {isProcessing === tier.id ? "Processing..." : buttonText}
             </Button>
           )}
         </CardFooter>
