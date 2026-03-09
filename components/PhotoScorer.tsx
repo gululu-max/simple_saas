@@ -11,8 +11,11 @@ import {
   CheckCircle,
   AlertTriangle,
   Zap,
-  Loader2
+  Loader2,
+  FileImage, // 🔴 新引入：文件图片图标
+  Download   // 🔴 新引入：下载图标
 } from 'lucide-react';
+import { toPng } from 'html-to-image'; // 🔴 新引入：html-to-image 核心函数
 
 import { Button } from '@/components/ui/button';
 import {
@@ -73,7 +76,12 @@ export default function PhotoScorer() {
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   
+  // 🔴 救命修复 1：添加导出时的 loading 状态
+  const [isExporting, setIsExporting] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 🔴 救命修复 2：创建一个 ref 绑定到你想截图的容器上
+  const reportRef = useRef<HTMLDivElement>(null);
 
   // ================= File Selection =================
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,6 +159,29 @@ export default function PhotoScorer() {
       alert('服务器开小差了，请重试！');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 🔴 新功能：导出图片逻辑
+  const handleExportImage = async () => {
+    if (reportRef.current === null) return;
+    setIsExporting(true);
+
+    try {
+      // 解决高DPI屏幕导出模糊的问题，设置 pixelRatio 为 2
+      const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 2 });
+      
+      // 创建一个临时的 <a> 标签来触发下载
+      const link = document.createElement('a');
+      link.download = `Matchfix-Dating-Analysis-${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+
+    } catch (err) {
+      console.error('oops, something went wrong!', err);
+      alert('图片生成失败，请稍后重试！');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -304,7 +335,9 @@ export default function PhotoScorer() {
 
         {/* ================= Result Card ================= */}
         {(analysisResult || isLoading) && (
-          <Card className="border-border bg-card shadow-sm overflow-hidden mt-6 animate-in fade-in slide-in-from-bottom-4">
+          <Card 
+            className="border-border bg-card shadow-sm overflow-hidden mt-6 animate-in fade-in slide-in-from-bottom-4"
+          >
             <CardHeader className="bg-primary/5 border-b border-border flex flex-row items-center justify-between py-4">
               <CardTitle className="text-primary flex items-center gap-2 text-lg">
                 <Trophy className="size-5 text-amber-500" />
@@ -330,79 +363,109 @@ export default function PhotoScorer() {
                 /* 分析结果展示 */
                 <div className="flex flex-col gap-10">
                   
-                  {/* 模块 A：最佳出场顺序 */}
-                  <div>
-                    <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
-                      <Zap className="w-5 h-5 text-amber-500" />
-                      最佳出场顺序 (The Perfect Lineup)
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {analysisResult.profileSequence?.map((item: any, index: number) => {
-                        const photoData = photos[item.imageIndex];
-                        if (!photoData) return null; // 防止越界
-                        return (
-                          <div key={index} className="flex flex-col bg-muted/30 rounded-xl border border-border overflow-hidden">
-                            <div className="relative aspect-square">
-                              <div className="absolute top-2 left-2 bg-primary text-primary-foreground px-2 py-1 rounded-md font-black text-sm z-10 shadow-md">
-                                #{index + 1}
+                  {/* 🔴 救命修复 3：创建一个容器包裹你想截图的所有内容，并在这个 div 上绑定 reportRef */}
+                  {/* 我们在这个 div 上加上 bg-card，保证生成的图片背景也是暗色，不裂开 */}
+                  <div ref={reportRef} className="bg-card flex flex-col gap-10 p-2 rounded-xl">
+                    {/* 🏆 模块 A：最佳出场顺序 */}
+                    <div>
+                      <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
+                        <Zap className="w-5 h-5 text-amber-500" />
+                        最佳出场顺序 (The Perfect Lineup)
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {analysisResult.profileSequence?.map((item: any, index: number) => {
+                          const photoData = photos[item.imageIndex];
+                          if (!photoData) return null; // 防止越界
+                          return (
+                            <div key={index} className="flex flex-col bg-muted/30 rounded-xl border border-border overflow-hidden">
+                              <div className="relative aspect-square">
+                                <div className="absolute top-2 left-2 bg-primary text-primary-foreground px-2 py-1 rounded-md font-black text-sm z-10 shadow-md">
+                                  #{index + 1}
+                                </div>
+                                <img src={photoData.preview} className="w-full h-full object-cover" alt={`Rank ${index + 1}`} />
                               </div>
-                              <img src={photoData.preview} className="w-full h-full object-cover" alt={`Rank ${index + 1}`} />
+                              <div className="p-4 flex flex-col gap-1">
+                                <Badge className="w-fit mb-1" variant="secondary">{item.role}</Badge>
+                                <span className="text-sm text-foreground leading-relaxed">{item.reason}</span>
+                              </div>
                             </div>
-                            <div className="p-4 flex flex-col gap-1">
-                              <Badge className="w-fit mb-1" variant="secondary">{item.role}</Badge>
-                              <span className="text-sm text-foreground leading-relaxed">{item.reason}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 🔍 模块 B：单图深度剖析 */}
+                    <div>
+                      <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
+                        <Target className="w-5 h-5 text-primary" /> 
+                        每张照片的毒舌剖析
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {analysisResult.photoDetails?.map((detail: any, index: number) => {
+                          const photoData = photos[detail.imageIndex];
+                          if (!photoData) return null;
+                          return (
+                            <Card key={index} className="overflow-hidden bg-background border-border shadow-sm">
+                              <div className="flex h-full">
+                                <div className="w-2/5 shrink-0">
+                                  <img src={photoData.preview} className="w-full h-full object-cover" alt="review" />
+                                </div>
+                                <div className="w-3/5 p-4 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex justify-between items-center mb-3">
+                                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Photo {detail.imageIndex + 1}</span>
+                                      <Badge variant={detail.score >= 70 ? "default" : "destructive"}>
+                                        得分: {detail.score}
+                                      </Badge>
+                                    </div>
+                                    <ul className="space-y-2 text-sm">
+                                      <li className="flex gap-2 items-start">
+                                        <CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 
+                                        <span className="text-foreground leading-snug">{detail.pros}</span>
+                                      </li>
+                                      <li className="flex gap-2 items-start">
+                                        <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" /> 
+                                        <span className="text-foreground leading-snug">{detail.cons}</span>
+                                      </li>
+                                    </ul>
+                                  </div>
+                                  <div className="mt-4 pt-3 border-t border-border/50 text-sm">
+                                    <span className="font-semibold text-primary">🔨 抢救方案：</span> 
+                                    <span className="text-muted-foreground ml-1">{detail.action}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    {/* 🔴 模块 C：添加一个带品牌标识的页脚，让生成的图片看起来更专业 */}
+                    <div className="flex justify-between items-center pt-6 mt-6 border-t border-border text-xs text-muted-foreground/60">
+                        <span>Generated by Matchfix - Your Brutally Honest Dating Profile Coach</span>
+                        <span>matchfix.site</span>
                     </div>
                   </div>
 
-                  {/* 模块 B：单图深度剖析 */}
-                  <div>
-                    <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
-                      <Target className="w-5 h-5 text-primary" /> 
-                      每张照片的毒舌剖析
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {analysisResult.photoDetails?.map((detail: any, index: number) => {
-                        const photoData = photos[detail.imageIndex];
-                        if (!photoData) return null;
-                        return (
-                          <Card key={index} className="overflow-hidden bg-background border-border shadow-sm">
-                            <div className="flex h-full">
-                              <div className="w-2/5 shrink-0">
-                                <img src={photoData.preview} className="w-full h-full object-cover" alt="review" />
-                              </div>
-                              <div className="w-3/5 p-4 flex flex-col justify-between">
-                                <div>
-                                  <div className="flex justify-between items-center mb-3">
-                                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Photo {detail.imageIndex + 1}</span>
-                                    <Badge variant={detail.score >= 70 ? "default" : "destructive"}>
-                                      得分: {detail.score}
-                                    </Badge>
-                                  </div>
-                                  <ul className="space-y-2 text-sm">
-                                    <li className="flex gap-2 items-start">
-                                      <CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 
-                                      <span className="text-foreground leading-snug">{detail.pros}</span>
-                                    </li>
-                                    <li className="flex gap-2 items-start">
-                                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" /> 
-                                      <span className="text-foreground leading-snug">{detail.cons}</span>
-                                    </li>
-                                  </ul>
-                                </div>
-                                <div className="mt-4 pt-3 border-t border-border/50 text-sm">
-                                  <span className="font-semibold text-primary">🔨 抢救方案：</span> 
-                                  <span className="text-muted-foreground ml-1">{detail.action}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </Card>
-                        );
-                      })}
-                    </div>
+                  {/* 🔴 在底部添加按钮操作区 */}
+                  <div className="flex items-center gap-3 pt-6 border-t border-border">
+                    <Button variant="outline" onClick={() => setAnalysisResult(null)} className="h-12 flex-none px-6 text-muted-foreground">
+                      重新测试
+                    </Button>
+                    
+                    {/* 👉 这里是核心：一键导出为图片按钮 */}
+                    <Button 
+                      onClick={handleExportImage} 
+                      disabled={isExporting}
+                      className="flex-1 h-12 bg-primary text-primary-foreground font-bold text-base gap-2"
+                    >
+                      {isExporting ? (
+                        <><Loader2 className="w-5 h-5 animate-spin" /> 图片生成中...</>
+                      ) : (
+                        <><FileImage className="w-5 h-5" /> 导出分析报告图片</>
+                      )}
+                    </Button>
                   </div>
 
                 </div>
