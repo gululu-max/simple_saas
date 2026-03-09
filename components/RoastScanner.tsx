@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { useCompletion } from 'ai/react';
+import Link from 'next/link';
 import { Image as ImageIcon, Wand2, Upload, XCircle, Copy, Check, Target, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -275,14 +276,16 @@ export default function RoastScanner() {
               {completion && !isLoading && (
                 <div className="flex flex-col sm:flex-row gap-4 pt-6 mt-6 border-t border-border/40">
                   <Button 
+                    asChild
                     className="w-full h-12 gap-2 font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all text-base"
-                    onClick={() => alert("AI Photo Scorer coming soon! (需要配置路由)")}
                   >
-                    <Target className="w-5 h-5" />
-                    AI Photo Scorer
-                    <span className="ml-1 inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                      🪙 1 Credit
-                    </span>
+                    <Link href="/dashboard/photo-scorer">
+                      <Target className="w-5 h-5" />
+                      AI Photo Scorer
+                      <span className="ml-1 inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
+                        🪙 1 Credit
+                      </span>
+                    </Link>
                   </Button>
                 </div>
               )}
