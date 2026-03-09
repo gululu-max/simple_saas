@@ -214,7 +214,7 @@ photoDetails 包含每张照片，score 为0-100分。
     const result = await streamText({
       model: googleCustom('gemini-2.5-flash') as any,
       temperature: 0.7,
-      maxTokens: 4000,
+      maxTokens: 8000,
       maxRetries: 1,
       messages: [{ role: 'user', content }],
     });
