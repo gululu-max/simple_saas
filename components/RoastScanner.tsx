@@ -199,7 +199,7 @@ export default function RoastScanner() {
                   <XCircle className="w-4 h-4" /> Swap Photo
                 </Button>
                 
-                {/* 👉 修改点：核心的 Roast 按钮加上了 Credit 标签 */}
+                {/* 👉 核心的 Roast 按钮加上了 Credit 标签 */}
                 <Button
                   type="button"
                   onClick={handleSubmit}
@@ -275,15 +275,7 @@ export default function RoastScanner() {
               {completion && !isLoading && (
                 <div className="flex flex-col sm:flex-row gap-4 pt-6 mt-6 border-t border-border/40">
                   <Button 
-                    variant="outline" 
-                    className="flex-1 h-12 gap-2 font-medium text-muted-foreground hover:text-foreground border-dashed border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all"
-                    onClick={() => alert("Fix This Photo coming soon! (需要配置路由)")}
-                  >
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    Fix This Photo For Free
-                  </Button>
-                  <Button 
-                    className="flex-[1.5] h-12 gap-2 font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all text-base"
+                    className="w-full h-12 gap-2 font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all text-base"
                     onClick={() => alert("AI Photo Scorer coming soon! (需要配置路由)")}
                   >
                     <Target className="w-5 h-5" />
