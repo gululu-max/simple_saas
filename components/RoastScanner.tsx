@@ -3,7 +3,8 @@
 import React, { useRef, useState } from 'react';
 import { useCompletion } from 'ai/react';
 import Link from 'next/link';
-import { Image as ImageIcon, Wand2, Upload, XCircle, Copy, Check, Target, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Image as ImageIcon, Wand2, Upload, XCircle, Copy, Check, Target, Sparkles, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -57,9 +58,19 @@ export default function RoastScanner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isCopied, setIsCopied] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false); // 🔴 控制弹窗的状态
+  const router = useRouter(); // 🔴 用于跳转的 router
 
   const { complete, completion, isLoading } = useCompletion({
-    api: '/api/chat',
+    api: '/api/chat', // 注意：如果你后端改名成了 /api/photo-scorer，这里也要同步改
+    onError: (error) => {
+      // 🔴 核心拦截：检测到后端返回余额不足的错误信息，弹出充值窗口
+      if (error.message.includes('Insufficient credits') || error.message.includes('402')) {
+        setShowUpgradeModal(true);
+      } else {
+        alert('Oops, something went wrong: ' + error.message);
+      }
+    }
   });
 
   const handleCopy = () => {
@@ -98,6 +109,9 @@ export default function RoastScanner() {
   const handleSubmit = async () => {
     if (!preview || isLoading) return;
 
+    // 每次请求前确保弹窗是关闭的
+    setShowUpgradeModal(false);
+
     await complete('', {
       body: {
         imageBase64: preview.split(',')[1],
@@ -107,7 +121,7 @@ export default function RoastScanner() {
   };
 
   return (
-    <div className="w-full text-foreground">
+    <div className="w-full text-foreground relative">
       <div className="mx-auto flex w-full flex-col gap-6">
         
         {/* Header Section */}
@@ -200,7 +214,7 @@ export default function RoastScanner() {
                   <XCircle className="w-4 h-4" /> Swap Photo
                 </Button>
                 
-                {/* 👉 核心的 Roast 按钮加上了 Credit 标签 */}
+                {/* 👉 把 1 Credit 改成了 5 Credits 匹配你的后端 */}
                 <Button
                   type="button"
                   onClick={handleSubmit}
@@ -213,7 +227,7 @@ export default function RoastScanner() {
                     <span className="flex items-center gap-2">
                       Roast Me 🔥
                       <span className="inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                        🪙 1 Credit
+                        🪙 5 Credits
                       </span>
                     </span>
                   )}
@@ -283,7 +297,7 @@ export default function RoastScanner() {
                       <Target className="w-5 h-5" />
                       AI Photo Scorer
                       <span className="ml-1 inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                        🪙 1 Credit
+                        🪙 5 Credits
                       </span>
                     </Link>
                   </Button>
@@ -295,6 +309,43 @@ export default function RoastScanner() {
         )}
 
       </div>
+
+      {/* 🔴 余额不足弹窗 (使用 Tailwind 居中悬浮) */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm transition-all duration-100">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl mx-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="grid size-10 place-items-center rounded-full bg-destructive/10">
+                <AlertCircle className="size-5 text-destructive" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground">
+                Out of Credits 😅
+              </h2>
+            </div>
+            
+            <p className="text-muted-foreground mb-6 leading-relaxed">
+              Looks like you're out of ammo! Each brutally honest roast costs <strong>5 Credits</strong>. Reload your account to keep exposing those dating profile red flags.
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowUpgradeModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  setShowUpgradeModal(false);
+                  router.push('/dashboard/pricing'); // 🔴 请确保这个路径是你的购买页面
+                }}
+              >
+                Get More Credits
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

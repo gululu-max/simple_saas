@@ -1,6 +1,7 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { ProxyAgent } from 'undici';
+import { createClient } from "@/utils/supabase/server";
 
 export async function POST(req: Request) {
   try {
@@ -17,10 +18,45 @@ export async function POST(req: Request) {
       );
     }
 
+    // ==========================================
+    // 第 1 步：校验用户登录状态和余额 (已适配 customers 表)
+    // ==========================================
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
+    const COST_PER_SCAN = 5;
+
+    // 根据截图，表名为 customers，关联字段为 user_id
+    const { data: customer, error: customerError } = await supabase
+      .from('customers') 
+      .select('credits')
+      .eq('user_id', user.id)
+      .single();
+
+    if (customerError || !customer) {
+      console.error('Fetch customer error:', customerError);
+      return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), { status: 500 });
+    }
+
+    // 余额不足 5 点，直接拦截，返回 402 让前端弹窗
+    if (customer.credits < COST_PER_SCAN) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Insufficient credits', 
+          code: 'INSUFFICIENT_CREDITS' 
+        }), 
+        { status: 402 } 
+      );
+    }
+    // ==========================================
+
     // --- Core Fix: Smart Environment Adaptation ---
     let fetchOptions: any = {};
     
-    // Only apply proxy in local development
     if (process.env.NODE_ENV === 'development') {
       const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:10808';
       console.log('🚀 Local dev mode: using proxy', proxyUrl);
@@ -28,7 +64,6 @@ export async function POST(req: Request) {
       fetchOptions = { dispatcher: agent };
     }
 
-    // Create a local Google AI instance to avoid polluting global fetch
     const googleCustom = createGoogleGenerativeAI({
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
       fetch: (url: any, options: any) => fetch(url, { ...options, ...fetchOptions }),
@@ -36,7 +71,6 @@ export async function POST(req: Request) {
 
     const mimeType = receivedMimeType || 'image/jpeg';
 
-    // --- English Prompt Version ---
     const userPrompt = `
 Role:
 You are an experienced, humorous dating profile optimization consultant. You excel at reviewing photos in a relaxed, slightly teasing but harmless way, providing practical advice to help users increase their attractiveness on dating apps like Tinder or Hinge. Your goal is not only to provide an evaluation, but also to make the user feel the analysis is interesting, authentic, and helpful.
@@ -115,6 +149,23 @@ The scoring can be displayed in a separate short paragraph, and the rest of the 
           ],
         },
       ],
+      // ==========================================
+      // 第 2 步：AI 回答成功结束后，异步扣除 5 个积分
+      // ==========================================
+      async onFinish({ finishReason }) {
+        if (finishReason === 'stop' || finishReason === 'length') {
+          const { error: deductError } = await supabase
+            .from('customers') 
+            .update({ credits: customer.credits - COST_PER_SCAN })
+            .eq('user_id', user.id);
+
+          if (deductError) {
+            console.error(`扣费失败 (User: ${user.id}):`, deductError);
+          } else {
+            console.log(`成功扣除积分 (User: ${user.id}, Remaining: ${customer.credits - COST_PER_SCAN})`);
+          }
+        }
+      }
     });
 
     return result.toDataStreamResponse();

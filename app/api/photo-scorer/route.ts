@@ -1,9 +1,80 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { ProxyAgent } from 'undici';
+import { createServerClient } from '@supabase/ssr'; // 使用最新的 ssr 方案
+import { cookies } from 'next/headers';
+import { consumeCredits } from '@/lib/credits'; // 确保路径对应你的积分服务
 
 export async function POST(req: Request) {
   try {
+    // ==========================================
+    // 1. 现代化 SSR 身份验证与查询 Customer ID
+    // ==========================================
+    const cookieStore = await cookies();
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch (error) {
+              // API 路由中忽略 set 报错
+            }
+          }
+        }
+      }
+    );
+
+    // 获取当前登录用户
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized, please log in first' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = user.id;
+
+    const { data: customerData, error: customerError } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (customerError || !customerData) {
+      return new Response(
+        JSON.stringify({ error: 'User account not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const customerId = customerData.id;
+
+    // ==========================================
+    // 2. 核心扣费逻辑拦截 (AI Photo Scorer 消耗 10 点)
+    // ==========================================
+    const deduction = await consumeCredits(customerId, 'AIPhotoScorer');
+    if (!deduction.success) {
+      // 余额不足，直接返回 403 阻止调用大模型
+      return new Response(
+        JSON.stringify({ error: deduction.message }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ==========================================
+    // 3. 原有业务逻辑：图片校验与大模型调用
+    // ==========================================
     const { images } = await req.json();
 
     if (!images || !Array.isArray(images) || images.length < 3) {
@@ -20,7 +91,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Image size check
+    // Image size check (修复了原来的逻辑陷阱，现在可以正确中断)
     for (const img of images) {
       if (img.base64 && img.base64.length > 6_000_000) {
         return new Response(
@@ -50,10 +121,7 @@ export async function POST(req: Request) {
         fetch(url, { ...options, ...fetchOptions }),
     });
 
-    // =========================
-    //  HIGH VALUE PROMPT
-    // =========================
-
+    // 高价值 Prompt 保持不变
     const userPrompt = `
 You are a professional Dating App Profile photo optimization consultant, specializing in helping users increase their match rates on dating apps.
 
