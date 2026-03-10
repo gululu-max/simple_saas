@@ -13,7 +13,8 @@ import {
   Zap,
   Loader2,
   FileImage, 
-  Download  
+  Download,
+  Coins // 👈 新增金币图标
 } from 'lucide-react';
 import { toPng } from 'html-to-image'; 
 
@@ -77,6 +78,7 @@ export default function PhotoScorer() {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   
   const [isExporting, setIsExporting] = useState(false);
+  const [showCreditModal, setShowCreditModal] = useState(false); // 👈 新增弹窗状态控制
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
@@ -147,18 +149,16 @@ export default function PhotoScorer() {
         body: JSON.stringify({ images }),
       });
 
-      // 🔴 核心修复：安全解析并拦截报错，防止红屏
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({})); 
         
-        // 专门拦截 403 积分不足的情况
+        // 🔴 拦截 403 积分不足的情况，触发自定义弹窗
         if (response.status === 403 || errorData.code === 'INSUFFICIENT_CREDITS') {
-           alert(`😅 余额不足！\n当前操作需要 10 积分。\n请先充值后再试！`);
+           setShowCreditModal(true);
            setIsLoading(false);
            return; 
         }
 
-        // 把其他具体的报错抛给 catch 去处理
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
       
@@ -195,28 +195,11 @@ export default function PhotoScorer() {
   };
 
   return (
-    <div className="w-full text-foreground">
-      <div className="mx-auto flex w-full flex-col gap-6">
+    <div className="w-full text-foreground relative">
+      <div className="mx-auto flex w-full flex-col gap-6 p-4 md:p-6">
         
-        {/* Header Section */}
-        <div className="flex flex-col gap-3 mb-2">
-          <div className="flex items-center gap-3">
-            <div className="grid size-12 place-items-center rounded-xl bg-primary/10">
-              <Target className="size-6 text-primary" />
-            </div>
-            <div className="flex flex-col">
-              <h1 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
-                AI Photo Scorer
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Upload 3-9 photos → AI scoring & ranking → Design Profile order
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* Upload Card */}
-        <Card className="border-border bg-card shadow-sm">
+        <Card className="border-border bg-card shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
               <ImageIcon className="size-5 text-muted-foreground" />
@@ -337,15 +320,12 @@ export default function PhotoScorer() {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="text-xs text-muted-foreground/60 bg-muted/20 py-4 rounded-b-xl">
-            AI will do for you: 1️⃣ Score each photo 2️⃣ Rank 3️⃣ Detailed explanation 4️⃣ Design Profile order
-          </CardFooter>
         </Card>
 
         {/* ================= Result Card ================= */}
         {(analysisResult || isLoading) && (
           <Card 
-            className="border-border bg-card shadow-sm overflow-hidden mt-6 animate-in fade-in slide-in-from-bottom-4"
+            className="border-border bg-card shadow-sm overflow-hidden mt-2 animate-in fade-in slide-in-from-bottom-4"
           >
             <CardHeader className="bg-primary/5 border-b border-border flex flex-row items-center justify-between py-4">
               <CardTitle className="text-primary flex items-center gap-2 text-lg">
@@ -476,6 +456,47 @@ export default function PhotoScorer() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* ================= 积分不足的精美弹窗 ================= */}
+        {showCreditModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+              
+              <div className="grid size-16 place-items-center rounded-full bg-primary/10 mb-4 border border-primary/20">
+                <Coins className="size-8 text-primary" />
+              </div>
+              
+              <h2 className="text-xl font-bold text-foreground mb-2">
+                😅 余额不足啦！
+              </h2>
+              <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+                当前 AI 分析操作需要消耗 <span className="font-bold text-foreground">10 积分</span>。<br />
+                快去充值一波，继续打造你的完美 Profile 吧！
+              </p>
+              
+              <div className="flex w-full gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-11 rounded-xl"
+                  onClick={() => setShowCreditModal(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
+                  onClick={() => {
+                    setShowCreditModal(false);
+                    // 替换为你真实的充值页面路由，比如 '/pricing'
+                    window.location.href = '/pricing'; 
+                  }}
+                >
+                  去充值
+                </Button>
+              </div>
+              
+            </div>
+          </div>
         )}
 
       </div>
