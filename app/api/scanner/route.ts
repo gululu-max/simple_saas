@@ -8,38 +8,55 @@ export async function POST(req: Request) {
     const { imageBase64, mimeType: receivedMimeType } = await req.json();
 
     if (!imageBase64) {
-      return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'No image provided' }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' } 
+      });
     }
 
     if (imageBase64.length > 6_000_000) {
       return new Response(
         JSON.stringify({ error: 'Image too large. Please upload an image smaller than 6MB.' }),
-        { status: 413 }
+        { 
+          status: 413,
+          headers: { 'Content-Type': 'application/json' } 
+        }
       );
     }
 
     // ==========================================
-    // 第 1 步：校验用户登录状态和余额 (已适配 customers 表)
+    // 第 1 步：校验用户登录状态和余额
     // ==========================================
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+        status: 401,
+        headers: { 'Content-Type': 'application/json' } // 👈 必须加
+      });
     }
 
     const COST_PER_SCAN = 5;
 
-    // 根据截图，表名为 customers，关联字段为 user_id
     const { data: customer, error: customerError } = await supabase
       .from('customers') 
       .select('credits')
       .eq('user_id', user.id)
       .single();
 
+    //   // 👉 加这行打印日志！
+    // console.log('--- DEBUG ---');
+    // console.log('当前请求的用户 ID:', user.id);
+    // console.log('从数据库查到的积分:', customer?.credits);
+    // console.log('--- DEBUG END ---');
+
     if (customerError || !customer) {
       console.error('Fetch customer error:', customerError);
-      return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), { status: 500 });
+      return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' } // 👈 必须加
+      });
     }
 
     // 余额不足 5 点，直接拦截，返回 402 让前端弹窗
@@ -49,7 +66,10 @@ export async function POST(req: Request) {
           error: 'Insufficient credits', 
           code: 'INSUFFICIENT_CREDITS' 
         }), 
-        { status: 402 } 
+        { 
+          status: 402,
+          headers: { 'Content-Type': 'application/json' } // 👈 救命稻草，防止线上变 HTML
+        } 
       );
     }
     // ==========================================
@@ -170,7 +190,7 @@ The scoring can be displayed in a separate short paragraph, and the rest of the 
 
     return result.toDataStreamResponse();
   } catch (error) {
-    console.error('Error in chat API:', error);
+    console.error('Error in Scanner API:', error);
     const err = error as any;
     
     return new Response(JSON.stringify({ 

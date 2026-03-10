@@ -4,7 +4,7 @@ import React, { useRef, useState } from 'react';
 import { useCompletion } from 'ai/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Image as ImageIcon, Wand2, Upload, XCircle, Copy, Check, Target, Sparkles, AlertCircle } from 'lucide-react';
+import { Image as ImageIcon, Wand2, Upload, XCircle, Copy, Check, Target, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -58,17 +58,36 @@ export default function RoastScanner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isCopied, setIsCopied] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false); // 🔴 控制弹窗的状态
-  const router = useRouter(); // 🔴 用于跳转的 router
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false); 
+  const router = useRouter(); 
 
   const { complete, completion, isLoading } = useCompletion({
-    api: '/api/chat', // 注意：如果你后端改名成了 /api/photo-scorer，这里也要同步改
+    api: '/api/scanner', // 确保这个路径和你后端的 API 文件路径一致
     onError: (error) => {
-      // 🔴 核心拦截：检测到后端返回余额不足的错误信息，弹出充值窗口
-      if (error.message.includes('Insufficient credits') || error.message.includes('402')) {
-        setShowUpgradeModal(true);
-      } else {
-        alert('Oops, something went wrong: ' + error.message);
+      // 🔴 核心拦截强化：安全解析后端的 JSON 报错
+      try {
+        const errorData = JSON.parse(error.message);
+        
+        // 匹配中文“积分不足”、英文“Insufficient credits”或特定 code
+        if (
+          errorData.code === 'INSUFFICIENT_CREDITS' ||
+          (errorData.error && errorData.error.includes('Insufficient credits')) ||
+          (errorData.error && errorData.error.includes('积分不足'))
+        ) {
+          setShowUpgradeModal(true);
+          return;
+        }
+        
+        // 如果是其他的 JSON 报错，只提取 error 字段，不弹原始 JSON 字符串
+        alert('Oops: ' + (errorData.error || 'Something went wrong.'));
+        
+      } catch (e) {
+        // 如果解析 JSON 失败（说明后端返回的纯文本格式），退回正则判断
+        if (error.message.includes('402') || error.message.includes('积分不足')) {
+          setShowUpgradeModal(true);
+        } else {
+          alert('Oops, something went wrong: ' + error.message);
+        }
       }
     }
   });
@@ -214,7 +233,6 @@ export default function RoastScanner() {
                   <XCircle className="w-4 h-4" /> Swap Photo
                 </Button>
                 
-                {/* 👉 把 1 Credit 改成了 5 Credits 匹配你的后端 */}
                 <Button
                   type="button"
                   onClick={handleSubmit}
@@ -310,7 +328,7 @@ export default function RoastScanner() {
 
       </div>
 
-      {/* 🔴 余额不足弹窗 (使用 Tailwind 居中悬浮) */}
+      {/* 🔴 余额不足弹窗 */}
       {showUpgradeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm transition-all duration-100">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl mx-4 animate-in fade-in zoom-in-95">
@@ -337,7 +355,7 @@ export default function RoastScanner() {
               <Button 
                 onClick={() => {
                   setShowUpgradeModal(false);
-                  router.push('/dashboard/pricing'); // 🔴 请确保这个路径是你的购买页面
+                  router.push('/dashboard/pricing'); 
                 }}
               >
                 Get More Credits

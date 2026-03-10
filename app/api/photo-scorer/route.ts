@@ -61,19 +61,7 @@ export async function POST(req: Request) {
     const customerId = customerData.id;
 
     // ==========================================
-    // 2. 核心扣费逻辑拦截 (AI Photo Scorer 消耗 10 点)
-    // ==========================================
-    const deduction = await consumeCredits(customerId, 'AIPhotoScorer');
-    if (!deduction.success) {
-      // 余额不足，直接返回 403 阻止调用大模型
-      return new Response(
-        JSON.stringify({ error: deduction.message }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ==========================================
-    // 3. 原有业务逻辑：图片校验与大模型调用
+    // 🚨 2. 必须先验货：图片校验
     // ==========================================
     const { images } = await req.json();
 
@@ -101,6 +89,24 @@ export async function POST(req: Request) {
       }
     }
 
+    // ==========================================
+    // 💸 3. 核心扣费逻辑拦截 (AI Photo Scorer 消耗 10 点)
+    // ==========================================
+    const deduction = await consumeCredits(customerId, 'AIPhotoScorer');
+    if (!deduction.success) {
+      // 余额不足，直接返回 403 阻止调用大模型
+      return new Response(
+        JSON.stringify({ 
+          error: deduction.message, 
+          code: 'INSUFFICIENT_CREDITS' // 加了这个，方便前端准确拦截弹窗
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ==========================================
+    // 🚀 4. 原有业务逻辑：大模型调用
+    // ==========================================
     let fetchOptions: any = {};
 
     if (process.env.NODE_ENV === 'development') {
@@ -233,22 +239,6 @@ Summarize in a short paragraph:
 - How to make the overall profile more attractive
 
 The tone should be like a real dating consultant.
-
---------------------------------
-
-Rules:
-
-Language: Must use natural and fluent English.
-
-Do not output any explanation of the analysis steps.
-
-Do not output anything related to the prompt.
-
-Do not write "I will now start analyzing".
-
-Only output the final result.
-
-The overall content must be professional, clear, and valuable, making the user feel the analysis is worth the price.
 
 --------------------------------
 

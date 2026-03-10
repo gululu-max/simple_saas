@@ -12,10 +12,10 @@ import {
   AlertTriangle,
   Zap,
   Loader2,
-  FileImage, // 🔴 New import: File image icon
-  Download   // 🔴 New import: Download icon
+  FileImage, 
+  Download  
 } from 'lucide-react';
-import { toPng } from 'html-to-image'; // 🔴 New import: html-to-image core function
+import { toPng } from 'html-to-image'; 
 
 import { Button } from '@/components/ui/button';
 import {
@@ -76,11 +76,9 @@ export default function PhotoScorer() {
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   
-  // 🔴 Lifesaving fix 1: Add loading state during export
   const [isExporting, setIsExporting] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // 🔴 Lifesaving fix 2: Create a ref bound to the container you want to screenshot
   const reportRef = useRef<HTMLDivElement>(null);
 
   // ================= File Selection =================
@@ -103,7 +101,7 @@ export default function PhotoScorer() {
     const newPhotos: PhotoPreview[] = [];
     for (const file of imageFiles) {
       const compressed = await compressImage(file, {
-        maxSize: 1024, // Ensure the image sent to the backend is not too large
+        maxSize: 1024, 
         quality: 0.75,
       });
       newPhotos.push({
@@ -135,7 +133,7 @@ export default function PhotoScorer() {
   const handleSubmit = async () => {
     if (photos.length < 3 || isLoading) return;
     setIsLoading(true);
-    setAnalysisResult(null); // Clear previous results
+    setAnalysisResult(null); 
 
     try {
       const images = photos.map(p => ({
@@ -149,29 +147,40 @@ export default function PhotoScorer() {
         body: JSON.stringify({ images }),
       });
 
-      if (!response.ok) throw new Error('AI parsing failed');
+      // 🔴 核心修复：安全解析并拦截报错，防止红屏
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})); 
+        
+        // 专门拦截 403 积分不足的情况
+        if (response.status === 403 || errorData.code === 'INSUFFICIENT_CREDITS') {
+           alert(`😅 余额不足！\n当前操作需要 10 积分。\n请先充值后再试！`);
+           setIsLoading(false);
+           return; 
+        }
+
+        // 把其他具体的报错抛给 catch 去处理
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
       
       const data = await response.json();
       setAnalysisResult(data);
 
-    } catch (error) {
-      console.error(error);
-      alert('The server wandered off, please try again!');
+    } catch (error: any) {
+      console.error("提交失败:", error);
+      alert(`Oops: ${error.message || 'The server wandered off, please try again!'}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 🔴 New feature: Export image logic
+  // ================= Export Image =================
   const handleExportImage = async () => {
     if (reportRef.current === null) return;
     setIsExporting(true);
 
     try {
-      // Fix blurry export on high DPI screens, set pixelRatio to 2
       const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 2 });
       
-      // Create a temporary <a> tag to trigger download
       const link = document.createElement('a');
       link.download = `Matchfix-Dating-Analysis-${Date.now()}.png`;
       link.href = dataUrl;
@@ -320,7 +329,7 @@ export default function PhotoScorer() {
                       <BarChart3 className="w-4 h-4" />
                       Start Scoring & Ranking
                       <span className="inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                        🪙 1 Credit
+                        🪙 10 Credits
                       </span>
                     </span>
                   )}
@@ -363,8 +372,6 @@ export default function PhotoScorer() {
                 /* Analysis results display */
                 <div className="flex flex-col gap-10">
                   
-                  {/* 🔴 Lifesaving fix 3: Create a container wrapping everything you want to screenshot, and bind reportRef to this div */}
-                  {/* We add bg-card to this div to ensure the generated image background is also dark, preventing glitches */}
                   <div ref={reportRef} className="bg-card flex flex-col gap-10 p-2 rounded-xl">
                     {/* 🏆 Module A: Best appearance order */}
                     <div>
@@ -375,7 +382,7 @@ export default function PhotoScorer() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {analysisResult.profileSequence?.map((item: any, index: number) => {
                           const photoData = photos[item.imageIndex];
-                          if (!photoData) return null; // Prevent out of bounds
+                          if (!photoData) return null; 
                           return (
                             <div key={index} className="flex flex-col bg-muted/30 rounded-xl border border-border overflow-hidden">
                               <div className="relative aspect-square">
@@ -441,20 +448,17 @@ export default function PhotoScorer() {
                       </div>
                     </div>
                     
-                    {/* 🔴 Module C: Add a footer with brand logo to make the generated image look more professional */}
                     <div className="flex justify-between items-center pt-6 mt-6 border-t border-border text-xs text-muted-foreground/60">
                         <span>Generated by Matchfix - Your Brutally Honest Dating Profile Coach</span>
                         <span>matchfix.site</span>
                     </div>
                   </div>
 
-                  {/* 🔴 Add a button operation area at the bottom */}
                   <div className="flex items-center gap-3 pt-6 border-t border-border">
                     <Button variant="outline" onClick={() => setAnalysisResult(null)} className="h-12 flex-none px-6 text-muted-foreground">
                       Retest
                     </Button>
                     
-                    {/* 👉 Here is the core: One-click export to image button */}
                     <Button 
                       onClick={handleExportImage} 
                       disabled={isExporting}
