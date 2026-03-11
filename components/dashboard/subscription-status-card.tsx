@@ -23,8 +23,9 @@ type StatusConfigs = {
   [key in SubscriptionState]: StatusConfig;
 };
 
+// 1️⃣ 强制指定 en-US 格式，减少 SSR 和 CSR 的差异
 function formatDate(date: string) {
-  return new Date(date).toLocaleDateString();
+  return new Date(date).toLocaleDateString("en-US");
 }
 
 function isFutureDate(date: string) {
@@ -111,7 +112,6 @@ export function SubscriptionStatusCard({
   subscription,
 }: SubscriptionStatusCardProps) {
   return (
-    // 注意这里：去掉了 border 类，现在它和左边的卡片一样干干净净了
     <div className="rounded-xl bg-card p-6">
       <div className="flex items-center gap-4">
         <div className="p-2 bg-primary/10 rounded-lg">
@@ -149,7 +149,10 @@ export function SubscriptionStatusCard({
             return (
               <>
                 <Icon className={`h-4 w-4 ${config.iconColor}`} />
-                <span className="text-muted-foreground">{config.message}</span>
+                {/* 2️⃣ 增加 suppressHydrationWarning 彻底消灭水合警告 */}
+                <span className="text-muted-foreground" suppressHydrationWarning>
+                  {config.message}
+                </span>
               </>
             );
           })()}

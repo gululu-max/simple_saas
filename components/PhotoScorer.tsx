@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
+// 🚀 引入路由钩子
+import { useRouter, usePathname } from 'next/navigation';
 import { 
   Image as ImageIcon, 
   Target, 
@@ -14,7 +16,7 @@ import {
   Loader2,
   FileImage, 
   Download,
-  Coins // 👈 新增金币图标
+  Coins 
 } from 'lucide-react';
 import { toPng } from 'html-to-image'; 
 
@@ -29,7 +31,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-// ================= Image Compression =================
+// ================= 图像压缩逻辑 =================
 async function compressImage(
   file: File,
   options?: { maxSize?: number; quality?: number }
@@ -78,12 +80,16 @@ export default function PhotoScorer() {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   
   const [isExporting, setIsExporting] = useState(false);
-  const [showCreditModal, setShowCreditModal] = useState(false); // 👈 新增弹窗状态控制
+  const [showCreditModal, setShowCreditModal] = useState(false); 
   
+  // 🚀 初始化路由
+  const router = useRouter();
+  const pathname = usePathname();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // ================= File Selection =================
+  // ================= 文件选择与处理 =================
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -131,7 +137,7 @@ export default function PhotoScorer() {
     setPhotos(photos.filter(p => p.id !== id));
   };
 
-  // ================= Submit =================
+  // ================= 提交分析 =================
   const handleSubmit = async () => {
     if (photos.length < 3 || isLoading) return;
     setIsLoading(true);
@@ -152,7 +158,6 @@ export default function PhotoScorer() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({})); 
         
-        // 🔴 拦截 403 积分不足的情况，触发自定义弹窗
         if (response.status === 403 || errorData.code === 'INSUFFICIENT_CREDITS') {
            setShowCreditModal(true);
            setIsLoading(false);
@@ -166,14 +171,14 @@ export default function PhotoScorer() {
       setAnalysisResult(data);
 
     } catch (error: any) {
-      console.error("提交失败:", error);
+      console.error("Submission failed:", error);
       alert(`Oops: ${error.message || 'The server wandered off, please try again!'}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ================= Export Image =================
+  // ================= 导出报告图片 =================
   const handleExportImage = async () => {
     if (reportRef.current === null) return;
     setIsExporting(true);
@@ -187,7 +192,7 @@ export default function PhotoScorer() {
       link.click();
 
     } catch (err) {
-      console.error('oops, something went wrong!', err);
+      console.error('Export failed:', err);
       alert('Image generation failed, please try again later!');
     } finally {
       setIsExporting(false);
@@ -198,7 +203,7 @@ export default function PhotoScorer() {
     <div className="w-full text-foreground relative">
       <div className="mx-auto flex w-full flex-col gap-6 p-4 md:p-6">
         
-        {/* Upload Card */}
+        {/* 上传区域卡片 */}
         <Card className="border-border bg-card shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
@@ -211,7 +216,6 @@ export default function PhotoScorer() {
           </CardHeader>
           <CardContent className="space-y-6">
             
-            {/* Photo Grid */}
             {photos.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {photos.map((photo, index) => (
@@ -241,7 +245,6 @@ export default function PhotoScorer() {
               </div>
             )}
 
-            {/* Upload Area */}
             {photos.length < 9 && (
               <div
                 role="button"
@@ -275,7 +278,6 @@ export default function PhotoScorer() {
               </div>
             )}
 
-            {/* Action Bar */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-border">
               <div className="text-sm text-muted-foreground">
                 {photos.length >= 3 
@@ -288,7 +290,7 @@ export default function PhotoScorer() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 sm:flex-none h-11 text-muted-foreground gap-2"
+                  className="flex-1 h-11 text-muted-foreground gap-2"
                   onClick={() => {
                     setPhotos([]);
                     setAnalysisResult(null);
@@ -303,7 +305,7 @@ export default function PhotoScorer() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={isLoading || photos.length < 3}
-                  className="flex-1 sm:flex-none h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-6"
+                  className="flex-1 h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-6"
                 >
                   {isLoading ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
@@ -322,7 +324,7 @@ export default function PhotoScorer() {
           </CardContent>
         </Card>
 
-        {/* ================= Result Card ================= */}
+        {/* ================= 结果展示卡片 ================= */}
         {(analysisResult || isLoading) && (
           <Card 
             className="border-border bg-card shadow-sm overflow-hidden mt-2 animate-in fade-in slide-in-from-bottom-4"
@@ -335,7 +337,6 @@ export default function PhotoScorer() {
             </CardHeader>
             <CardContent className="pt-6">
               
-              {/* Loading state */}
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
                   <div className="flex space-x-1.5 items-center">
@@ -348,12 +349,8 @@ export default function PhotoScorer() {
                   </p>
                 </div>
               ) : (
-                
-                /* Analysis results display */
                 <div className="flex flex-col gap-10">
-                  
                   <div ref={reportRef} className="bg-card flex flex-col gap-10 p-2 rounded-xl">
-                    {/* 🏆 Module A: Best appearance order */}
                     <div>
                       <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
                         <Zap className="w-5 h-5 text-amber-500" />
@@ -381,7 +378,6 @@ export default function PhotoScorer() {
                       </div>
                     </div>
 
-                    {/* 🔍 Module B: Single photo in-depth analysis */}
                     <div>
                       <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
                         <Target className="w-5 h-5 text-primary" /> 
@@ -458,7 +454,7 @@ export default function PhotoScorer() {
           </Card>
         )}
 
-        {/* ================= 积分不足的精美弹窗 ================= */}
+        {/* 🚀 积分不足弹窗 (已修改跳转逻辑) */}
         {showCreditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
@@ -468,11 +464,11 @@ export default function PhotoScorer() {
               </div>
               
               <h2 className="text-xl font-bold text-foreground mb-2">
-                😅 余额不足啦！
+                😅 Low Balance!
               </h2>
               <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                当前 AI 分析操作需要消耗 <span className="font-bold text-foreground">10 积分</span>。<br />
-                快去充值一波，继续打造你的完美 Profile 吧！
+                This AI analysis requires <span className="font-bold text-foreground">10 Credits</span>.<br />
+                Get more credits now to continue building your perfect profile!
               </p>
               
               <div className="flex w-full gap-3">
@@ -481,20 +477,19 @@ export default function PhotoScorer() {
                   className="flex-1 h-11 rounded-xl"
                   onClick={() => setShowCreditModal(false)}
                 >
-                  取消
+                  Cancel
                 </Button>
                 <Button
                   className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
                   onClick={() => {
                     setShowCreditModal(false);
-                    // 替换为你真实的充值页面路由，比如 '/pricing'
-                    window.location.href = '/pricing'; 
+                    // 🚀 核心修改：使用 router.push 并带上 from 参数
+                    router.push(`/#pricing?from=${encodeURIComponent(pathname)}`);
                   }}
                 >
-                  去充值
+                  Get More
                 </Button>
               </div>
-              
             </div>
           </div>
         )}

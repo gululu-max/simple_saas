@@ -4,7 +4,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Starter",
     id: "tier-starter",
-    productId: "prod_xxxxxx_starter", // 替换为真实的支付网关 Product ID
+    productId: "prod_1xQAaVUDAS8ok2LC4ByDkt", // 替换为真实的支付网关 Product ID
     priceMonthly: "$6.99",
     description: "Quickly diagnose what’s hurting your dating profile and fix your worst photos.",
     features: [
@@ -21,7 +21,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Pro",
     id: "tier-pro",
-    productId: "prod_xxxxxx_pro", // 替换为真实的支付网关 Product ID
+    productId: "prod_2Ec2MDEKTw4m2eTpeK2QDI", // 替换为真实的支付网关 Product ID
     priceMonthly: "$19.99",
     description: "Optimize your entire dating profile and dramatically increase your swipe-right rate.",
     features: [
@@ -39,7 +39,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Ultra",
     id: "tier-ultra",
-    productId: "prod_xxxxxx_ultra", // 替换为真实的支付网关 Product ID
+    productId: "prod_1oqDuB2aNKdNUqoXdH1jCp", // 替换为真实的支付网关 Product ID
     priceMonthly: "$39.99",
     description: "Built for power users who constantly test and optimize dating profiles.",
     features: [
