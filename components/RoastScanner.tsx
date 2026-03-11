@@ -5,6 +5,7 @@ import { useCompletion } from 'ai/react';
 import Link from 'next/link';
 // 🚀 引入 usePathname 获取当前路由
 import { useRouter, usePathname } from 'next/navigation'; 
+import { Zap, Flame, Loader2 } from "lucide-react";
 import { 
   Image as ImageIcon, 
   Wand2, 
@@ -77,6 +78,12 @@ export default function RoastScanner() {
 
   const { complete, completion, isLoading } = useCompletion({
     api: '/api/scanner', 
+    // 🚀 【关键修复】：在成功完成流输出后触发刷新
+    onFinish: () => {
+      // 这里的 refresh 会在后台静默重新获取 Server Component 的数据（比如 layout.tsx 里的 credits）
+      // 且不会打断或重置当前 Client Component（RoastScanner）的任何状态
+      router.refresh();
+    },
     onError: (error) => {
       // 🔴 错误拦截：安全解析后端返回的 JSON 报错
       try {
@@ -246,12 +253,16 @@ export default function RoastScanner() {
                   className="flex-1 sm:flex-none h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-6"
                 >
                   {isLoading ? (
-                    'Brewing toxicity...'
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Brewing toxicity...
+                    </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      Roast Me 🔥
+                      Roast Me
                       <span className="inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                        🪙 5 Credits
+                        <Zap className="mr-1 h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                        5 Credits
                       </span>
                     </span>
                   )}
@@ -312,7 +323,8 @@ export default function RoastScanner() {
                       <Target className="w-5 h-5" />
                       AI Photo Scorer
                       <span className="ml-1 inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                        🪙 5 Credits
+                        <Zap className="mr-1 h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                        5 Credits
                       </span>
                     </Link>
                   </Button>

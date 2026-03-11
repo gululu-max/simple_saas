@@ -92,13 +92,16 @@ export async function POST(req: Request) {
     // ==========================================
     // 💸 3. 核心扣费逻辑拦截 (AI Photo Scorer 消耗 10 点)
     // ==========================================
-    const deduction = await consumeCredits(customerId, 'AIPhotoScorer');
+    // 🚨 修复：直接传入 auth 的 userId，因为 consumeCredits 内部会自己去查 customer id
+    const deduction = await consumeCredits(userId, 'AIPhotoScorer');
     if (!deduction.success) {
-      // 余额不足，直接返回 403 阻止调用大模型
+      // 💡 加这一行日志，看看究竟是余额不足还是数据库报错
+      console.error("Credit deduction failed:", deduction); 
+      
       return new Response(
         JSON.stringify({ 
-          error: deduction.message, 
-          code: 'INSUFFICIENT_CREDITS' // 加了这个，方便前端准确拦截弹窗
+          error: deduction.message || "Failed to consume credits", 
+          code: 'INSUFFICIENT_CREDITS' 
         }),
         { status: 403, headers: { 'Content-Type': 'application/json' } }
       );

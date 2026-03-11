@@ -6,6 +6,8 @@ import { Button } from "./ui/button";
 import { Logo } from "./logo";
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
+// 【新增】：引入 lucide-react 的图标，解决 emoji 不显示的问题
+import { Zap } from "lucide-react"; 
 
 interface HeaderProps {
   user: any;
@@ -68,7 +70,8 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
               
               <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                 <Link href="/dashboard">
-                  <span className="mr-1.5 text-amber-500">🪙</span>
+                  {/* 【修复点】：替换 emoji 为 SVG 图标，确保所有设备正常显示 */}
+                  <Zap className="mr-1.5 h-4 w-4 text-amber-500 fill-amber-500" />
                   {credits} Credits
                 </Link>
               </Button>

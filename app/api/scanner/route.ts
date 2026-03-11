@@ -2,6 +2,8 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { ProxyAgent } from 'undici';
 import { createClient } from "@/utils/supabase/server";
+// 🚀 1. 核心修复：引入咱们写好的统一扣费函数
+import { consumeCredits } from '@/lib/credits'; 
 
 export async function POST(req: Request) {
   try {
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
         status: 401,
-        headers: { 'Content-Type': 'application/json' } // 👈 必须加
+        headers: { 'Content-Type': 'application/json' } 
       });
     }
 
@@ -45,17 +47,11 @@ export async function POST(req: Request) {
       .eq('user_id', user.id)
       .single();
 
-    //   // 👉 加这行打印日志！
-    // console.log('--- DEBUG ---');
-    // console.log('当前请求的用户 ID:', user.id);
-    // console.log('从数据库查到的积分:', customer?.credits);
-    // console.log('--- DEBUG END ---');
-
     if (customerError || !customer) {
       console.error('Fetch customer error:', customerError);
       return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), { 
         status: 500,
-        headers: { 'Content-Type': 'application/json' } // 👈 必须加
+        headers: { 'Content-Type': 'application/json' } 
       });
     }
 
@@ -68,7 +64,7 @@ export async function POST(req: Request) {
         }), 
         { 
           status: 402,
-          headers: { 'Content-Type': 'application/json' } // 👈 救命稻草，防止线上变 HTML
+          headers: { 'Content-Type': 'application/json' } 
         } 
       );
     }
@@ -170,19 +166,17 @@ The scoring can be displayed in a separate short paragraph, and the rest of the 
         },
       ],
       // ==========================================
-      // 第 2 步：AI 回答成功结束后，异步扣除 5 个积分
+      // 第 2 步：AI 回答成功结束后，异步扣除 5 个积分并写流水
       // ==========================================
       async onFinish({ finishReason }) {
         if (finishReason === 'stop' || finishReason === 'length') {
-          const { error: deductError } = await supabase
-            .from('customers') 
-            .update({ credits: customer.credits - COST_PER_SCAN })
-            .eq('user_id', user.id);
-
-          if (deductError) {
-            console.error(`扣费失败 (User: ${user.id}):`, deductError);
+          // 🚀 2. 核心修复：抛弃手动 update，换成你写好的 consumeCredits
+          const deduction = await consumeCredits(user.id, 'MatchfixScanner');
+          
+          if (!deduction.success) {
+            console.error(`扣费/写流水失败 (User: ${user.id}):`, deduction.message);
           } else {
-            console.log(`成功扣除积分 (User: ${user.id}, Remaining: ${customer.credits - COST_PER_SCAN})`);
+            console.log(`✅ 成功扣除积分并写入流水 (User: ${user.id}, Remaining: ${deduction.remaining})`);
           }
         }
       }

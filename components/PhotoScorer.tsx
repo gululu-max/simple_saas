@@ -3,22 +3,22 @@
 import React, { useRef, useState } from 'react';
 // 🚀 引入路由钩子
 import { useRouter, usePathname } from 'next/navigation';
-import { 
-  Image as ImageIcon, 
-  Target, 
-  Upload, 
-  XCircle, 
+import {
+  Image as ImageIcon,
+  Target,
+  Upload,
+  XCircle,
   Trophy,
   BarChart3,
   CheckCircle,
   AlertTriangle,
   Zap,
   Loader2,
-  FileImage, 
+  FileImage,
   Download,
-  Coins 
+  Coins
 } from 'lucide-react';
-import { toPng } from 'html-to-image'; 
+import { toPng } from 'html-to-image';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -78,10 +78,10 @@ export default function PhotoScorer() {
   const [photos, setPhotos] = useState<PhotoPreview[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
-  
+
   const [isExporting, setIsExporting] = useState(false);
-  const [showCreditModal, setShowCreditModal] = useState(false); 
-  
+  const [showCreditModal, setShowCreditModal] = useState(false);
+
   // 🚀 初始化路由
   const router = useRouter();
   const pathname = usePathname();
@@ -109,7 +109,7 @@ export default function PhotoScorer() {
     const newPhotos: PhotoPreview[] = [];
     for (const file of imageFiles) {
       const compressed = await compressImage(file, {
-        maxSize: 1024, 
+        maxSize: 1024,
         quality: 0.75,
       });
       newPhotos.push({
@@ -141,7 +141,7 @@ export default function PhotoScorer() {
   const handleSubmit = async () => {
     if (photos.length < 3 || isLoading) return;
     setIsLoading(true);
-    setAnalysisResult(null); 
+    setAnalysisResult(null);
 
     try {
       const images = photos.map(p => ({
@@ -156,19 +156,22 @@ export default function PhotoScorer() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})); 
-        
+        const errorData = await response.json().catch(() => ({}));
+
         if (response.status === 403 || errorData.code === 'INSUFFICIENT_CREDITS') {
-           setShowCreditModal(true);
-           setIsLoading(false);
-           return; 
+          setShowCreditModal(true);
+          setIsLoading(false);
+          return;
         }
 
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       setAnalysisResult(data);
+
+      // 🚀 【核心修复】：请求成功，数据也拿到了，后台静默刷新同步扣减的 Credits
+      router.refresh();
 
     } catch (error: any) {
       console.error("Submission failed:", error);
@@ -185,7 +188,7 @@ export default function PhotoScorer() {
 
     try {
       const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 2 });
-      
+
       const link = document.createElement('a');
       link.download = `Matchfix-Dating-Analysis-${Date.now()}.png`;
       link.href = dataUrl;
@@ -202,7 +205,7 @@ export default function PhotoScorer() {
   return (
     <div className="w-full text-foreground relative">
       <div className="mx-auto flex w-full flex-col gap-6 p-4 md:p-6">
-        
+
         {/* 上传区域卡片 */}
         <Card className="border-border bg-card shadow-none">
           <CardHeader>
@@ -215,7 +218,7 @@ export default function PhotoScorer() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            
+
             {photos.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {photos.map((photo, index) => (
@@ -258,7 +261,7 @@ export default function PhotoScorer() {
                   </div>
                   <div className="space-y-1">
                     <div className="text-base font-semibold text-foreground">
-                      {photos.length === 0 
+                      {photos.length === 0
                         ? 'Click to upload photos (at least 3, up to 9) 📸'
                         : `Uploaded ${photos.length}/9 photos, continue adding...`}
                     </div>
@@ -280,11 +283,11 @@ export default function PhotoScorer() {
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-border">
               <div className="text-sm text-muted-foreground">
-                {photos.length >= 3 
-                  ? `✅ Uploaded ${photos.length} photos, ready to score` 
+                {photos.length >= 3
+                  ? `✅ Uploaded ${photos.length} photos, ready to score`
                   : photos.length > 0
-                  ? `⚠️ Need to upload ${3 - photos.length} more photos (at least 3)`
-                  : 'No photos uploaded yet'}
+                    ? `⚠️ Need to upload ${3 - photos.length} more photos (at least 3)`
+                    : 'No photos uploaded yet'}
               </div>
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <Button
@@ -300,7 +303,7 @@ export default function PhotoScorer() {
                 >
                   <XCircle className="w-4 h-4" /> Clear all
                 </Button>
-                
+
                 <Button
                   type="button"
                   onClick={handleSubmit}
@@ -314,7 +317,8 @@ export default function PhotoScorer() {
                       <BarChart3 className="w-4 h-4" />
                       Start Scoring & Ranking
                       <span className="inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                        🪙 10 Credits
+                        <Zap className="mr-1 h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                        10 Credits
                       </span>
                     </span>
                   )}
@@ -326,7 +330,7 @@ export default function PhotoScorer() {
 
         {/* ================= 结果展示卡片 ================= */}
         {(analysisResult || isLoading) && (
-          <Card 
+          <Card
             className="border-border bg-card shadow-sm overflow-hidden mt-2 animate-in fade-in slide-in-from-bottom-4"
           >
             <CardHeader className="bg-primary/5 border-b border-border flex flex-row items-center justify-between py-4">
@@ -336,7 +340,7 @@ export default function PhotoScorer() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              
+
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
                   <div className="flex space-x-1.5 items-center">
@@ -359,7 +363,7 @@ export default function PhotoScorer() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {analysisResult.profileSequence?.map((item: any, index: number) => {
                           const photoData = photos[item.imageIndex];
-                          if (!photoData) return null; 
+                          if (!photoData) return null;
                           return (
                             <div key={index} className="flex flex-col bg-muted/30 rounded-xl border border-border overflow-hidden">
                               <div className="relative aspect-square">
@@ -380,7 +384,7 @@ export default function PhotoScorer() {
 
                     <div>
                       <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
-                        <Target className="w-5 h-5 text-primary" /> 
+                        <Target className="w-5 h-5 text-primary" />
                         Brutally Honest Analysis of Each Photo
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -403,17 +407,17 @@ export default function PhotoScorer() {
                                     </div>
                                     <ul className="space-y-2 text-sm">
                                       <li className="flex gap-2 items-start">
-                                        <CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 
+                                        <CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
                                         <span className="text-foreground leading-snug">{detail.pros}</span>
                                       </li>
                                       <li className="flex gap-2 items-start">
-                                        <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" /> 
+                                        <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                                         <span className="text-foreground leading-snug">{detail.cons}</span>
                                       </li>
                                     </ul>
                                   </div>
                                   <div className="mt-4 pt-3 border-t border-border/50 text-sm">
-                                    <span className="font-semibold text-primary">🔨 Rescue Plan:</span> 
+                                    <span className="font-semibold text-primary">🔨 Rescue Plan:</span>
                                     <span className="text-muted-foreground ml-1">{detail.action}</span>
                                   </div>
                                 </div>
@@ -423,10 +427,10 @@ export default function PhotoScorer() {
                         })}
                       </div>
                     </div>
-                    
+
                     <div className="flex justify-between items-center pt-6 mt-6 border-t border-border text-xs text-muted-foreground/60">
-                        <span>Generated by Matchfix - Your Brutally Honest Dating Profile Coach</span>
-                        <span>matchfix.site</span>
+                      <span>Generated by Matchfix - Your Brutally Honest Dating Profile Coach</span>
+                      <span>matchfix.site</span>
                     </div>
                   </div>
 
@@ -434,9 +438,9 @@ export default function PhotoScorer() {
                     <Button variant="outline" onClick={() => setAnalysisResult(null)} className="h-12 flex-none px-6 text-muted-foreground">
                       Retest
                     </Button>
-                    
-                    <Button 
-                      onClick={handleExportImage} 
+
+                    <Button
+                      onClick={handleExportImage}
                       disabled={isExporting}
                       className="flex-1 h-12 bg-primary text-primary-foreground font-bold text-base gap-2"
                     >
@@ -458,11 +462,11 @@ export default function PhotoScorer() {
         {showCreditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-              
+
               <div className="grid size-16 place-items-center rounded-full bg-primary/10 mb-4 border border-primary/20">
                 <Coins className="size-8 text-primary" />
               </div>
-              
+
               <h2 className="text-xl font-bold text-foreground mb-2">
                 😅 Low Balance!
               </h2>
@@ -470,7 +474,7 @@ export default function PhotoScorer() {
                 This AI analysis requires <span className="font-bold text-foreground">10 Credits</span>.<br />
                 Get more credits now to continue building your perfect profile!
               </p>
-              
+
               <div className="flex w-full gap-3">
                 <Button
                   variant="outline"
@@ -484,7 +488,7 @@ export default function PhotoScorer() {
                   onClick={() => {
                     setShowCreditModal(false);
                     // 🚀 核心修改：使用 router.push 并带上 from 参数
-                    router.push(`/#pricing?from=${encodeURIComponent(pathname)}`);
+                    router.push(`/?from=${encodeURIComponent(pathname)}#pricing`);
                   }}
                 >
                   Get More
