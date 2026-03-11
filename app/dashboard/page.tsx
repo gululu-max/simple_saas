@@ -2,7 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { SubscriptionStatusCard } from "@/components/dashboard/subscription-status-card";
 import { CreditsBalanceCard } from "@/components/dashboard/credits-balance-card";
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -18,31 +17,37 @@ export default async function DashboardPage() {
     return redirect("/sign-in");
   }
 
-  // 2. 获取用户基础信息 & 订阅状态
-  const { data: customerData } = await supabase
+  // 2. Fetch Customer Data (Credits, Subscription)
+  // We use a single query to get the customer profile + related subscription & credits history
+  // 2. Fetch Customer Data (Credits, Subscription)
+  const { data: customerData, error } = await supabase
     .from("customers")
     .select(`
-      *,
-      subscriptions (
-        status,
-        current_period_end,
-        creem_product_id
-      )
-    `)
+    *,
+    subscriptions (
+      status,
+      current_period_end,
+      creem_product_id
+    ),
+    credits_history (
+      amount,
+      type,
+      created_at
+    )
+  `)
     .eq("user_id", user.id)
+    // 重点添加：确保按时间倒序排列关联表数据，这样 slice(0, 2) 才是最近的活动
+    .order('created_at', { foreignTable: 'credits_history', ascending: false })
     .single();
 
-  // 3. 🚨 核心修复：独立查询流水表，强制按时间倒序排，取最新的 5 条！
-  const { data: historyData } = await supabase
-    .from("credits_history")
-    .select("amount, type, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false }) // false 代表最新的排在最前面
-    .limit(5); // 建议展示 5 条，比 2 条看起来更饱满
+  // 辅助调试：如果还是没数据，看一眼控制台报错
+  if (error) {
+    console.error("Supabase Query Error:", error.message);
+  }
 
   const subscription = customerData?.subscriptions?.[0];
   const credits = customerData?.credits || 0;
-  const recentCreditsHistory = historyData || []; // 直接使用查出来的新鲜数组
+  const recentCreditsHistory = customerData?.credits_history?.slice(0, 2) || [];
 
   return (
     <div className="flex-1 w-full flex flex-col gap-6 sm:gap-8 px-4 sm:px-8 container pb-10">
@@ -60,7 +65,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Credits Card */}
         <CreditsBalanceCard credits={credits} recentHistory={recentCreditsHistory} />
-        
+
         {/* Subscription Status */}
         <SubscriptionStatusCard subscription={subscription} />
       </div>
