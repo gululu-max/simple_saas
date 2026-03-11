@@ -1,71 +1,74 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { addCreditsToCustomer } from "@/lib/credits"; // 引入发积分底层逻辑
 
-// 1️⃣ 定义商品 ID 到积分的映射字典
-const CREDITS_MAP: Record<string, number> = {
-  "prod_1xQAaVUDAS8ok2LC4ByDkt": 40,   // 记得换成真实的 Starter ID
-  "prod_2Ec2MDEKTw4m2eTpeK2QDI": 200,      // 记得换成真实的 Pro ID
-  "prod_1oqDuB2aNKdNUqoXdH1jCp": 500, // 👈 你的 Ultra 套餐真实 ID
+// 1️⃣ 终极版：定义【所有】商品 ID 到积分的映射字典
+const CREDITS_MAP: Record<string, { type: 'subscription' | 'package', amount: number }> = {
+  // === 📅 订阅套餐 ===
+  "prod_1xQAaVUDAS8ok2LC4ByDkt": { type: 'subscription', amount: 40 },   // Starter
+  "prod_2Ec2MDEKTw4m2eTpeK2QDI": { type: 'subscription', amount: 200 },  // Pro
+  "prod_1oqDuB2aNKdNUqoXdH1jCp": { type: 'subscription', amount: 500 },  // Ultra
+
+  // === 💰 单次购买积分包 (⚠️ 请把这里的 prod_xxx 换成你真实的商品 ID) ===
+  "prod_2yCr5jDyIWNbaXkEmdHi8U":  { type: 'package', amount: 25 },   // $5  (25 credits)
+  "prod_7FSCixl1ehaoEo27D8BOan": { type: 'package', amount: 100 },  // $12 (100 credits)
+  "prod_6pWAhN7ZgxyvzexM2ls4Et": { type: 'package', amount: 300 },  // $25 (300 credits)
 };
-
-// 初始化 Supabase Admin 客户端 (绕过 RLS 权限)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
-    // 🚨 修正 1：精准获取事件名称
     const eventType = body.eventType; 
+    const eventId = body.id; // 防重凭证
     
     console.log(`👉 收到 Creem 事件: ${eventType}`);
 
-    // 🚨 修正 2：匹配正确的支付成功事件名
+    const userId = body.object?.metadata?.user_id;
+
+    if (!userId) {
+      console.error("❌ Webhook 没找到 user_id, 无法发货");
+      return NextResponse.json({ error: "Missing User ID" }, { status: 400 });
+    }
+
+    // 提取当前事件关联的商品 ID (兼容不同事件层级)
+    const productId = body.object?.product?.id || body.object?.product_id || body.object?.items?.[0]?.product_id;
+    const productConfig = CREDITS_MAP[productId];
+
+    // ==========================================
+    // 场景 A：单次购买积分包完成 ($5 / $12 / $25)
+    // ==========================================
+    if (eventType === "checkout.completed") {
+      if (productConfig && productConfig.type === 'package') {
+        const creditsToAdd = productConfig.amount;
+        
+        await addCreditsToCustomer(
+          userId, 
+          creditsToAdd,
+          body.object?.order?.id || eventId, 
+          `Purchased ${creditsToAdd} credits package`
+        );
+        console.log(`✅ 成功给用户 ${userId} 充值了单次包 ${creditsToAdd} 积分！`);
+      } else {
+        console.log(`👉 checkout.completed: 但不是积分包商品 (ID: ${productId})，跳过发货。`);
+      }
+    }
+
+    // ==========================================
+    // 场景 B：订阅会员扣款成功 (首次订阅 & 每月自动续费)
+    // ==========================================
     if (eventType === "subscription.paid") {
-      
-      // 🚨 修正 3：按照 Creem 真实的数据层级提取 ID
-      const productId = body.object?.product?.id; 
-      const userId = body.object?.metadata?.user_id;
-
-      if (!userId) {
-        console.error("❌ Webhook 没找到 user_id, 无法发货");
-        return NextResponse.json({ error: "Missing User ID" }, { status: 400 });
+      if (productConfig && productConfig.type === 'subscription') {
+        const creditsToAdd = productConfig.amount;
+        
+        await addCreditsToCustomer(
+          userId,
+          creditsToAdd,
+          eventId, 
+          `Monthly Subscription Renewal: ${creditsToAdd} credits`
+        );
+        console.log(`✅ 成功给订阅用户 ${userId} 自动充值了 ${creditsToAdd} 个月度积分！`);
+      } else {
+        console.warn(`⚠️ subscription.paid: 未知的订阅商品 ID: ${productId}，跳过发货。`);
       }
-
-      const creditsToAdd = CREDITS_MAP[productId];
-
-      if (!creditsToAdd) {
-        console.error(`❌ 未知的商品 ID: ${productId}`);
-        return NextResponse.json({ error: "Unknown Product" }, { status: 400 });
-      }
-
-      // 查询当前积分
-      const { data: customer, error: fetchError } = await supabaseAdmin
-        .from("customers")
-        .select("credits")
-        .eq("user_id", userId)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-
-      const currentCredits = customer?.credits || 0;
-      const newBalance = currentCredits + creditsToAdd;
-
-      // 更新积分
-      const { error: updateError } = await supabaseAdmin
-        .from("customers")
-        .update({ credits: newBalance })
-        .eq("user_id", userId);
-
-      if (updateError) throw updateError;
-
-      // 成功撒花！
-      console.log(`✅ 成功给用户 ${userId} 充值了 ${creditsToAdd} 积分！当前余额: ${newBalance}`);
     }
 
     return NextResponse.json({ received: true }, { status: 200 });
