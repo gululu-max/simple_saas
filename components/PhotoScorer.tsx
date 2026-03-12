@@ -282,18 +282,21 @@ export default function PhotoScorer() {
             )}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-border">
-              <div className="text-sm text-muted-foreground">
+              {/* 🚀 修复点：添加 flex-1 确保在 PC 端不吃掉按钮的空间，手机端 whitespace-normal 允许长句换行 */}
+              <div className="text-sm text-muted-foreground flex-1 px-4 sm:px-0 whitespace-normal">
                 {photos.length >= 3
                   ? `✅ Uploaded ${photos.length} photos, ready to score`
                   : photos.length > 0
                     ? `⚠️ Need to upload ${3 - photos.length} more photos (at least 3)`
                     : 'No photos uploaded yet'}
               </div>
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+
+              {/* 🚀 按钮容器：手机端全宽堆叠，PC 端自动宽度 */}
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 h-11 text-muted-foreground gap-2"
+                  className="w-full sm:w-auto h-11 text-muted-foreground gap-2 justify-center"
                   onClick={() => {
                     setPhotos([]);
                     setAnalysisResult(null);
@@ -308,16 +311,22 @@ export default function PhotoScorer() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={isLoading || photos.length < 3}
-                  className="flex-1 h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-6"
+                  /* 🚀 核心适配：手机端 h-auto 随内容长高，PC 端 sm:h-11 强制和 Clear All 对齐 */
+                  className="w-full sm:w-auto h-auto sm:h-11 py-3 sm:py-0 whitespace-normal sm:whitespace-nowrap bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-3 sm:px-6 flex justify-center"
                 >
                   {isLoading ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                      <span>Analyzing...</span>
+                    </span>
                   ) : (
-                    <span className="flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4" />
-                      Start Scoring & Ranking
-                      <span className="inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                        <Zap className="mr-1 h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                    <span className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-1.5 sm:gap-2">
+                      <BarChart3 className="w-4 h-4 shrink-0" />
+                      <span className="text-[13px] sm:text-base leading-tight">
+                        Start Scoring & Ranking
+                      </span>
+                      <span className="inline-flex shrink-0 items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
+                        <Zap className="mr-1 h-3.5 w-3.5 shrink-0 text-amber-500 fill-amber-500" />
                         10 Credits
                       </span>
                     </span>
@@ -387,40 +396,76 @@ export default function PhotoScorer() {
                         <Target className="w-5 h-5 text-primary" />
                         Brutally Honest Analysis of Each Photo
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* ✅ 修复：改成 flex-col，让每张照片的分析在 PC 端独占一行，释放空间 */}
+                      <div className="flex flex-col gap-6">
                         {analysisResult.photoDetails?.map((detail: any, index: number) => {
                           const photoData = photos[detail.imageIndex];
                           if (!photoData) return null;
                           return (
-                            <Card key={index} className="overflow-hidden bg-background border-border shadow-sm">
-                              <div className="flex h-full">
-                                <div className="w-2/5 shrink-0">
-                                  <img src={photoData.preview} className="w-full h-full object-cover" alt="review" />
+                            <Card key={index} className="overflow-hidden bg-[#121214] border-zinc-800 shadow-2xl mb-8">
+                              {/* ✅ 修复：改成 md，让它在屏幕足够大时才左图右文，同时保证最小高度 */}
+                              <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] lg:grid-cols-[380px_1fr] min-h-[450px]">
+
+                                {/* 📸 左侧图片区 */}
+                                <div className="relative bg-zinc-900 border-b sm:border-b-0 sm:border-r border-zinc-800 flex items-center justify-center p-4">
+                                  <img
+                                    src={photoData.preview}
+                                    className="max-w-full max-h-[400px] object-contain shadow-2xl"
+                                    alt="Target"
+                                  />
+                                  <div className="absolute top-4 left-4">
+                                    <Badge className="bg-primary/20 text-primary border-primary/30 font-black">
+                                      PHOTO {detail.imageIndex + 1}
+                                    </Badge>
+                                  </div>
                                 </div>
-                                <div className="w-3/5 p-4 flex flex-col justify-between">
-                                  <div>
-                                    <div className="flex justify-between items-center mb-3">
-                                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Photo {detail.imageIndex + 1}</span>
-                                      <Badge variant={detail.score >= 70 ? "default" : "destructive"}>
-                                        Score: {detail.score}
-                                      </Badge>
+
+                                {/* 📝 右侧文字区 - 增加基础 Debug 样式 */}
+                                <div className="p-6 lg:p-10 flex flex-col justify-between bg-[#1a1a1c]">
+                                  <div className="w-full">
+                                    {/* 头部评分 */}
+                                    <div className="flex justify-between items-center mb-8 border-b border-zinc-800 pb-4">
+                                      <h4 className="text-2xl font-black text-white tracking-tighter uppercase">Visual Audit</h4>
+                                      <div className="flex flex-col items-end">
+                                        <span className="text-4xl font-black text-primary italic leading-none">{detail.score}</span>
+                                        <span className="text-[10px] text-zinc-500 font-bold tracking-widest mt-1">MATCH SCORE</span>
+                                      </div>
                                     </div>
-                                    <ul className="space-y-2 text-sm">
-                                      <li className="flex gap-2 items-start">
-                                        <CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
-                                        <span className="text-foreground leading-snug">{detail.pros}</span>
-                                      </li>
-                                      <li className="flex gap-2 items-start">
-                                        <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                                        <span className="text-foreground leading-snug">{detail.cons}</span>
-                                      </li>
-                                    </ul>
+
+                                    {/* 核心分析 - 强制文字颜色为白色避免消失 */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                                      <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                                          <CheckCircle className="w-4 h-4" /> THE STRENGTHS
+                                        </div>
+                                        <p className="text-zinc-300 text-sm leading-relaxed">
+                                          {detail.pros}
+                                        </p>
+                                      </div>
+                                      <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-rose-400 font-bold text-sm">
+                                          <AlertTriangle className="w-4 h-4" /> THE FLAWS
+                                        </div>
+                                        <p className="text-zinc-300 text-sm leading-relaxed">
+                                          {detail.cons}
+                                        </p>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="mt-4 pt-3 border-t border-border/50 text-sm">
-                                    <span className="font-semibold text-primary">🔨 Rescue Plan:</span>
-                                    <span className="text-muted-foreground ml-1">{detail.action}</span>
+
+                                  {/* 拯救计划 */}
+                                  <div className="bg-primary/10 border border-primary/20 rounded-2xl p-5 relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                                    <div className="flex items-center gap-2 mb-2 text-primary font-bold text-xs">
+                                      <Zap className="w-4 h-4 fill-primary" />
+                                      RESCUE PLAN
+                                    </div>
+                                    <p className="text-white text-sm font-semibold leading-relaxed">
+                                      {detail.action}
+                                    </p>
                                   </div>
                                 </div>
+
                               </div>
                             </Card>
                           );
@@ -434,24 +479,32 @@ export default function PhotoScorer() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 pt-6 border-t border-border">
-                    <Button variant="outline" onClick={() => setAnalysisResult(null)} className="h-12 flex-none px-6 text-muted-foreground">
+                  {/* 🚀 报告底部按钮适配：手机端纵向堆叠，导出按钮在上 */}
+                  <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-6 mt-6 border-t border-border">
+                    <Button
+                      variant="outline"
+                      onClick={() => setAnalysisResult(null)}
+                      className="w-full sm:w-auto h-12 flex-none px-6 text-muted-foreground"
+                    >
                       Retest
                     </Button>
 
                     <Button
                       onClick={handleExportImage}
                       disabled={isExporting}
-                      className="flex-1 h-12 bg-primary text-primary-foreground font-bold text-base gap-2"
+                      className="w-full sm:flex-1 h-12 bg-primary text-primary-foreground font-bold text-base gap-2 justify-center"
                     >
                       {isExporting ? (
-                        <><Loader2 className="w-5 h-5 animate-spin" /> Generating image...</>
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" /> Generating image...
+                        </span>
                       ) : (
-                        <><FileImage className="w-5 h-5" /> Export Analysis Report Image</>
+                        <span className="flex items-center justify-center gap-2">
+                          <FileImage className="w-5 h-5" /> Export Analysis Report Image
+                        </span>
                       )}
                     </Button>
                   </div>
-
                 </div>
               )}
             </CardContent>
