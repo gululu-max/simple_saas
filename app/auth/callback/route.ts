@@ -20,5 +20,6 @@ export async function GET(request: Request) {
   }
 
   // URL to redirect to after sign up process completes
-  return NextResponse.redirect(`${origin}/dashboard`);
+  // 👇 核心修改：把默认跳转从 /dashboard 改成了 /
+  return NextResponse.redirect(`${origin}/`);
 }
