@@ -26,6 +26,8 @@ export async function sendMetaCAPIEvent(eventName: string, userEmail: string) {
         },
       },
     ],
+    // 👇 这是我们刚刚加进去的测试码，注意它是和 data 平级的！
+    test_event_code: "TEST24799", 
   };
 
   try {
