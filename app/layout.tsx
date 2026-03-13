@@ -4,6 +4,8 @@ import { ThemeProvider } from "next-themes";
 import { createClient } from "@/utils/supabase/server";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
+// 引入你的 Meta Pixel 组件
+import MetaPixel from "@/components/MetaPixel"; 
 
 const baseUrl = process.env.BASE_URL
   ? `${process.env.BASE_URL}`
@@ -57,6 +59,10 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
+        
+        {/* 在这里插入 Meta Pixel 组件，紧贴着 body 标签下面 */}
+        <MetaPixel />
+        
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
