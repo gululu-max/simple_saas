@@ -4,7 +4,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Starter",
     id: "tier-starter",
-    productId: "prod_1xQAaVUDAS8ok2LC4ByDkt", // 替换为真实的支付网关 Product ID
+    productId: "prod_5rb8HwRBFYrkLIk4Jo0zk4", // 替换为真实的支付网关 Product ID prod_1xQAaVUDAS8ok2LC4ByDkt
     priceMonthly: "$6.99",
     description: "Quickly diagnose what’s hurting your dating profile and fix your worst photos.",
     features: [
@@ -22,7 +22,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Pro",
     id: "tier-pro",
-    productId: "prod_2Ec2MDEKTw4m2eTpeK2QDI", // 替换为真实的支付网关 Product ID
+    productId: "prod_1OW6mmHO9dwQv7tcLvoWqE", // 替换为真实的支付网关 Product ID prod_2Ec2MDEKTw4m2eTpeK2QDI
     priceMonthly: "$19.99",
     description: "Optimize your entire dating profile and dramatically increase your swipe-right rate.",
     features: [
@@ -41,7 +41,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Ultra",
     id: "tier-ultra",
-    productId: "prod_1oqDuB2aNKdNUqoXdH1jCp", // 替换为真实的支付网关 Product ID
+    productId: "prod_5lQJo4e8joxLuDMZXzaNAX", // 替换为真实的支付网关 Product ID
     priceMonthly: "$39.99",
     description: "Built for power users who constantly test and optimize dating profiles.",
     features: [
@@ -63,7 +63,7 @@ export const CREDITS_TIERS: ProductTier[] = [
   {
     name: "Basic Pack",
     id: "pack-25-credits",
-    productId: "prod_2yCr5jDyIWNbaXkEmdHi8U", // 替换为真实的支付网关 Product ID
+    productId: "prod_45VZKvDlwmOeCaZmtpVVht", // 替换为真实的支付网关 Product ID
     priceMonthly: "$5", 
     description: "Quickly test how your dating photos perform.",
     creditAmount: 25,
@@ -80,7 +80,7 @@ export const CREDITS_TIERS: ProductTier[] = [
   {
     name: "Value Pack",
     id: "pack-100-credits",
-    productId: "prod_7FSCixl1ehaoEo27D8BOan", // 替换为真实的支付网关 Product ID
+    productId: "prod_7BZsaTaYuNSxV3J351zJEU", // 替换为真实的支付网关 Product ID
     priceMonthly: "$12",
     description: "The most popular choice for fully optimizing your dating profile.",
     creditAmount: 100,
@@ -97,7 +97,7 @@ export const CREDITS_TIERS: ProductTier[] = [
   {
     name: "Pro Pack",
     id: "pack-300-credits",
-    productId: "prod_6pWAhN7ZgxyvzexM2ls4Et", // 替换为真实的支付网关 Product ID
+    productId: "prod_40nACa3LIp8EPw46bHJyyE", // 替换为真实的支付网关 Product ID
     priceMonthly: "$25",
     description: "Best value for continuous profile testing and optimization.",
     creditAmount: 300,
