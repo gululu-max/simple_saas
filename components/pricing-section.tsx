@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // 🎯 1. 补充引入 useEffect
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,14 @@ import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
 import { SUBSCRIPTION_TIERS, CREDITS_TIERS } from "@/config/subscriptions";
 import { ProductTier } from "@/types/subscriptions";
+import { sendGAEvent } from "@next/third-parties/google"; // 🎯 2. 引入 GA4 发送方法
+
+// 🎯 3. 新增价格解析工具函数，确保发给 GA 的是纯数字 (防止 "$9.90" 导致报错)
+const parsePrice = (priceStr: string | number) => {
+  if (typeof priceStr === 'number') return priceStr;
+  const parsed = parseFloat(String(priceStr).replace(/[^0-9.]/g, ''));
+  return isNaN(parsed) ? 0 : parsed;
+};
 
 interface PricingSectionProps {
   className?: string;
@@ -22,6 +30,32 @@ export function PricingSection({ className }: PricingSectionProps) {
   const { user } = useUser();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+
+  // 🎯 4. 商品曝光埋点：用户划到或加载出价格页时，上报所有的商品列表
+  useEffect(() => {
+    const allItems = [
+      ...SUBSCRIPTION_TIERS.map((t) => ({
+        item_id: t.id,
+        item_name: t.name,
+        item_category: "subscription",
+        price: parsePrice(t.priceMonthly),
+      })),
+      ...CREDITS_TIERS.map((t) => ({
+        item_id: t.id,
+        item_name: t.name,
+        item_category: "credits",
+        price: parsePrice(t.priceMonthly),
+      })),
+    ];
+
+    sendGAEvent("event", "view_item_list", {
+      ecommerce: {
+        item_list_id: "pricing_section",
+        item_list_name: "Matchfix Pricing Plans",
+        items: allItems,
+      },
+    });
+  }, []);
 
   const handlePurchase = async (tier: ProductTier) => {
     if (!user) {
@@ -34,6 +68,24 @@ export function PricingSection({ className }: PricingSectionProps) {
       return;
     }
 
+    // 🎯 5. 核心流失卡点埋点：记录用户点击了哪个具体套餐发起支付
+    const itemCategory = tier.creditAmount ? 'credits' : 'subscription';
+    sendGAEvent("event", "begin_checkout", {
+      currency: "USD", // 如果你用其他币种请修改
+      value: parsePrice(tier.priceMonthly),
+      ecommerce: {
+        items: [
+          {
+            item_id: tier.id,
+            item_name: tier.name,
+            item_category: itemCategory,
+            price: parsePrice(tier.priceMonthly),
+            quantity: 1,
+          }
+        ]
+      }
+    });
+
     setIsProcessing(tier.id);
     
     try {
@@ -44,7 +96,7 @@ export function PricingSection({ className }: PricingSectionProps) {
         },
         body: JSON.stringify({
           productId: tier.productId,
-          productType: tier.creditAmount ? 'credits' : 'subscription',
+          productType: itemCategory, // 顺便复用了上面判断好的类型
           userId: user.id,
           credits: tier.creditAmount, 
         }),
@@ -150,7 +202,6 @@ function PricingCard({
   onPurchase: (tier: ProductTier) => void;
   type: 'subscription' | 'credits';
 }) {
-  // 根据类型动态设置按钮文案
   const buttonText = type === 'subscription' ? "Subscribe" : "Purchase";
 
   return (
@@ -160,7 +211,6 @@ function PricingCard({
       transition={{ duration: 0.5, delay: index * 0.1 }}
       className="relative h-full pt-4"
     >
-      {/* Most Popular 徽章独立在 Card 外层，避免被 overflow-hidden 裁切 */}
       {tier.featured && (
         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20">
           <Badge className="bg-gradient-to-r from-rose-500 to-pink-600 text-white border-0 px-4 py-1 shadow-[0_0_15px_rgba(225,29,72,0.4)] font-bold tracking-wide">
@@ -175,7 +225,6 @@ function PricingCard({
           : 'bg-slate-900/50 border-slate-800 text-slate-50 hover:border-slate-700'
       }`}>
         
-        {/* 背景右上角的环境光晕 */}
         {tier.featured && (
           <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/10 blur-3xl -z-10 pointer-events-none" />
         )}

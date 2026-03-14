@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       customer: {
         email: user.email,
       },
-      successUrl: process.env.CREEM_SUCCESS_URL || `${request.headers.get('origin')}/dashboard`,
+      successUrl: `${request.headers.get('origin')}/?payment=success`,
       metadata: {
         user_id: user.id,
         product_type: productType,

@@ -31,6 +31,9 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+// 🚀 [GA接入] 引入埋点工具
+import { sendGAEvent } from '@next/third-parties/google';
+
 // ================= 图像压缩逻辑 =================
 async function compressImage(
   file: File,
@@ -124,8 +127,12 @@ export default function PhotoScorer() {
       alert('You can only upload up to 9 photos');
       const remaining = 9 - photos.length;
       setPhotos([...photos, ...newPhotos.slice(0, remaining)]);
+      // 🚀 [GA接入] 埋点：记录用户上传照片，带上数量
+      sendGAEvent({ event: 'photo_scorer_images_selected', count: remaining });
     } else {
       setPhotos([...photos, ...newPhotos]);
+      // 🚀 [GA接入] 埋点：记录用户上传照片，带上数量
+      sendGAEvent({ event: 'photo_scorer_images_selected', count: newPhotos.length });
     }
 
     if (fileInputRef.current) {
@@ -143,6 +150,9 @@ export default function PhotoScorer() {
     setIsLoading(true);
     setAnalysisResult(null);
 
+    // 🚀 [GA接入] 埋点：点击开始打分（并记录他们用了几张图）
+    sendGAEvent({ event: 'photo_scorer_start_click', photo_count: photos.length });
+
     try {
       const images = photos.map(p => ({
         base64: p.preview.split(',')[1],
@@ -159,6 +169,8 @@ export default function PhotoScorer() {
         const errorData = await response.json().catch(() => ({}));
 
         if (response.status === 403 || errorData.code === 'INSUFFICIENT_CREDITS') {
+          // 🚀 [GA接入] 埋点：因为余额不足拦截
+          sendGAEvent({ event: 'photo_scorer_failed', reason: 'insufficient_credits' });
           setShowCreditModal(true);
           setIsLoading(false);
           return;
@@ -170,11 +182,16 @@ export default function PhotoScorer() {
       const data = await response.json();
       setAnalysisResult(data);
 
+      // 🚀 [GA接入] 埋点：分析成功完成
+      sendGAEvent({ event: 'photo_scorer_complete', status: 'success' });
+
       // 🚀 【核心修复】：请求成功，数据也拿到了，后台静默刷新同步扣减的 Credits
       router.refresh();
 
     } catch (error: any) {
       console.error("Submission failed:", error);
+      // 🚀 [GA接入] 埋点：服务器报错或其他错误
+      sendGAEvent({ event: 'photo_scorer_failed', reason: 'error' });
       alert(`Oops: ${error.message || 'The server wandered off, please try again!'}`);
     } finally {
       setIsLoading(false);
@@ -185,6 +202,9 @@ export default function PhotoScorer() {
   const handleExportImage = async () => {
     if (reportRef.current === null) return;
     setIsExporting(true);
+
+    // 🚀 [GA接入] 埋点：用户点击导出长图（说明很有分享欲）
+    sendGAEvent({ event: 'photo_scorer_export_image' });
 
     try {
       const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 2 });
@@ -301,6 +321,8 @@ export default function PhotoScorer() {
                     setPhotos([]);
                     setAnalysisResult(null);
                     if (fileInputRef.current) fileInputRef.current.value = '';
+                    // 🚀 [GA接入] 埋点：用户清空了所有照片
+                    sendGAEvent({ event: 'photo_scorer_clear_all' });
                   }}
                   disabled={isLoading}
                 >
@@ -483,7 +505,11 @@ export default function PhotoScorer() {
                   <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-6 mt-6 border-t border-border">
                     <Button
                       variant="outline"
-                      onClick={() => setAnalysisResult(null)}
+                      onClick={() => {
+                        setAnalysisResult(null);
+                        // 🚀 [GA接入] 埋点：用户生成后选择再测一次
+                        sendGAEvent({ event: 'photo_scorer_retest_click' });
+                      }}
                       className="w-full sm:w-auto h-12 flex-none px-6 text-muted-foreground"
                     >
                       Retest
@@ -532,7 +558,11 @@ export default function PhotoScorer() {
                 <Button
                   variant="outline"
                   className="flex-1 h-11 rounded-xl"
-                  onClick={() => setShowCreditModal(false)}
+                  onClick={() => {
+                    setShowCreditModal(false);
+                    // 🚀 [GA接入] 埋点：弹窗取消
+                    sendGAEvent({ event: 'upgrade_modal_cancel' });
+                  }}
                 >
                   Cancel
                 </Button>
@@ -540,6 +570,8 @@ export default function PhotoScorer() {
                   className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
                   onClick={() => {
                     setShowCreditModal(false);
+                    // 🚀 [GA接入] 埋点：弹窗点击充值
+                    sendGAEvent({ event: 'upgrade_modal_click_refill' });
                     // 🚀 核心修改：使用 router.push 并带上 from 参数
                     router.push(`/?from=${encodeURIComponent(pathname)}#pricing`);
                   }}

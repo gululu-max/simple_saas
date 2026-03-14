@@ -28,6 +28,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 
+// 🚀 [GA接入] 引入 Google Analytics 事件发送函数
+import { sendGAEvent } from '@next/third-parties/google';
+
 // ================= 图像压缩逻辑 =================
 async function compressImage(
   file: File,
@@ -80,6 +83,8 @@ export default function RoastScanner() {
     api: '/api/scanner',
     // 🚀 【关键修复】：在成功完成流输出后触发刷新
     onFinish: () => {
+      // 🚀 [GA接入] 埋点：成功生成 Roast 结果
+      sendGAEvent({ event: 'roast_complete', status: 'success' });
       // 这里的 refresh 会在后台静默重新获取 Server Component 的数据（比如 layout.tsx 里的 credits）
       // 且不会打断或重置当前 Client Component（RoastScanner）的任何状态
       router.refresh();
@@ -95,6 +100,8 @@ export default function RoastScanner() {
           (errorData.error && errorData.error.includes('Insufficient credits')) ||
           (errorData.error && errorData.error.includes('积分不足'))
         ) {
+          // 🚀 [GA接入] 埋点：因积分不足被拦截
+          sendGAEvent({ event: 'roast_failed', reason: 'insufficient_credits' });
           setShowUpgradeModal(true);
           return;
         }
@@ -104,6 +111,8 @@ export default function RoastScanner() {
       } catch (e) {
         // 如果解析失败，则尝试正则匹配纯文本错误
         if (error.message.includes('402') || error.message.includes('积分不足')) {
+          // 🚀 [GA接入] 埋点：因积分不足被拦截
+          sendGAEvent({ event: 'roast_failed', reason: 'insufficient_credits' });
           setShowUpgradeModal(true);
         } else {
           alert('Oops, something went wrong: ' + error.message);
@@ -116,6 +125,8 @@ export default function RoastScanner() {
     if (!completion) return;
     navigator.clipboard.writeText(completion);
     setIsCopied(true);
+    // 🚀 [GA接入] 埋点：用户复制了生成的文案
+    sendGAEvent({ event: 'roast_copy_result' });
     setTimeout(() => setIsCopied(false), 2000);
   };
 
@@ -136,6 +147,9 @@ export default function RoastScanner() {
       return;
     }
 
+    // 🚀 [GA接入] 埋点：用户成功选择了符合要求的图片
+    sendGAEvent({ event: 'roast_image_selected', file_size: Math.round(file.size / 1024) });
+
     const compressed = await compressImage(file, {
       maxSize: 1024,
       quality: 0.75,
@@ -149,6 +163,9 @@ export default function RoastScanner() {
     if (!preview || isLoading) return;
 
     setShowUpgradeModal(false);
+
+    // 🚀 [GA接入] 埋点：用户点击了分析按钮
+    sendGAEvent({ event: 'roast_start_click' });
 
     await complete('', {
       body: {
@@ -243,6 +260,8 @@ export default function RoastScanner() {
                   onClick={() => {
                     setPreview(null);
                     if (fileInputRef.current) fileInputRef.current.value = '';
+                    // 🚀 [GA接入] 埋点：用户清除了预览图
+                    sendGAEvent({ event: 'roast_image_reset' });
                   }}
                   disabled={isLoading || !preview}
                 >
@@ -322,13 +341,15 @@ export default function RoastScanner() {
                   <Button
                     asChild
                     className="w-full h-12 gap-2 font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+                    // 🚀 [GA接入] 埋点：点击下方的交叉销售按钮
+                    onClick={() => sendGAEvent({ event: 'roast_upsell_click', target: 'photo_scorer' })}
                   >
                     <Link href="/dashboard/photo-scorer">
                       <Target className="w-5 h-5" />
                       AI Photo Scorer
                       <span className="ml-1 inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
                         <Zap className="mr-1 h-3.5 w-3.5 text-amber-400 fill-amber-400" />
-                        5 Credits
+                        10 Credits
                       </span>
                     </Link>
                   </Button>
@@ -359,7 +380,11 @@ export default function RoastScanner() {
               <Button
                 variant="outline"
                 className="flex-1 h-11 rounded-xl"
-                onClick={() => setShowUpgradeModal(false)}
+                onClick={() => {
+                  setShowUpgradeModal(false);
+                  // 🚀 [GA接入] 埋点：关闭充值弹窗
+                  sendGAEvent({ event: 'upgrade_modal_cancel' });
+                }}
               >
                 Cancel
               </Button>
@@ -367,6 +392,8 @@ export default function RoastScanner() {
                 className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
                 onClick={() => {
                   setShowUpgradeModal(false);
+                  // 🚀 [GA接入] 埋点：点击充值跳转
+                  sendGAEvent({ event: 'upgrade_modal_click_refill' });
                   // 🚀 修改：把查询参数（?from=...）放在锚点（#pricing）前面
                   router.push(`/?from=${encodeURIComponent(pathname)}#pricing`);
                 }}
