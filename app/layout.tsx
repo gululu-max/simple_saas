@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 // 引入你的 Meta Pixel 组件
 import MetaPixel from "@/components/MetaPixel"; 
+// 1. 引入 Google Analytics 组件
+import { GoogleAnalytics } from '@next/third-parties/google';
 
 const baseUrl = process.env.BASE_URL
   ? `${process.env.BASE_URL}`
@@ -44,11 +46,10 @@ export default async function RootLayout({
   // 2. 查询用户的 credits 余额
   let credits = 0;
   if (user) {
-    // 根据 dashboard 的逻辑，正确查询 customers 表
     const { data } = await supabase
       .from("customers") 
-      .select("credits") // 因为 Header 只需要额度，所以只 select credits 即可，不用像 dashboard 查那么多
-      .eq("user_id", user.id) // 注意：这里是 user_id
+      .select("credits") 
+      .eq("user_id", user.id) 
       .single();
       
     if (data?.credits) {
@@ -60,7 +61,7 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
         
-        {/* 在这里插入 Meta Pixel 组件，紧贴着 body 标签下面 */}
+        {/* Meta Pixel 保持不变 */}
         <MetaPixel />
         
         <ThemeProvider
@@ -71,13 +72,15 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <div className="relative min-h-screen">
-            {/* 3. 修改：将查询到的 credits 传给 Header 组件 */}
             <Header user={user} credits={credits} />
             <main className="flex-1">{children}</main>
             <Footer />
           </div>
           <Toaster />
         </ThemeProvider>
+
+        {/* 2. 插入 Google Analytics 代码 */}
+        <GoogleAnalytics gaId="G-0SVH6XDETV" />
       </body>
     </html>
   );
