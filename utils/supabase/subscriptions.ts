@@ -9,8 +9,6 @@ export async function createOrUpdateCustomer(
 
   let existingCustomer = null;
 
-  // 1. Try finding by user_id if provided
-  // This handles the transition from 'auto_' ID to 'cust_' ID
   if (userId) {
     const { data, error } = await supabase
       .from("customers")
@@ -25,8 +23,6 @@ export async function createOrUpdateCustomer(
     }
   }
 
-  // 2. If not found by user_id (or user_id missing), try finding by creem_customer_id
-  // This handles webhooks that might not have user_id metadata (e.g. renewals)
   if (!existingCustomer) {
     const { data, error } = await supabase
       .from("customers")
@@ -42,11 +38,10 @@ export async function createOrUpdateCustomer(
   }
 
   if (existingCustomer) {
-    // If found, update the record
     const { error } = await supabase
       .from("customers")
       .update({
-        creem_customer_id: creemCustomer.id, // Ensure we have the latest Creem ID
+        creem_customer_id: creemCustomer.id,
         email: creemCustomer.email,
         name: creemCustomer.name,
         country: creemCustomer.country,
@@ -58,12 +53,12 @@ export async function createOrUpdateCustomer(
     return existingCustomer.id;
   }
 
-  // 3. If still not found, we need a user_id to create a new record
   if (!userId) {
-    throw new Error("Cannot create customer: user_id is missing from webhook metadata");
+    throw new Error(
+      "Cannot create customer: user_id is missing from webhook metadata"
+    );
   }
 
-  // Insert new customer
   const { data: newCustomer, error } = await supabase
     .from("customers")
     .insert({
@@ -163,26 +158,29 @@ export async function addCreditsToCustomer(
   description?: string
 ) {
   const supabase = createServiceRoleClient();
-  // Start a transaction
-  const { data: client } = await supabase
-    .from("customers")
-    .select("credits")
-    .eq("id", customerId)
-    .single();
-  if (!client) throw new Error("Customer not found");
-  console.log("🚀 ~ 1client:", client);
-  console.log("🚀 ~ 1credits:", credits);
-  const newCredits = (client.credits || 0) + credits;
 
-  // Update customer credits
-  const { error: updateError } = await supabase
-    .from("customers")
-    .update({ credits: newCredits, updated_at: new Date().toISOString() })
-    .eq("id", customerId);
+  // ✅ 幂等检查：同一个 creemOrderId 只发一次
+  if (creemOrderId) {
+    const { data: existing } = await supabase
+      .from("credits_history")
+      .select("id")
+      .eq("creem_order_id", creemOrderId)
+      .maybeSingle();
 
-  if (updateError) throw updateError;
+    if (existing) {
+      console.log(`⚠️ 重复事件，跳过积分发放: ${creemOrderId}`);
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("credits")
+        .eq("id", customerId)
+        .single();
+      return customer?.credits || 0;
+    }
+  }
 
-  // Record the transaction in credits_history
+  // ✅ 先写历史记录，再更新余额
+  // 原因：history 写入失败可重试且不影响余额；
+  // 若先加余额再写记录，余额增加但无记录是最坏情况
   const { error: historyError } = await supabase
     .from("credits_history")
     .insert({
@@ -193,7 +191,38 @@ export async function addCreditsToCustomer(
       creem_order_id: creemOrderId,
     });
 
-  if (historyError) throw historyError;
+  if (historyError) {
+    // 若是唯一约束冲突（并发重复请求），视为幂等成功
+    if (historyError.code === "23505") {
+      console.log(`⚠️ 并发重复事件，跳过积分发放: ${creemOrderId}`);
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("credits")
+        .eq("id", customerId)
+        .single();
+      return customer?.credits || 0;
+    }
+    throw historyError;
+  }
+
+  // 再更新余额
+  const { data: customer, error: fetchError } = await supabase
+    .from("customers")
+    .select("credits")
+    .eq("id", customerId)
+    .single();
+
+  if (fetchError) throw fetchError;
+  if (!customer) throw new Error("Customer not found");
+
+  const newCredits = (customer.credits || 0) + credits;
+
+  const { error: updateError } = await supabase
+    .from("customers")
+    .update({ credits: newCredits, updated_at: new Date().toISOString() })
+    .eq("id", customerId);
+
+  if (updateError) throw updateError;
 
   return newCredits;
 }
@@ -205,18 +234,17 @@ export async function useCredits(
 ) {
   const supabase = createServiceRoleClient();
 
-  // Start a transaction
   const { data: client } = await supabase
     .from("customers")
     .select("credits")
     .eq("id", customerId)
     .single();
+
   if (!client) throw new Error("Customer not found");
   if ((client.credits || 0) < credits) throw new Error("Insufficient credits");
 
   const newCredits = client.credits - credits;
 
-  // Update customer credits
   const { error: updateError } = await supabase
     .from("customers")
     .update({ credits: newCredits, updated_at: new Date().toISOString() })
@@ -224,7 +252,6 @@ export async function useCredits(
 
   if (updateError) throw updateError;
 
-  // Record the transaction in credits_history
   const { error: historyError } = await supabase
     .from("credits_history")
     .insert({
