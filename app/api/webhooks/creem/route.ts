@@ -140,7 +140,7 @@ async function handleSubscriptionActive(event: CreemWebhookEvent) {
 // subscription.paid：每次扣款成功（含首次 & 续费）→ 发积分
 // ─────────────────────────────────────────────
 async function handleSubscriptionPaid(event: CreemWebhookEvent) {
-  const subscription = event.object;
+  const subscription = event.object as any;
 
   const customerId = await createOrUpdateCustomer(
     subscription.customer as any,
@@ -156,11 +156,16 @@ async function handleSubscriptionPaid(event: CreemWebhookEvent) {
   const productConfig = productId ? CREDITS_MAP[productId] : null;
 
   if (productConfig?.type === "subscription") {
-    // ✅ 用 event.id 做幂等凭证，防止 webhook 重试重复发积分
+    // ✅ 用 last_transaction.id 做幂等凭证，resend 不会重复发积分
+    const transactionId = subscription.last_transaction?.id;
+    if (!transactionId) {
+      throw new Error("subscription.paid: 缺少 last_transaction.id，无法保证幂等");
+    }
+
     await addCreditsToCustomer(
       customerId,
       productConfig.amount,
-      event.id,
+      transactionId, // 👈 关键：用 transaction ID 而不是 event ID
       `Monthly Subscription Renewal: ${productConfig.amount} credits`
     );
     console.log(`✅ 订阅扣款成功，发放月度积分 ${productConfig.amount}`);
