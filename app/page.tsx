@@ -233,7 +233,7 @@ export default function Home() {
               <div className="p-6 rounded-xl border border-red-500 bg-red-950/20 shadow-[0_0_30px_rgba(220,38,38,0.15)] relative transform md:-translate-y-2">
                  <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">SMART CHOICE</div>
                  <h4 className="font-bold text-red-400 mb-2">Matchfix AI</h4>
-                 <div className="text-2xl font-bold text-white mb-4">From $9.90</div>
+                 <div className="text-2xl font-bold text-white mb-4">From $6.99</div>
                  <div className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-500"/> Brutally honest</div>
                  <div className="flex items-center gap-2 text-sm text-slate-300 mt-2"><Check className="w-4 h-4 text-emerald-500"/> Instant results</div>
               </div>
