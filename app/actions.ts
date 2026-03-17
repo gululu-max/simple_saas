@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 // 1. 记得在文件最上方引入我们上一步写的发信使函数
 // (注意根据你实际存放 meta-capi.ts 的相对路径微调一下，比如是 ../lib/meta-capi )
-import { sendMetaCAPIEvent } from "@/lib/meta-capi";
+import { sendCompleteRegistrationEvent } from "@/lib/meta-capi";
 
 /**
  * 注册逻辑
@@ -40,7 +40,9 @@ export const signUpAction = async (formData: FormData) => {
     // 💡 --- 新增的 Meta CAPI 回传代码开始 ---
     // 注册成功，立刻把用户的邮箱加密发给 Meta，打上 CompleteRegistration 标签
     // 这里加 await 是为了防止 Vercel 提前终止进程，导致事件没发出去
-    await sendMetaCAPIEvent("CompleteRegistration", email);
+    await sendCompleteRegistrationEvent(email, {
+      eventId: `reg_${Date.now()}`,
+    });
     // 💡 --- 新增的 Meta CAPI 回传代码结束 ---
 
     // 成功后跳转带上 success=true，触发前端的绿色成功卡片

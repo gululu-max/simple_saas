@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { CreemWebhookEvent } from "@/types/creem";
+// 在文件顶部 import 区加上
+import { sendPurchaseEvent } from "@/lib/meta-capi";
 import {
   createOrUpdateCustomer,
   createOrUpdateSubscription,
@@ -112,6 +114,14 @@ async function handleCheckoutCompleted(event: CreemWebhookEvent) {
     console.log(
       `✅ 用户 ${checkout.metadata.user_id} 充值积分包 ${productConfig.amount}`
     );
+
+    // Meta CAPI: 追踪积分包购买
+    await sendPurchaseEvent(checkout.customer?.email ?? "", {
+      value: checkout.order?.amount ? checkout.order.amount / 100 : 0,
+      currency: checkout.currency ?? "USD",
+      contentIds: [productId!],
+      eventId: `purchase_${orderId}`,
+    });
   } else if (checkout.subscription) {
     // ✅ 订阅首次：只建记录，积分由 subscription.paid 统一发放
     await createOrUpdateSubscription(checkout.subscription, customerId);
@@ -169,6 +179,16 @@ async function handleSubscriptionPaid(event: CreemWebhookEvent) {
       `Monthly Subscription Renewal: ${productConfig.amount} credits`
     );
     console.log(`✅ 订阅扣款成功，发放月度积分 ${productConfig.amount}`);
+
+    // Meta CAPI: 追踪订阅付款
+    await sendPurchaseEvent(subscription.customer?.email ?? "", {
+      value: subscription.last_transaction?.amount
+        ? subscription.last_transaction.amount / 100
+        : 0,
+      currency: subscription.currency ?? "USD",
+      contentIds: [productId!],
+      eventId: `purchase_${transactionId}`,
+    });
   } else {
     console.warn(`⚠️ subscription.paid: 未识别商品 ID: ${productId}`);
   }

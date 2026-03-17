@@ -87,6 +87,12 @@ export default function RoastScanner() {
       sendGAEvent({ event: 'roast_complete', status: 'success' });
       // 这里的 refresh 会在后台静默重新获取 Server Component 的数据（比如 layout.tsx 里的 credits）
       // 且不会打断或重置当前 Client Component（RoastScanner）的任何状态
+      // ✅ 新增：通知服务端打 Meta CAPI Lead 事件
+      fetch('/api/meta-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: `lead_${Date.now()}` }),
+      }).catch(err => console.error('[Meta CAPI] Lead event failed:', err));
       router.refresh();
     },
     onError: (error) => {

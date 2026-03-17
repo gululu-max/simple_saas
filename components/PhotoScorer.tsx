@@ -184,6 +184,12 @@ export default function PhotoScorer() {
 
       // 🚀 [GA接入] 埋点：分析成功完成
       sendGAEvent({ event: 'photo_scorer_complete', status: 'success' });
+      // ✅ 新增：Meta CAPI 打点
+      fetch('/api/meta-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: `lead_photo_scorer_${Date.now()}` }),
+      }).catch(err => console.error('[Meta CAPI] PhotoScorer Lead event failed:', err));
 
       // 🚀 【核心修复】：请求成功，数据也拿到了，后台静默刷新同步扣减的 Credits
       router.refresh();
