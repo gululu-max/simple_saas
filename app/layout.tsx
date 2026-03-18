@@ -5,22 +5,22 @@ import { createClient } from "@/utils/supabase/server";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 // 引入你的 Meta Pixel 组件
-import MetaPixel from "@/components/MetaPixel"; 
+import MetaPixel from "@/components/MetaPixel";
 // 1. 引入 Google Analytics 组件
 import { GoogleAnalytics } from '@next/third-parties/google';
+import type { Metadata } from 'next';
 
 const baseUrl = process.env.BASE_URL
   ? `${process.env.BASE_URL}`
   : "http://localhost:3000";
 
-export const metadata = {
+export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: "Matchfix | The Ultimate AI Profile Roaster",
   description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
   keywords: "Matchfix, AI profile review, dating app tips, Tinder roast",
-  // 加这个👇
-  verification: {
-    facebook: 'b34j96cqsebufe4eay7t75a61fmkf6',
+  other: {
+    'facebook-domain-verification': 'b34j96cqsebufe4eay7t75a61fmkf6',
   },
   openGraph: {
     title: "Matchfix | The Ultimate AI Profile Roaster",
@@ -41,7 +41,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const supabase = await createClient();
-  
+
   // 1. 获取当前登录用户
   const {
     data: { user },
@@ -51,11 +51,11 @@ export default async function RootLayout({
   let credits = 0;
   if (user) {
     const { data } = await supabase
-      .from("customers") 
-      .select("credits") 
-      .eq("user_id", user.id) 
+      .from("customers")
+      .select("credits")
+      .eq("user_id", user.id)
       .single();
-      
+
     if (data?.credits) {
       credits = data.credits;
     }
@@ -64,10 +64,10 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
-        
+
         {/* Meta Pixel 保持不变 */}
         <MetaPixel />
-        
+
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
