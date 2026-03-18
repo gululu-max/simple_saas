@@ -18,6 +18,10 @@ export const metadata = {
   title: "Matchfix | The Ultimate AI Profile Roaster",
   description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
   keywords: "Matchfix, AI profile review, dating app tips, Tinder roast",
+  // 加这个👇
+  verification: {
+    facebook: 'b34j96cqsebufe4eay7t75a61fmkf6',
+  },
   openGraph: {
     title: "Matchfix | The Ultimate AI Profile Roaster",
     description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
