@@ -18,12 +18,8 @@ export default function Home() {
         <div className="container px-4 md:px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
 
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-              className="space-y-8 text-center lg:text-left"
-            >
+            {/* 文字内容直接渲染，不参与动画 */}
+            <div className="space-y-8 text-center lg:text-left">
               <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-400">
                 <ScanSearch className="w-3 h-3 mr-2" /> Matchfix: The Ultimate AI Profile Roaster
               </div>
@@ -37,19 +33,30 @@ export default function Home() {
                 Stop blaming the algorithm. Upload your Tinder/Hinge screenshots or those tragic mirror selfies, and get the most ruthless, honest roast. Get a reality check, then get matches.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              {/* 按钮和底部标签可以保留动画，不影响 LCP */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.3 }}
+                className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
+              >
                 <Link href="/dashboard/scanner">
                   <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]">
                     🔥 Get Roasted <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
-              </div>
+              </motion.div>
 
-              <div className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm text-slate-400">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.5 }}
+                className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm text-slate-400"
+              >
                 <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> No sign-up required</div>
                 <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Auto-deleted instantly</div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
 
             {/* 右侧：动态雷达扫描图 (已加入真实图片位置) */}
             {/* 外层容器不再做动画，图片直接渲染，不受 opacity:0 影响 */}
@@ -141,10 +148,13 @@ export default function Home() {
 
               {/* 🎯 After 图片区域 */}
               <div className="aspect-[4/3] w-full rounded-lg overflow-hidden bg-slate-800 relative border border-red-500/30">
-                <img
+                <Image
                   src="/after-demo.jpg"
                   alt="Good Profile"
-                  className="w-full h-full object-cover"
+                  fill
+                  loading="lazy"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover"
                 />
                 <div className="absolute top-3 left-3 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg">Score: 89/100</div>
               </div>
