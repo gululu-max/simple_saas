@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-// 🚀 引入路由钩子
 import { useRouter, usePathname } from 'next/navigation';
 import {
   Image as ImageIcon,
@@ -30,9 +29,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-
-// 🚀 [GA接入] 引入埋点工具
-import { sendGAEvent } from '@next/third-parties/google';
 
 // ================= 图像压缩逻辑 =================
 async function compressImage(
@@ -85,12 +81,17 @@ export default function PhotoScorer() {
   const [isExporting, setIsExporting] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
 
-  // 🚀 初始化路由
   const router = useRouter();
   const pathname = usePathname();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+
+  const trackEvent = (eventName: string, params?: Record<string, any>) => {
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', eventName, params);
+    }
+  };
 
   // ================= 文件选择与处理 =================
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,12 +128,10 @@ export default function PhotoScorer() {
       alert('You can only upload up to 9 photos');
       const remaining = 9 - photos.length;
       setPhotos([...photos, ...newPhotos.slice(0, remaining)]);
-      // 🚀 [GA接入] 埋点：记录用户上传照片，带上数量
-      sendGAEvent({ event: 'photo_scorer_images_selected', count: remaining });
+      trackEvent('photo_scorer_images_selected', { count: remaining });
     } else {
       setPhotos([...photos, ...newPhotos]);
-      // 🚀 [GA接入] 埋点：记录用户上传照片，带上数量
-      sendGAEvent({ event: 'photo_scorer_images_selected', count: newPhotos.length });
+      trackEvent('photo_scorer_images_selected', { count: newPhotos.length });
     }
 
     if (fileInputRef.current) {
@@ -150,8 +149,7 @@ export default function PhotoScorer() {
     setIsLoading(true);
     setAnalysisResult(null);
 
-    // 🚀 [GA接入] 埋点：点击开始打分（并记录他们用了几张图）
-    sendGAEvent({ event: 'photo_scorer_start_click', photo_count: photos.length });
+    trackEvent('photo_scorer_start_click', { photo_count: photos.length });
 
     try {
       const images = photos.map(p => ({
@@ -169,8 +167,7 @@ export default function PhotoScorer() {
         const errorData = await response.json().catch(() => ({}));
 
         if (response.status === 403 || errorData.code === 'INSUFFICIENT_CREDITS') {
-          // 🚀 [GA接入] 埋点：因为余额不足拦截
-          sendGAEvent({ event: 'photo_scorer_failed', reason: 'insufficient_credits' });
+          trackEvent('photo_scorer_failed', { reason: 'insufficient_credits' });
           setShowCreditModal(true);
           setIsLoading(false);
           return;
@@ -182,22 +179,18 @@ export default function PhotoScorer() {
       const data = await response.json();
       setAnalysisResult(data);
 
-      // 🚀 [GA接入] 埋点：分析成功完成
-      sendGAEvent({ event: 'photo_scorer_complete', status: 'success' });
-      // ✅ 新增：Meta CAPI 打点
+      trackEvent('photo_scorer_complete', { status: 'success' });
       fetch('/api/meta-event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId: `lead_photo_scorer_${Date.now()}` }),
       }).catch(err => console.error('[Meta CAPI] PhotoScorer Lead event failed:', err));
 
-      // 🚀 【核心修复】：请求成功，数据也拿到了，后台静默刷新同步扣减的 Credits
       router.refresh();
 
     } catch (error: any) {
       console.error("Submission failed:", error);
-      // 🚀 [GA接入] 埋点：服务器报错或其他错误
-      sendGAEvent({ event: 'photo_scorer_failed', reason: 'error' });
+      trackEvent('photo_scorer_failed', { reason: 'error' });
       alert(`Oops: ${error.message || 'The server wandered off, please try again!'}`);
     } finally {
       setIsLoading(false);
@@ -209,8 +202,7 @@ export default function PhotoScorer() {
     if (reportRef.current === null) return;
     setIsExporting(true);
 
-    // 🚀 [GA接入] 埋点：用户点击导出长图（说明很有分享欲）
-    sendGAEvent({ event: 'photo_scorer_export_image' });
+    trackEvent('photo_scorer_export_image');
 
     try {
       const dataUrl = await toPng(reportRef.current, { cacheBust: true, pixelRatio: 2 });
@@ -308,7 +300,6 @@ export default function PhotoScorer() {
             )}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-border">
-              {/* 🚀 修复点：添加 flex-1 确保在 PC 端不吃掉按钮的空间，手机端 whitespace-normal 允许长句换行 */}
               <div className="text-sm text-muted-foreground flex-1 px-4 sm:px-0 whitespace-normal">
                 {photos.length >= 3
                   ? `✅ Uploaded ${photos.length} photos, ready to score`
@@ -317,7 +308,6 @@ export default function PhotoScorer() {
                     : 'No photos uploaded yet'}
               </div>
 
-              {/* 🚀 按钮容器：手机端全宽堆叠，PC 端自动宽度 */}
               <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
                 <Button
                   type="button"
@@ -327,8 +317,7 @@ export default function PhotoScorer() {
                     setPhotos([]);
                     setAnalysisResult(null);
                     if (fileInputRef.current) fileInputRef.current.value = '';
-                    // 🚀 [GA接入] 埋点：用户清空了所有照片
-                    sendGAEvent({ event: 'photo_scorer_clear_all' });
+                    trackEvent('photo_scorer_clear_all');
                   }}
                   disabled={isLoading}
                 >
@@ -339,7 +328,6 @@ export default function PhotoScorer() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={isLoading || photos.length < 3}
-                  /* 🚀 核心适配：手机端 h-auto 随内容长高，PC 端 sm:h-11 强制和 Clear All 对齐 */
                   className="w-full sm:w-auto h-auto sm:h-11 py-3 sm:py-0 whitespace-normal sm:whitespace-nowrap bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-3 sm:px-6 flex justify-center"
                 >
                   {isLoading ? (
@@ -424,17 +412,13 @@ export default function PhotoScorer() {
                         <Target className="w-5 h-5 text-primary" />
                         Brutally Honest Analysis of Each Photo
                       </h3>
-                      {/* ✅ 修复：改成 flex-col，让每张照片的分析在 PC 端独占一行，释放空间 */}
                       <div className="flex flex-col gap-6">
                         {analysisResult.photoDetails?.map((detail: any, index: number) => {
                           const photoData = photos[detail.imageIndex];
                           if (!photoData) return null;
                           return (
                             <Card key={index} className="overflow-hidden bg-[#121214] border-zinc-800 shadow-2xl mb-8">
-                              {/* ✅ 修复：改成 md，让它在屏幕足够大时才左图右文，同时保证最小高度 */}
                               <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] lg:grid-cols-[380px_1fr] min-h-[450px]">
-
-                                {/* 📸 左侧图片区 */}
                                 <div className="relative bg-zinc-900 border-b sm:border-b-0 sm:border-r border-zinc-800 flex items-center justify-center p-4">
                                   <img
                                     src={photoData.preview}
@@ -448,10 +432,8 @@ export default function PhotoScorer() {
                                   </div>
                                 </div>
 
-                                {/* 📝 右侧文字区 - 增加基础 Debug 样式 */}
                                 <div className="p-6 lg:p-10 flex flex-col justify-between bg-[#1a1a1c]">
                                   <div className="w-full">
-                                    {/* 头部评分 */}
                                     <div className="flex justify-between items-center mb-8 border-b border-zinc-800 pb-4">
                                       <h4 className="text-2xl font-black text-white tracking-tighter uppercase">Visual Audit</h4>
                                       <div className="flex flex-col items-end">
@@ -460,7 +442,6 @@ export default function PhotoScorer() {
                                       </div>
                                     </div>
 
-                                    {/* 核心分析 - 强制文字颜色为白色避免消失 */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                                       <div className="space-y-3">
                                         <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
@@ -481,7 +462,6 @@ export default function PhotoScorer() {
                                     </div>
                                   </div>
 
-                                  {/* 拯救计划 */}
                                   <div className="bg-primary/10 border border-primary/20 rounded-2xl p-5 relative overflow-hidden">
                                     <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
                                     <div className="flex items-center gap-2 mb-2 text-primary font-bold text-xs">
@@ -493,7 +473,6 @@ export default function PhotoScorer() {
                                     </p>
                                   </div>
                                 </div>
-
                               </div>
                             </Card>
                           );
@@ -507,14 +486,12 @@ export default function PhotoScorer() {
                     </div>
                   </div>
 
-                  {/* 🚀 报告底部按钮适配：手机端纵向堆叠，导出按钮在上 */}
                   <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-6 mt-6 border-t border-border">
                     <Button
                       variant="outline"
                       onClick={() => {
                         setAnalysisResult(null);
-                        // 🚀 [GA接入] 埋点：用户生成后选择再测一次
-                        sendGAEvent({ event: 'photo_scorer_retest_click' });
+                        trackEvent('photo_scorer_retest_click');
                       }}
                       className="w-full sm:w-auto h-12 flex-none px-6 text-muted-foreground"
                     >
@@ -543,7 +520,7 @@ export default function PhotoScorer() {
           </Card>
         )}
 
-        {/* 🚀 积分不足弹窗 (已修改跳转逻辑) */}
+        {/* 积分不足弹窗 */}
         {showCreditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
@@ -566,8 +543,7 @@ export default function PhotoScorer() {
                   className="flex-1 h-11 rounded-xl"
                   onClick={() => {
                     setShowCreditModal(false);
-                    // 🚀 [GA接入] 埋点：弹窗取消
-                    sendGAEvent({ event: 'upgrade_modal_cancel' });
+                    trackEvent('upgrade_modal_cancel');
                   }}
                 >
                   Cancel
@@ -576,9 +552,7 @@ export default function PhotoScorer() {
                   className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
                   onClick={() => {
                     setShowCreditModal(false);
-                    // 🚀 [GA接入] 埋点：弹窗点击充值
-                    sendGAEvent({ event: 'upgrade_modal_click_refill' });
-                    // 🚀 核心修改：使用 router.push 并带上 from 参数
+                    trackEvent('upgrade_modal_click_refill');
                     router.push(`/?from=${encodeURIComponent(pathname)}#pricing`);
                   }}
                 >

@@ -7,19 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/client"; // 注意：客户端组件建议用 client 端的 client
+import { createClient } from "@/utils/supabase/client";
 import { encodedRedirect } from "@/utils/utils";
 import { redirect } from "next/navigation";
-import { sendGAEvent } from '@next/third-parties/google';
 import { use } from "react";
 
 export default function Login(props: { searchParams: Promise<Message> }) {
-  // 在 "use client" 中，异步的 searchParams 需要用 use() 来解包
   const searchParams = use(props.searchParams);
 
-  // Google 登录逻辑
   const signInWithGoogle = async () => {
-    // 这里不再使用 "use server"，因为我们在客户端组件内触发 OAuth 跳转
     const supabase = createClient();
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
@@ -90,8 +86,11 @@ export default function Login(props: { searchParams: Promise<Message> }) {
             className="w-full bg-red-600 hover:bg-red-700 text-white border-0"
             pendingText="Signing in..."
             formAction={signInAction}
-            // 埋点：邮件登录点击
-            onClick={() => sendGAEvent({ event: 'login_attempt', method: 'email' })}
+            onClick={() => {
+              if (typeof window !== 'undefined' && window.gtag) {
+                window.gtag('event', 'login_attempt', { method: 'email' });
+              }
+            }}
           >
             Sign in
           </SubmitButton>
@@ -109,12 +108,13 @@ export default function Login(props: { searchParams: Promise<Message> }) {
           </div>
         </div>
 
-        {/* 修正：这里不再用 form action，直接用 Button 的 onClick 触发逻辑 */}
         <Button
           type="button"
           variant="outline"
           onClick={() => {
-            sendGAEvent({ event: 'login_attempt', method: 'google' });
+            if (typeof window !== 'undefined' && window.gtag) {
+              window.gtag('event', 'login_attempt', { method: 'google' });
+            }
             signInWithGoogle();
           }}
           className="w-full flex items-center justify-center gap-2 border-slate-800 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition-all"

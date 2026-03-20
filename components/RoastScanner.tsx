@@ -3,7 +3,6 @@
 import React, { useRef, useState } from 'react';
 import { useCompletion } from 'ai/react';
 import Link from 'next/link';
-// 🚀 引入 usePathname 获取当前路由
 import { useRouter, usePathname } from 'next/navigation';
 import { Zap, Flame, Loader2 } from "lucide-react";
 import {
@@ -27,9 +26,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-
-// 🚀 [GA接入] 引入 Google Analytics 事件发送函数
-import { sendGAEvent } from '@next/third-parties/google';
 
 // ================= 图像压缩逻辑 =================
 async function compressImage(
@@ -68,6 +64,12 @@ async function compressImage(
   return canvas.toDataURL('image/jpeg', quality);
 }
 
+const trackEvent = (eventName: string, params?: Record<string, any>) => {
+  if (typeof window !== 'undefined' && window.gtag) {
+    window.gtag('event', eventName, params);
+  }
+};
+
 export default function RoastScanner() {
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -75,19 +77,13 @@ export default function RoastScanner() {
   const [isCopied, setIsCopied] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  // 🚀 初始化路由工具
   const router = useRouter();
   const pathname = usePathname();
 
   const { complete, completion, isLoading } = useCompletion({
     api: '/api/scanner',
-    // 🚀 【关键修复】：在成功完成流输出后触发刷新
     onFinish: () => {
-      // 🚀 [GA接入] 埋点：成功生成 Roast 结果
-      sendGAEvent({ event: 'roast_complete', status: 'success' });
-      // 这里的 refresh 会在后台静默重新获取 Server Component 的数据（比如 layout.tsx 里的 credits）
-      // 且不会打断或重置当前 Client Component（RoastScanner）的任何状态
-      // ✅ 新增：通知服务端打 Meta CAPI Lead 事件
+      trackEvent('roast_complete', { status: 'success' });
       fetch('/api/meta-event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,18 +92,15 @@ export default function RoastScanner() {
       router.refresh();
     },
     onError: (error) => {
-      // 🔴 错误拦截：安全解析后端返回的 JSON 报错
       try {
         const errorData = JSON.parse(error.message);
 
-        // 匹配积分不足的多种判断条件
         if (
           errorData.code === 'INSUFFICIENT_CREDITS' ||
           (errorData.error && errorData.error.includes('Insufficient credits')) ||
           (errorData.error && errorData.error.includes('积分不足'))
         ) {
-          // 🚀 [GA接入] 埋点：因积分不足被拦截
-          sendGAEvent({ event: 'roast_failed', reason: 'insufficient_credits' });
+          trackEvent('roast_failed', { reason: 'insufficient_credits' });
           setShowUpgradeModal(true);
           return;
         }
@@ -115,10 +108,8 @@ export default function RoastScanner() {
         alert('Oops: ' + (errorData.error || 'Something went wrong.'));
 
       } catch (e) {
-        // 如果解析失败，则尝试正则匹配纯文本错误
         if (error.message.includes('402') || error.message.includes('积分不足')) {
-          // 🚀 [GA接入] 埋点：因积分不足被拦截
-          sendGAEvent({ event: 'roast_failed', reason: 'insufficient_credits' });
+          trackEvent('roast_failed', { reason: 'insufficient_credits' });
           setShowUpgradeModal(true);
         } else {
           alert('Oops, something went wrong: ' + error.message);
@@ -131,15 +122,11 @@ export default function RoastScanner() {
     if (!completion) return;
     navigator.clipboard.writeText(completion);
     setIsCopied(true);
-    // 🚀 [GA接入] 埋点：用户复制了生成的文案
-    sendGAEvent({ event: 'roast_copy_result' });
+    trackEvent('roast_copy_result');
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // ================= 文件选择与本地处理 =================
-  const handleFileSelect = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -153,8 +140,7 @@ export default function RoastScanner() {
       return;
     }
 
-    // 🚀 [GA接入] 埋点：用户成功选择了符合要求的图片
-    sendGAEvent({ event: 'roast_image_selected', file_size: Math.round(file.size / 1024) });
+    trackEvent('roast_image_selected', { file_size: Math.round(file.size / 1024) });
 
     const compressed = await compressImage(file, {
       maxSize: 1024,
@@ -164,14 +150,11 @@ export default function RoastScanner() {
     setPreview(compressed);
   };
 
-  // ================= 提交分析 =================
   const handleSubmit = async () => {
     if (!preview || isLoading) return;
 
     setShowUpgradeModal(false);
-
-    // 🚀 [GA接入] 埋点：用户点击了分析按钮
-    sendGAEvent({ event: 'roast_start_click' });
+    trackEvent('roast_start_click');
 
     await complete('', {
       body: {
@@ -185,7 +168,6 @@ export default function RoastScanner() {
     <div className="w-full text-foreground relative">
       <div className="mx-auto flex w-full flex-col gap-6">
 
-        {/* 头部标题区 */}
         <div className="flex flex-col gap-3 mb-2">
           <div className="flex items-center gap-3">
             <div className="grid size-12 place-items-center rounded-xl bg-primary/10">
@@ -202,7 +184,6 @@ export default function RoastScanner() {
           </div>
         </div>
 
-        {/* 上传卡片 */}
         <Card className="border-border bg-card shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
@@ -255,19 +236,15 @@ export default function RoastScanner() {
               <div className="text-sm text-muted-foreground">
                 {preview ? '✅ Photo loaded. Ready to roast.' : 'No photo selected yet.'}
               </div>
-              {/* 🚀 1. 改父容器：手机端纵向反转排列，sm 以上横向排列 */}
               <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0">
-
                 <Button
                   type="button"
                   variant="outline"
-                  /* 🚀 2. 改 Swap 按钮宽度：手机端全宽，sm 以上自适应内容宽度 */
                   className="w-full sm:w-auto h-11 text-muted-foreground gap-2"
                   onClick={() => {
                     setPreview(null);
                     if (fileInputRef.current) fileInputRef.current.value = '';
-                    // 🚀 [GA接入] 埋点：用户清除了预览图
-                    sendGAEvent({ event: 'roast_image_reset' });
+                    trackEvent('roast_image_reset');
                   }}
                   disabled={isLoading || !preview}
                 >
@@ -278,7 +255,6 @@ export default function RoastScanner() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={isLoading || !preview}
-                  /* 🚀 3. 改 Roast 按钮宽度：逻辑同上 */
                   className="w-full sm:w-auto h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold px-6"
                 >
                   {isLoading ? (
@@ -304,7 +280,6 @@ export default function RoastScanner() {
           </CardFooter>
         </Card>
 
-        {/* 结果展示卡片 */}
         {(completion || isLoading) && (
           <Card className="border-border bg-card shadow-sm overflow-hidden mt-6">
             <CardHeader className="bg-primary/5 border-b border-border">
@@ -347,8 +322,7 @@ export default function RoastScanner() {
                   <Button
                     asChild
                     className="w-full h-12 gap-2 font-bold bg-primary text-primary-foreground hover:bg-primary/90"
-                    // 🚀 [GA接入] 埋点：点击下方的交叉销售按钮
-                    onClick={() => sendGAEvent({ event: 'roast_upsell_click', target: 'photo_scorer' })}
+                    onClick={() => trackEvent('roast_upsell_click', { target: 'photo_scorer' })}
                   >
                     <Link href="/dashboard/photo-scorer">
                       <Target className="w-5 h-5" />
@@ -366,7 +340,6 @@ export default function RoastScanner() {
         )}
       </div>
 
-      {/* 🔴 余额不足弹窗 */}
       {showUpgradeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
@@ -388,8 +361,7 @@ export default function RoastScanner() {
                 className="flex-1 h-11 rounded-xl"
                 onClick={() => {
                   setShowUpgradeModal(false);
-                  // 🚀 [GA接入] 埋点：关闭充值弹窗
-                  sendGAEvent({ event: 'upgrade_modal_cancel' });
+                  trackEvent('upgrade_modal_cancel');
                 }}
               >
                 Cancel
@@ -398,9 +370,7 @@ export default function RoastScanner() {
                 className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
                 onClick={() => {
                   setShowUpgradeModal(false);
-                  // 🚀 [GA接入] 埋点：点击充值跳转
-                  sendGAEvent({ event: 'upgrade_modal_click_refill' });
-                  // 🚀 修改：把查询参数（?from=...）放在锚点（#pricing）前面
+                  trackEvent('upgrade_modal_click_refill');
                   router.push(`/?from=${encodeURIComponent(pathname)}#pricing`);
                 }}
               >

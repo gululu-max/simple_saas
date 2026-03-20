@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react"; // 🎯 1. 补充引入 useEffect
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,17 @@ import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
 import { SUBSCRIPTION_TIERS, CREDITS_TIERS } from "@/config/subscriptions";
 import { ProductTier } from "@/types/subscriptions";
-import { sendGAEvent } from "@next/third-parties/google"; // 🎯 2. 引入 GA4 发送方法
 
-// 🎯 3. 新增价格解析工具函数，确保发给 GA 的是纯数字 (防止 "$9.90" 导致报错)
 const parsePrice = (priceStr: string | number) => {
   if (typeof priceStr === 'number') return priceStr;
   const parsed = parseFloat(String(priceStr).replace(/[^0-9.]/g, ''));
   return isNaN(parsed) ? 0 : parsed;
+};
+
+const trackEvent = (eventName: string, params?: Record<string, any>) => {
+  if (typeof window !== 'undefined' && window.gtag) {
+    window.gtag('event', eventName, params);
+  }
 };
 
 interface PricingSectionProps {
@@ -31,7 +35,6 @@ export function PricingSection({ className }: PricingSectionProps) {
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  // 🎯 4. 商品曝光埋点：用户划到或加载出价格页时，上报所有的商品列表
   useEffect(() => {
     const allItems = [
       ...SUBSCRIPTION_TIERS.map((t) => ({
@@ -48,7 +51,7 @@ export function PricingSection({ className }: PricingSectionProps) {
       })),
     ];
 
-    sendGAEvent("event", "view_item_list", {
+    trackEvent("view_item_list", {
       ecommerce: {
         item_list_id: "pricing_section",
         item_list_name: "Matchfix Pricing Plans",
@@ -68,10 +71,9 @@ export function PricingSection({ className }: PricingSectionProps) {
       return;
     }
 
-    // 🎯 5. 核心流失卡点埋点：记录用户点击了哪个具体套餐发起支付
     const itemCategory = tier.creditAmount ? 'credits' : 'subscription';
-    sendGAEvent("event", "begin_checkout", {
-      currency: "USD", // 如果你用其他币种请修改
+    trackEvent("begin_checkout", {
+      currency: "USD",
       value: parsePrice(tier.priceMonthly),
       ecommerce: {
         items: [
@@ -96,7 +98,7 @@ export function PricingSection({ className }: PricingSectionProps) {
         },
         body: JSON.stringify({
           productId: tier.productId,
-          productType: itemCategory, // 顺便复用了上面判断好的类型
+          productType: itemCategory,
           userId: user.id,
           credits: tier.creditAmount, 
         }),

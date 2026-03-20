@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/client"; // 改为 client 引用
-import { sendGAEvent } from '@next/third-parties/google';
+import { createClient } from "@/utils/supabase/client";
 import { use, useEffect } from "react";
 
 export default function SignUp(props: {
@@ -17,10 +16,12 @@ export default function SignUp(props: {
   const searchParams = use(props.searchParams);
   const isSuccess = "success" in searchParams && !!searchParams.success;
 
-  // 1. 自动埋点：当用户看到“注册成功/验证邮件”页面时触发
+  // 1. 自动埋点：当用户看到"注册成功/验证邮件"页面时触发
   useEffect(() => {
     if (isSuccess) {
-      sendGAEvent({ event: 'sign_up_complete', method: 'email' });
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('event', 'sign_up_complete', { method: 'email' });
+      }
     }
   }, [isSuccess]);
 
@@ -114,8 +115,11 @@ export default function SignUp(props: {
                 className="w-full bg-red-600 hover:bg-red-700 text-white border-0 mt-2 transition-colors"
                 pendingText="Creating account..."
                 formAction={signUpAction}
-                // 埋点：点击注册按钮
-                onClick={() => sendGAEvent({ event: 'sign_up_attempt', method: 'email' })}
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.gtag) {
+                    window.gtag('event', 'sign_up_attempt', { method: 'email' });
+                  }
+                }}
               >
                 Create account
               </SubmitButton>
@@ -137,7 +141,9 @@ export default function SignUp(props: {
               type="button"
               variant="outline"
               onClick={() => {
-                sendGAEvent({ event: 'sign_up_attempt', method: 'google' });
+                if (typeof window !== 'undefined' && window.gtag) {
+                  window.gtag('event', 'sign_up_attempt', { method: 'google' });
+                }
                 signUpWithGoogle();
               }}
               className="w-full flex items-center justify-center gap-2 border-slate-800 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition-all"
