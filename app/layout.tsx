@@ -63,6 +63,14 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link
+          rel="preload"
+          href="/hero-demo.jpg"
+          as="image"
+          fetchPriority="high"
+        />
+      </head>
       <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
 
         {/* Meta Pixel 保持不变 */}
