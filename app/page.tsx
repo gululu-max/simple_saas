@@ -1,11 +1,10 @@
-"use client";
-
-import { motion } from "framer-motion";
+import { HeroAnimations, HeroButtons } from "@/components/hero-animations";
 import Link from "next/link";
 import Image from "next/image";  // �?加这一�?
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Flame, Wand2, Ghost, CheckCircle2, ScanSearch, X, Check } from "lucide-react";
 import { PricingSection } from "@/components/pricing-section";
+import { FeaturesGrid } from "@/components/features-grid";
 
 export default function Home() {
   return (
@@ -33,79 +32,10 @@ export default function Home() {
                 Stop blaming the algorithm. Upload your Tinder/Hinge screenshots or those tragic mirror selfies, and get the most ruthless, honest roast. Get a reality check, then get matches.
               </p>
 
-              {/* 按钮和底部标签可以保留动画，不影�?LCP */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.3 }}
-                className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
-              >
-                <Link href="/dashboard/scanner">
-                  <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]">
-                    🔥 Get Roasted <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </Link>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.4, delay: 0.5 }}
-                className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm text-slate-400"
-              >
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> No sign-up required</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Auto-deleted instantly</div>
-              </motion.div>
+              <HeroButtons />
             </div>
 
-            {/* 右侧：动态雷达扫描图 (已加入真实图片位�? */}
-            {/* 外层容器不再做动画，图片直接渲染，不�?opacity:0 影响 */}
-            <div className="relative mx-auto w-full max-w-[400px] aspect-[3/4] rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden shadow-2xl">
-
-              {/* �?�?Next.js Image + priority，自�?preload + WebP 转换 */}
-              <Image
-                src="/hero-demo.jpg"
-                alt="Target Profile"
-                fill
-                priority
-                sizes="400px"
-                className="object-cover opacity-60 mix-blend-luminosity hover:mix-blend-normal transition-all duration-500"
-              />
-
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent" />
-
-              {/* 动画层单独包裹，不影响图片渲染时�?*/}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.4, delay: 0.3 }}
-                className="absolute inset-0"
-              >
-                <motion.div
-                  animate={{ top: ["0%", "100%", "0%"] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                  className="absolute left-0 right-0 h-1 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,1)] z-10"
-                />
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1 }}
-                  className="absolute top-12 right-4 bg-slate-950/90 border border-red-500 text-red-400 text-xs px-3 py-1.5 rounded flex items-center gap-2 backdrop-blur-sm"
-                >
-                  🚩 <span>Cringe gym selfie</span>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.5 }}
-                  className="absolute top-1/2 left-4 bg-slate-950/90 border border-orange-500 text-orange-400 text-xs px-3 py-1.5 rounded flex items-center gap-2 backdrop-blur-sm"
-                >
-                  🚩 <span>Zero personality bio</span>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 2 }}
-                  className="absolute bottom-6 right-4 bg-red-600 text-white font-bold text-xs px-3 py-1.5 rounded shadow-[0_0_10px_rgba(220,38,38,0.5)]"
-                >
-                  📉 Swipe Left: 99.9%
-                </motion.div>
-              </motion.div>
-            </div>
+            <HeroAnimations />
           </div>
         </div>
       </section>
@@ -180,36 +110,7 @@ export default function Home() {
             <p className="text-slate-400 text-lg">Better to get roasted by us than swiped left by everyone else.</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <Link href={feature.link} key={index} className="block group">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  whileHover={{ y: -5, scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-slate-900 p-8 rounded-xl border border-slate-800 hover:border-red-500/50 transition-all h-full cursor-pointer shadow-lg relative overflow-hidden"
-                >
-                  <div className="w-12 h-12 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center mb-6 text-red-500 group-hover:bg-red-500/10 group-hover:text-red-400 transition-colors">
-                    {feature.icon}
-                  </div>
-                  <h3 className="text-xl font-semibold mb-3 group-hover:text-red-400 transition-colors">
-                    {feature.title}
-                  </h3>
-                  <p className="text-slate-400 leading-relaxed">
-                    {feature.description}
-                  </p>
-
-                  {/* 引导箭头 */}
-                  <div className="mt-6 flex items-center text-sm font-medium text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Try it now <ArrowRight className="ml-2 w-4 h-4" />
-                  </div>
-                </motion.div>
-              </Link>
-            ))}
-          </div>
+          <FeaturesGrid />
         </div>
       </section>
 
@@ -288,26 +189,6 @@ export default function Home() {
   );
 }
 
-const features = [
-  {
-    title: "The Matchfix Scanner",
-    description: "Your gym selfies are cringe. Our AI will use ruthless but accurate feedback to point out exactly why you're scaring away matches.",
-    icon: <Flame className="w-6 h-6" />,
-    link: "/dashboard/scanner" // 对应第一个路�?
-  },
-  {
-    title: "AI Photo Scorer",
-    description: "Stop guessing which photo works. Our AI analyzes facial expressions, lighting, and social cues to pick your top 3 winners. Get a data-backed ranking and expert reasoning on why some photos attract while others repel.",
-    icon: <Wand2 className="w-6 h-6" />,
-    link: "/dashboard/photo-scorer" // 对应第二个路�?
-  },
-  {
-    title: "Burn After Reading",
-    description: "Your embarrassing photos are safe. We don't save your tragic screenshots—they are permanently deleted from our servers the second your roast is done.",
-    icon: <Ghost className="w-6 h-6" />,
-    link: "/dashboard" // 第三个通常也导向主功能
-  },
-];
 
 const stats = [
   { value: "100%", label: "Unfiltered Roasts" },
