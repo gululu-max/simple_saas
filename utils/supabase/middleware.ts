@@ -44,6 +44,7 @@ export const updateSession = async (request: NextRequest) => {
       request.nextUrl.pathname.startsWith("/dashboard") &&
       !request.nextUrl.pathname.startsWith("/dashboard/scanner") &&
       !request.nextUrl.pathname.startsWith("/dashboard/photo-scorer") &&
+      !request.nextUrl.pathname.startsWith("/dashboard/photo-enhancer") &&
       user.error
     ) {
       return NextResponse.redirect(new URL("/sign-in", request.url));

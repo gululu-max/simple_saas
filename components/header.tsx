@@ -9,7 +9,7 @@ import { MobileNav } from "./mobile-nav";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 // 引入图标：Zap (积分), Flame (Scanner), ScanSearch (Scorer), ChevronDown (下拉箭头)
-import { Zap, Flame, ScanSearch, ChevronDown } from "lucide-react";
+import { Zap, Flame, ScanSearch, ChevronDown, Wand2 } from "lucide-react";
 
 interface HeaderProps {
   user: any;
@@ -28,6 +28,12 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
       description: "Ruthless AI profile boost",
       icon: <Flame className="w-4 h-4 text-red-500" />,
       href: "/dashboard/scanner",
+    },
+    {
+      title: "AI Photo Enhancer",
+      description: "Unlock your best-looking photo with AI",
+      icon: <Wand2 className="w-4 h-4 text-purple-500" />,
+      href: "/dashboard/photo-enhancer",
     },
     {
       title: "AI Photo Scorer",
@@ -110,19 +116,19 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
           </Link>
         </nav>
 
-{/* 3. 右侧操作区域 (登录态/积分) */}
-<div className="flex items-center gap-2">
+        {/* 3. 右侧操作区域 (登录态/积分) */}
+        <div className="flex items-center gap-2">
           {isLoggedIn ? (
             // 💥 注意这里：去掉了 hidden md:flex，让这个容器在手机上也显示
             <div className="flex items-center gap-2">
-              
+
               {/* 邮箱：加上 hidden md:inline，让它只在电脑端显示 */}
               {isDashboard && (
                 <span className="hidden md:inline text-sm text-slate-500 mr-2">
                   {user.email}
                 </span>
               )}
-              
+
               {/* ✨ 积分展示按钮：全端显示 ✨ */}
               <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                 <Link href="/dashboard">
@@ -152,15 +158,15 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
           )}
 
           {/* 4. 移动端导航菜单 */}
-          <MobileNav 
+          <MobileNav
             items={[
-              { label: "Home", href: "/" }, 
+              { label: "Home", href: "/" },
               { label: "🔥 The Matchfix Scanner", href: "/dashboard/scanner" },
               { label: "📸 AI Photo Scorer", href: "/dashboard/photo-scorer" },
               { label: "Pricing", href: "/#pricing" }
-            ]} 
-            user={isLoggedIn ? user : null} 
-            isDashboard={isDashboard} 
+            ]}
+            user={isLoggedIn ? user : null}
+            isDashboard={isDashboard}
           />
         </div>
       </div>

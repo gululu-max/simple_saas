@@ -10,6 +10,7 @@ const supabaseAdmin = createClient(
 export const COST_CONFIG = {
   MatchfixScanner: 5,
   AIPhotoScorer: 10,
+  PhotoEnhance: 20,
 } as const;
 
 export type ActionType = keyof typeof COST_CONFIG;
