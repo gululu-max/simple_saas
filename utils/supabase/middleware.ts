@@ -40,7 +40,12 @@ export const updateSession = async (request: NextRequest) => {
     const user = await supabase.auth.getUser();
 
     // Only protect dashboard routes
-    if (request.nextUrl.pathname.startsWith("/dashboard") && user.error) {
+    if (
+      request.nextUrl.pathname.startsWith("/dashboard") &&
+      !request.nextUrl.pathname.startsWith("/dashboard/scanner") &&
+      !request.nextUrl.pathname.startsWith("/dashboard/photo-scorer") &&
+      user.error
+    ) {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
     // Redirect to dashboard all the time if user is logged in

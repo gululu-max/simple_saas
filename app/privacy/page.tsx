@@ -153,7 +153,7 @@ export default function PrivacyPage() {
                 <div>
                   <h4 className="font-semibold mb-3">Service Provision</h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Generate AI-powered dating profile analysis and "roasts".</li>
+                    <li>• Generate AI-powered dating profile analysis and "boosts".</li>
                     <li>• Manage your account and track your available analysis credits.</li>
                     <li>• Process your payments and subscriptions securely.</li>
                     <li>• Send essential service updates and payment receipts.</li>

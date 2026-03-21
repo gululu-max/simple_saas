@@ -63,7 +63,7 @@ export function HeroButtons() {
       >
         <Link href="/dashboard/scanner">
           <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]">
-            🔥 Get Roasted <ArrowRight className="w-4 h-4" />
+            🔥 get matches <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
       </motion.div>

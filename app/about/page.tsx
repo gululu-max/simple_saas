@@ -84,7 +84,7 @@ export default function AboutPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  Your friends might lie to spare your feelings, but our AI won't. Expect a roast that hits close to home.
+                  Your friends might lie to spare your feelings, but our AI won't. Expect a boost that hits close to home.
                 </p>
               </CardContent>
             </Card>
@@ -176,7 +176,7 @@ export default function AboutPage() {
                 <div>
                   <h4 className="font-semibold mb-2">Privacy First</h4>
                   <p className="text-muted-foreground">
-                    We process the screenshots to give you the roast, but we don't save or share the identities of your potential matches.
+                    We process the screenshots to give you the boost, but we don't save or share the identities of your potential matches.
                   </p>
                 </div>
               </div>
@@ -203,13 +203,13 @@ export default function AboutPage() {
             className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8 md:p-12"
           >
             <HeartCrack className="h-12 w-12 text-primary mx-auto mb-6" />
-            <h3 className="text-2xl font-bold mb-4">Stop Guessing. Start Roasting.</h3>
+            <h3 className="text-2xl font-bold mb-4">Stop Guessing. Start boosting.</h3>
             <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
               Got a screenshot of someone you just matched with? Let our AI tear their profile apart before you commit to that coffee date.
             </p>
             <Button asChild size="lg" className="font-medium">
               <Link href="/">
-                Roast a Profile Now
+                boost a Profile Now
               </Link>
             </Button>
           </motion.div>

@@ -1,5 +1,5 @@
-import RoastScanner from "@/components/RoastScanner";
-import { Flame } from "lucide-react"; // Custom flame icon for the roast
+import BoostScanner from "@/components/BoostScanner";
+import { Flame } from "lucide-react"; // Custom flame icon for the boost
 
 export default function ScannerPage() {
   return (
@@ -11,7 +11,7 @@ export default function ScannerPage() {
             <Flame className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-            Upload Photo → AI Deep Scan → Brutally Honest Roast
+            Upload Photo → AI Deep Scan → Brutally Honest boost
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Brace yourself. Drop your Tinder/Hinge screenshots or that tragic gym mirror selfie below. Let our AI ruthlessly expose the red flags tanking your match rate. The truth hurts, but zero matches hurts more.
@@ -20,7 +20,7 @@ export default function ScannerPage() {
         
         {/* Core Scanner: Wrapped with a primary-tinted shadow for a premium floating effect */}
         <div className="shadow-2xl shadow-primary/20 rounded-2xl overflow-hidden border border-border bg-card">
-          <RoastScanner />
+          <BoostScanner />
         </div>
         
       </div>

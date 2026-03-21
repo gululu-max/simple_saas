@@ -71,7 +71,7 @@ export default function TermsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  Our AI analysis and "roasts" are for entertainment purposes only, not professional dating or psychological advice.
+                  Our AI analysis and "boosts" are for entertainment purposes only, not professional dating or psychological advice.
                 </p>
               </CardContent>
             </Card>
@@ -120,7 +120,7 @@ export default function TermsPage() {
               
               <div className="space-y-4 text-muted-foreground">
                 <p>
-                  Matchfix uses generative Artificial Intelligence (AI) to analyze dating profiles and provide "roasts", red-flag detection, and comedic insights. By using the Service, you acknowledge that:
+                  Matchfix uses generative Artificial Intelligence (AI) to analyze dating profiles and provide "boosts", red-flag detection, and comedic insights. By using the Service, you acknowledge that:
                 </p>
                 
                 <ul className="space-y-2">

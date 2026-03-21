@@ -40,7 +40,7 @@ export function Footer() {
           <div className="col-span-full lg:col-span-2">
             <Logo />
             <p className="mt-4 text-sm text-slate-400">
-              Stop guessing. Start roasting.
+              Stop guessing. Start boosting.
             </p>
           </div>
           <div className="col-span-2 grid grid-cols-2 gap-8 sm:grid-cols-4 lg:col-span-4">

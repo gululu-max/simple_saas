@@ -14,9 +14,9 @@ export async function POST(request: Request) {
 
     const { eventId } = await request.json();
 
-    // 2. 触发 Lead + Generate_Roast 双事件
+    // 2. 触发 Lead + Generate_boost 双事件
     await sendLeadEvent(user.email, {
-      contentName: "AI Photo Roast Report",
+      contentName: "AI Photo boost Report",
       eventId: eventId ?? `lead_${Date.now()}`,
     });
 

@@ -1,6 +1,6 @@
 import { HeroAnimations, HeroButtons } from "@/components/hero-animations";
 import Link from "next/link";
-import Image from "next/image";  // �?加这一�?
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Flame, Wand2, Ghost, CheckCircle2, ScanSearch, X, Check } from "lucide-react";
 import { PricingSection } from "@/components/pricing-section";
@@ -20,16 +20,16 @@ export default function Home() {
             {/* 文字内容直接渲染，不参与动画 */}
             <div className="space-y-8 text-center lg:text-left">
               <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-400">
-                <ScanSearch className="w-3 h-3 mr-2" /> Matchfix: The Ultimate AI Profile Roaster
+                <ScanSearch className="w-3 h-3 mr-2" /> Matchfix: The Ultimate AI Profile booster
               </div>
               <h1 className="text-4xl md:text-6xl font-extrabold tracking-tighter">
-                Why are you still single?<br />
+                Get More Matches With Better Photos<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
-                  Let AI destroy your dating delusions.
+                We analyze and fix your dating photos so you stand out instantly.
                 </span>
               </h1>
               <p className="text-xl text-slate-400 max-w-[600px] mx-auto lg:mx-0">
-                Stop blaming the algorithm. Upload your Tinder/Hinge screenshots or those tragic mirror selfies, and get the most ruthless, honest roast. Get a reality check, then get matches.
+              Upload your photos and see how to get more matches.
               </p>
 
               <HeroButtons />
@@ -44,7 +44,7 @@ export default function Home() {
       <section className="py-20 border-y border-slate-800 bg-slate-950/50">
         <div className="container px-4 md:px-6 max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">See The Difference</h2>
+            <h2 className="text-3xl font-bold mb-4">Gets Matches</h2>
             <p className="text-slate-400 text-lg">Don't be the guy on the left.</p>
           </div>
 
@@ -72,7 +72,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* After/Roast Card */}
+            {/* After/boost Card */}
             <div className="p-6 rounded-xl border border-red-500/50 bg-red-950/20 space-y-4 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 blur-3xl" />
 
@@ -90,7 +90,7 @@ export default function Home() {
               </div>
 
               <div className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Flame className="w-4 h-4" /> Matchfix Roast & Fix
+                <Flame className="w-4 h-4" /> Matchfix boost & Fix
               </div>
               <p className="text-lg text-slate-200">"Translation: You have no actual hobbies. Remove the sunglasses, show your smile, and swap the sarcasm line for a weird fact about yourself."</p>
               <div className="pt-2 flex flex-col gap-2 text-emerald-400 text-sm font-medium">
@@ -107,7 +107,7 @@ export default function Home() {
         <div className="container px-4 md:px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Fix Your Awful Profile</h2>
-            <p className="text-slate-400 text-lg">Better to get roasted by us than swiped left by everyone else.</p>
+            <p className="text-slate-400 text-lg">Better to get boosted by us than swiped left by everyone else.</p>
           </div>
 
           <FeaturesGrid />
@@ -175,7 +175,7 @@ export default function Home() {
           <Link href="/dashboard/scanner">
             {/* 按钮用深渊黑 (slate-950) 压住阵脚，在亮粉色背景中形成极其强烈的反差，拉满点击�?*/}
             <Button size="lg" className="h-14 px-10 text-lg gap-2 bg-slate-950 text-white hover:bg-slate-900 shadow-2xl border border-pink-400/50 transition-transform hover:scale-105">
-              Upload Profile <ArrowRight className="w-5 h-5" />
+            Fix My Profile Now <ArrowRight className="w-5 h-5" />
             </Button>
           </Link>
         </div>
@@ -191,8 +191,8 @@ export default function Home() {
 
 
 const stats = [
-  { value: "100%", label: "Unfiltered Roasts" },
-  { value: "3", label: "Key Fixes Per Roast" },
+  { value: "100%", label: "Unfiltered boosts" },
+  { value: "3", label: "Key Fixes Per boost" },
   { value: "0", label: "Privacy Risks" },
-  { value: "24/7", label: "Relentless Roasting" },
+  { value: "24/7", label: "Relentless boosting" },
 ];

@@ -14,7 +14,8 @@ import {
   Check,
   Target,
   AlertCircle,
-  Coins
+  Coins,
+  Gift
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -70,12 +71,14 @@ const trackEvent = (eventName: string, params?: Record<string, any>) => {
   }
 };
 
-export default function RoastScanner() {
+export default function BoostScanner() {
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isCopied, setIsCopied] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  // 新增：未登录弹窗
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -83,7 +86,7 @@ export default function RoastScanner() {
   const { complete, completion, isLoading } = useCompletion({
     api: '/api/scanner',
     onFinish: () => {
-      trackEvent('roast_complete', { status: 'success' });
+      trackEvent('boost_complete', { status: 'success' });
       fetch('/api/meta-event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,12 +98,19 @@ export default function RoastScanner() {
       try {
         const errorData = JSON.parse(error.message);
 
+        // 未登录
+        if (errorData.code === 'UNAUTHENTICATED') {
+          trackEvent('boost_failed', { reason: 'unauthenticated' });
+          setShowLoginModal(true);
+          return;
+        }
+
         if (
           errorData.code === 'INSUFFICIENT_CREDITS' ||
           (errorData.error && errorData.error.includes('Insufficient credits')) ||
           (errorData.error && errorData.error.includes('积分不足'))
         ) {
-          trackEvent('roast_failed', { reason: 'insufficient_credits' });
+          trackEvent('boost_failed', { reason: 'insufficient_credits' });
           setShowUpgradeModal(true);
           return;
         }
@@ -108,8 +118,11 @@ export default function RoastScanner() {
         alert('Oops: ' + (errorData.error || 'Something went wrong.'));
 
       } catch (e) {
-        if (error.message.includes('402') || error.message.includes('积分不足')) {
-          trackEvent('roast_failed', { reason: 'insufficient_credits' });
+        if (error.message.includes('401')) {
+          trackEvent('boost_failed', { reason: 'unauthenticated' });
+          setShowLoginModal(true);
+        } else if (error.message.includes('402') || error.message.includes('积分不足')) {
+          trackEvent('boost_failed', { reason: 'insufficient_credits' });
           setShowUpgradeModal(true);
         } else {
           alert('Oops, something went wrong: ' + error.message);
@@ -122,7 +135,7 @@ export default function RoastScanner() {
     if (!completion) return;
     navigator.clipboard.writeText(completion);
     setIsCopied(true);
-    trackEvent('roast_copy_result');
+    trackEvent('boost_copy_result');
     setTimeout(() => setIsCopied(false), 2000);
   };
 
@@ -131,7 +144,7 @@ export default function RoastScanner() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('We only roast images. Upload a valid photo.');
+      alert('We only boost images. Upload a valid photo.');
       return;
     }
 
@@ -140,7 +153,7 @@ export default function RoastScanner() {
       return;
     }
 
-    trackEvent('roast_image_selected', { file_size: Math.round(file.size / 1024) });
+    trackEvent('boost_image_selected', { file_size: Math.round(file.size / 1024) });
 
     const compressed = await compressImage(file, {
       maxSize: 1024,
@@ -154,7 +167,8 @@ export default function RoastScanner() {
     if (!preview || isLoading) return;
 
     setShowUpgradeModal(false);
-    trackEvent('roast_start_click');
+    setShowLoginModal(false);
+    trackEvent('boost_start_click');
 
     await complete('', {
       body: {
@@ -178,7 +192,7 @@ export default function RoastScanner() {
                 The Matchfix Scanner
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Upload Photo → AI Deep Scan → Brutally Honest Roast
+                Upload Photo → AI Deep Scan → Brutally Honest boost
               </p>
             </div>
           </div>
@@ -234,7 +248,7 @@ export default function RoastScanner() {
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-border">
               <div className="text-sm text-muted-foreground">
-                {preview ? '✅ Photo loaded. Ready to roast.' : 'No photo selected yet.'}
+                {preview ? '✅ Photo loaded. Ready to boost.' : 'No photo selected yet.'}
               </div>
               <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0">
                 <Button
@@ -244,7 +258,7 @@ export default function RoastScanner() {
                   onClick={() => {
                     setPreview(null);
                     if (fileInputRef.current) fileInputRef.current.value = '';
-                    trackEvent('roast_image_reset');
+                    trackEvent('boost_image_reset');
                   }}
                   disabled={isLoading || !preview}
                 >
@@ -264,7 +278,7 @@ export default function RoastScanner() {
                     </span>
                   ) : (
                     <span className="flex items-center justify-center gap-2">
-                      Roast Me
+                      boost Me
                       <span className="inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
                         <Zap className="mr-1 h-3.5 w-3.5 text-amber-500 fill-amber-500" />
                         5 Credits
@@ -322,7 +336,7 @@ export default function RoastScanner() {
                   <Button
                     asChild
                     className="w-full h-12 gap-2 font-bold bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={() => trackEvent('roast_upsell_click', { target: 'photo_scorer' })}
+                    onClick={() => trackEvent('boost_upsell_click', { target: 'photo_scorer' })}
                   >
                     <Link href="/dashboard/photo-scorer">
                       <Target className="w-5 h-5" />
@@ -340,6 +354,51 @@ export default function RoastScanner() {
         )}
       </div>
 
+      {/* ===== 未登录弹窗 ===== */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+
+            <div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20">
+              <Gift className="size-8 text-emerald-500" />
+            </div>
+
+            <h2 className="text-xl font-bold text-foreground mb-2">
+              Sign in to get your boost 🔥
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              Create a free account and get{' '}
+              <span className="font-bold text-emerald-400">5 free credits</span>{' '}
+              instantly — your first boost is on us.
+            </p>
+
+            <div className="flex w-full gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 h-11 rounded-xl"
+                onClick={() => {
+                  setShowLoginModal(false);
+                  trackEvent('login_modal_cancel');
+                }}
+              >
+                Maybe later
+              </Button>
+              <Button
+                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
+                onClick={() => {
+                  setShowLoginModal(false);
+                  trackEvent('login_modal_click_signup');
+                  router.push(`/sign-up?redirect=${encodeURIComponent(pathname)}`);
+                }}
+              >
+                Get Free Credits
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 积分不足弹窗 ===== */}
       {showUpgradeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
@@ -352,7 +411,7 @@ export default function RoastScanner() {
               Low Balance! 😅
             </h2>
             <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-              Each roast costs <span className="font-bold text-foreground">5 Credits</span>. Reload your account to continue.
+              Each boost costs <span className="font-bold text-foreground">5 Credits</span>. Reload your account to continue.
             </p>
 
             <div className="flex w-full gap-3">

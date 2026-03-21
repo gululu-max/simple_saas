@@ -58,7 +58,7 @@ export default function SignUp(props: {
           Create your account
         </h1>
         <p className="text-sm text-slate-400">
-          Stop guessing. Start roasting. Spot the flaws others overlook.
+          Stop guessing. Start boosting. Spot the flaws others overlook.
         </p>
       </div>
 

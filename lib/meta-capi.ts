@@ -32,7 +32,7 @@ interface BaseEventOptions {
 }
 
 interface LeadEventOptions extends BaseEventOptions {
-  contentName?: string;   // 例如："AI Photo Roast Report"
+  contentName?: string;   // 例如："AI Photo boost Report"
 }
 
 interface PurchaseEventOptions extends BaseEventOptions {
@@ -127,7 +127,7 @@ export async function sendCompleteRegistrationEvent(
 }
 
 // ─────────────────────────────────────────────
-// 3. Lead / Generate_Roast — 用户真正使用 AI 跑了报告
+// 3. Lead / Generate_boost — 用户真正使用 AI 跑了报告
 //    这是你的核心深度转化事件
 // ─────────────────────────────────────────────
 
@@ -143,10 +143,10 @@ export async function sendLeadEvent(
     ...(options?.contentName && { content_name: options.contentName }),
   };
 
-  // 同时发送标准 Lead 事件 + 自定义 Generate_Roast 事件
+  // 同时发送标准 Lead 事件 + 自定义 Generate_boost 事件
   await Promise.all([
     sendCAPIEvent("Lead", userData, customData, options),
-    sendCAPIEvent("Generate_Roast", userData, customData, options),
+    sendCAPIEvent("Generate_boost", userData, customData, options),
   ]);
 }
 
@@ -187,7 +187,7 @@ export async function sendPurchaseEvent(
 //
 // 用户点击生成报告后：
 // await sendLeadEvent("user@example.com", {
-//   contentName: "AI Photo Roast Report",
+//   contentName: "AI Photo boost Report",
 //   eventId: "lead_" + userId,
 // });
 //

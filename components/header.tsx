@@ -25,7 +25,7 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
   const featureLinks = [
     {
       title: "The Matchfix Scanner",
-      description: "Ruthless AI profile roast",
+      description: "Ruthless AI profile boost",
       icon: <Flame className="w-4 h-4 text-red-500" />,
       href: "/dashboard/scanner",
     },

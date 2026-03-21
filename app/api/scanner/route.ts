@@ -2,7 +2,6 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { ProxyAgent } from 'undici';
 import { createClient } from "@/utils/supabase/server";
-// 🚀 1. 核心修复：引入咱们写好的统一扣费函数
 import { consumeCredits } from '@/lib/credits'; 
 
 export async function POST(req: Request) {
@@ -32,8 +31,12 @@ export async function POST(req: Request) {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+    // 未登录：返回 401 + UNAUTHENTICATED code，前端弹登录框
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+      return new Response(JSON.stringify({ 
+        error: 'Please sign in to continue',
+        code: 'UNAUTHENTICATED'
+      }), { 
         status: 401,
         headers: { 'Content-Type': 'application/json' } 
       });
@@ -55,7 +58,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // 余额不足 5 点，直接拦截，返回 402 让前端弹窗
     if (customer.credits < COST_PER_SCAN) {
       return new Response(
         JSON.stringify({ 
@@ -70,7 +72,6 @@ export async function POST(req: Request) {
     }
     // ==========================================
 
-    // --- Core Fix: Smart Environment Adaptation ---
     let fetchOptions: any = {};
     
     if (process.env.NODE_ENV === 'development') {
@@ -165,12 +166,8 @@ The scoring can be displayed in a separate short paragraph, and the rest of the 
           ],
         },
       ],
-      // ==========================================
-      // 第 2 步：AI 回答成功结束后，异步扣除 5 个积分并写流水
-      // ==========================================
       async onFinish({ finishReason }) {
         if (finishReason === 'stop' || finishReason === 'length') {
-          // 🚀 2. 核心修复：抛弃手动 update，换成你写好的 consumeCredits
           const deduction = await consumeCredits(user.id, 'MatchfixScanner');
           
           if (!deduction.success) {

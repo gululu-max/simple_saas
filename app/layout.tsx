@@ -16,22 +16,22 @@ const baseUrl = process.env.BASE_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
-  title: "Matchfix | The Ultimate AI Profile Roaster",
-  description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
-  keywords: "Matchfix, AI profile review, dating app tips, Tinder roast",
+  title: "Matchfix | The Ultimate AI Profile booster",
+  description: "Upload your photos and see how to get more matches.",
+  keywords: "Matchfix, AI profile review, dating app tips, Tinder boost",
   other: {
     'facebook-domain-verification': 'b34j96cqsebufe4eay7t75a61fmkf6',
   },
   openGraph: {
-    title: "Matchfix | The Ultimate AI Profile Roaster",
-    description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
+    title: "Matchfix | The Ultimate AI Profile booster",
+    description: "Upload your photos and see how to get more matches.",
     type: "website",
     url: baseUrl,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Matchfix | The Ultimate AI Profile Roaster",
-    description: "Stop blaming the algorithm. Let AI destroy your dating delusions.",
+    title: "Matchfix | The Ultimate AI Profile booster",
+    description: "Upload your photos and see how to get more matches.",
   },
 };
 

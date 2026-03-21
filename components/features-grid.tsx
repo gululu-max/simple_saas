@@ -19,7 +19,7 @@ const features = [
   },
   {
     title: "Burn After Reading",
-    description: "Your embarrassing photos are safe. We don't save your tragic screenshots—they are permanently deleted from our servers the second your roast is done.",
+    description: "Your embarrassing photos are safe. We don't save your tragic screenshots—they are permanently deleted from our servers the second your boost is done.",
     icon: <Ghost className="w-6 h-6" />,
     link: "/dashboard"
   },
