@@ -79,7 +79,7 @@ export default function BoostScanner() {
 
   const router = useRouter();
   const pathname = usePathname();
-  const { openAuthModal } = useAuthModal(); // ← 替换 showLoginModal
+  const { openAuthModal } = useAuthModal();
 
   const { complete, completion, isLoading } = useCompletion({
     api: '/api/scanner',
@@ -101,7 +101,7 @@ export default function BoostScanner() {
         const errorData = JSON.parse(error.message);
         if (errorData.code === 'UNAUTHENTICATED') {
           trackEvent('boost_failed', { reason: 'unauthenticated' });
-          openAuthModal('sign-up'); // ← 改成弹窗
+          openAuthModal('sign-up');
           return;
         }
         if (
@@ -115,7 +115,7 @@ export default function BoostScanner() {
         alert('Oops: ' + (errorData.error || 'Something went wrong.'));
       } catch (e) {
         if (error.message.includes('401')) {
-          openAuthModal('sign-up'); // ← 改成弹窗
+          openAuthModal('sign-up');
         } else if (error.message.includes('402')) {
           setShowUpgradeModal(true);
         } else {
@@ -141,11 +141,10 @@ export default function BoostScanner() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 先判断登录状态
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      openAuthModal('sign-up'); // ← 改成弹窗
+      openAuthModal('sign-up');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -195,7 +194,7 @@ export default function BoostScanner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.code === 'UNAUTHENTICATED') { openAuthModal('sign-up'); return; } // ← 改成弹窗
+        if (data.code === 'UNAUTHENTICATED') { openAuthModal('sign-up'); return; }
         if (data.code === 'INSUFFICIENT_CREDITS') { setShowUpgradeModal(true); return; }
         alert('Enhancement failed: ' + (data.error || 'Unknown error'));
         return;
@@ -298,6 +297,7 @@ export default function BoostScanner() {
                     </div>
                   )}
 
+                  {/* ✅ 改动1: 加了 "Usually done within 10 seconds" 提示 */}
                   {isEnhancing && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
                       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -313,6 +313,9 @@ export default function BoostScanner() {
                         <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
                         <p className="text-white font-semibold text-sm animate-pulse">
                           Enhancing your photo...
+                        </p>
+                        <p className="text-white/60 text-xs">
+                          Usually done within 10 seconds
                         </p>
                       </div>
                     </div>
@@ -381,13 +384,14 @@ export default function BoostScanner() {
 
             {(completion || isLoading) && (
               <div className="border border-border rounded-xl overflow-hidden">
+                {/* ✅ 改动2: 文案改成 "🎯 Your Profile Breakdown:" + 改动3: 加了 sticky top-0 z-10 */}
                 <button
                   type="button"
                   onClick={() => setIsResultExpanded(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-primary/5 hover:bg-primary/10 transition-colors text-left"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-primary/5 hover:bg-primary/10 transition-colors text-left sticky top-0 z-10"
                 >
                   <span className="text-primary font-semibold text-sm flex items-center gap-2">
-                    ☠️ The Matchfix Verdict:
+                    🎯 Your Profile Breakdown:
                   </span>
                   {isResultExpanded
                     ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -523,7 +527,6 @@ export default function BoostScanner() {
 
       </div>
 
-      {/* 积分不足弹窗 — 保持原样 */}
       {showUpgradeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">

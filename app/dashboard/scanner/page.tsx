@@ -11,7 +11,7 @@ export default function ScannerPage() {
             <Flame className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-          Upload Your Photo → Get a Brutal AI Reality Check
+          Upload Photo → AI Deep Scan → Get Your Enhanced Photo
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
           Drop your Tinder or Hinge photo.
