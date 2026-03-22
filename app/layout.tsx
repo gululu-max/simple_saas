@@ -61,7 +61,6 @@ export default async function RootLayout({
       </head>
       <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
         <MetaPixel />
-        {/* AuthModalProvider 包裹整个应用，AuthModal 挂在最外层 */}
         <AuthModalProvider>
           <ThemeProvider
             attribute="class"
@@ -73,11 +72,12 @@ export default async function RootLayout({
             <div className="relative min-h-screen">
               <Header user={user} credits={credits} />
               <main className="flex-1">{children}</main>
-              <Footer />
+              <div className="pb-24 md:pb-0">
+                <Footer />
+              </div>
             </div>
             <Toaster />
           </ThemeProvider>
-          {/* 全局弹窗，放在 Provider 内部即可 */}
           <AuthModal />
         </AuthModalProvider>
         <GoogleAnalytics gaId="G-0SVH6XDETV" />

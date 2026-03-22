@@ -153,7 +153,8 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
               {/* 移动端：单独一个 Get started 按钮，放在汉堡菜单左边 */}
               <Button
                 size="sm"
-                className="md:hidden bg-red-600 text-white hover:bg-red-700 border-0 text-xs px-3 h-8"
+                variant="outline"
+                className="md:hidden border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100 text-xs px-3 h-8"
                 onClick={() => openAuthModal("sign-up")}
               >
                 Get started

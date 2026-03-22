@@ -21,15 +21,15 @@ const features = [
     title: "Burn After Reading",
     description: "Your embarrassing photos are safe. We don't save your tragic screenshots—they are permanently deleted from our servers the second your boost is done.",
     icon: <Ghost className="w-6 h-6" />,
-    link: "/dashboard"
+    link: null
   },
 ];
 
 export function FeaturesGrid() {
   return (
     <div className="grid md:grid-cols-3 gap-8">
-      {features.map((feature, index) => (
-        <Link href={feature.link} key={index} className="block group">
+      {features.map((feature, index) => {
+        const card = (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -37,7 +37,7 @@ export function FeaturesGrid() {
             whileTap={{ scale: 0.98 }}
             viewport={{ once: true }}
             transition={{ delay: index * 0.1 }}
-            className="bg-slate-900 p-8 rounded-xl border border-slate-800 hover:border-red-500/50 transition-all h-full cursor-pointer shadow-lg relative overflow-hidden"
+            className="bg-slate-900 p-8 rounded-xl border border-slate-800 hover:border-red-500/50 transition-all h-full shadow-lg relative overflow-hidden"
           >
             <div className="w-12 h-12 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center mb-6 text-red-500 group-hover:bg-red-500/10 group-hover:text-red-400 transition-colors">
               {feature.icon}
@@ -48,12 +48,24 @@ export function FeaturesGrid() {
             <p className="text-slate-400 leading-relaxed">
               {feature.description}
             </p>
-            <div className="mt-6 flex items-center text-sm font-medium text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-              Try it now <ArrowRight className="ml-2 w-4 h-4" />
-            </div>
+            {feature.link && (
+              <div className="mt-6 flex items-center text-sm font-medium text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                Try it now <ArrowRight className="ml-2 w-4 h-4" />
+              </div>
+            )}
           </motion.div>
-        </Link>
-      ))}
+        );
+
+        return feature.link ? (
+          <Link href={feature.link} key={index} className="block group">
+            {card}
+          </Link>
+        ) : (
+          <div key={index} className="block">
+            {card}
+          </div>
+        );
+      })}
     </div>
   );
 }

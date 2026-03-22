@@ -8,7 +8,7 @@ import { FeaturesGrid } from "@/components/features-grid";
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 selection:bg-red-500/30">
+    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 selection:bg-red-500/30 pb-24 md:pb-0">
 
       {/* 1. Hero Section */}
       <section className="relative py-20 md:py-32 overflow-hidden">
@@ -40,7 +40,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 2. Before & After 处刑展示�?(已加入图片对�? */}
+      {/* 2. Before & After 处刑展示（已加入图片对比） */}
       <section className="py-20 border-y border-slate-800 bg-slate-950/50">
         <div className="container px-4 md:px-6 max-w-5xl mx-auto">
           <div className="text-center mb-12">
@@ -156,33 +156,21 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 6. CTA Section (荷尔蒙暧昧粉红版) */}
-      <section className="py-20 bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700 text-white relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.2)]">
-
-        {/* 保留了纹理层，但改了混合模式，让背景更有肉感 */}
+      {/* 6. CTA Section */}
+      <section className="py-12 bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700 text-white relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.2)]">
         <div className="absolute inset-0 bg-[url('/textures/cubes.png')] opacity-20 mix-blend-overlay" />
-
         <div className="container px-4 md:px-6 text-center relative z-10">
-          {/* 之前深色渐变的字在粉色背景下会看不清，这里给你改成了带阴影的纯白，视觉冲击力极强 */}
-          <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white drop-shadow-lg tracking-tight">
+          <h2 className="text-3xl md:text-4xl font-extrabold mb-4 text-white drop-shadow-lg tracking-tight">
             Ready to face reality?
           </h2>
-
-          <p className="text-pink-50 mb-10 max-w-2xl mx-auto text-lg drop-shadow-md">
+          <p className="text-pink-50 max-w-2xl mx-auto text-lg drop-shadow-md">
             Don't let terrible photos ruin your dating life. Upload a screenshot and let our AI give you the reality check you desperately need.
           </p>
-
-          <Link href="/dashboard/scanner">
-            {/* 按钮用深渊黑 (slate-950) 压住阵脚，在亮粉色背景中形成极其强烈的反差，拉满点击�?*/}
-            <Button size="lg" className="h-14 px-10 text-lg gap-2 bg-slate-950 text-white hover:bg-slate-900 shadow-2xl border border-pink-400/50 transition-transform hover:scale-105">
-            Fix My Profile Now <ArrowRight className="w-5 h-5" />
-            </Button>
-          </Link>
         </div>
       </section>
 
       {/* 7. PricingSection */}
-      <div className="bg-slate-950 pb-20 pt-10">
+      <div className="bg-slate-950 pb-6 pt-0">
         <PricingSection />
       </div>
     </div>

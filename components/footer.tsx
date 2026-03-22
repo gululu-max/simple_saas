@@ -35,7 +35,7 @@ const footerLinks = [
 export function Footer() {
   return (
     <footer className="border-t border-slate-900 bg-slate-950">
-      <div className="container px-4 py-8 md:py-12">
+      <div className="container px-4 py-6 md:py-8">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-6">
           <div className="col-span-full lg:col-span-2">
             <Logo />
@@ -63,8 +63,7 @@ export function Footer() {
           </div>
         </div>
         
-        {/* 底部版权和邮箱：统一字号并完美居中对齐 */}
-        <div className="mt-16 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="mt-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-slate-500">
             © {new Date().getFullYear()} Matchfix. All rights reserved.
           </p>
