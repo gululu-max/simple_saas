@@ -9,6 +9,26 @@ import { sendCompleteRegistrationEvent } from "@/lib/meta-capi";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
+// Supabase 原始错误 → 友好提示
+function getFriendlyError(message: string): string {
+  if (message.includes("User already registered") || message.includes("already been registered")) {
+    return "This email is already registered. Please sign in instead.";
+  }
+  if (message.includes("Password should be at least")) {
+    return "Password must be at least 6 characters.";
+  }
+  if (message.includes("Unable to validate email address")) {
+    return "Please enter a valid email address.";
+  }
+  if (message.includes("Signup is disabled")) {
+    return "Sign up is currently unavailable. Please try again later.";
+  }
+  if (message.includes("Too many requests")) {
+    return "Too many attempts. Please wait a moment and try again.";
+  }
+  return message;
+}
+
 export default function SignUpForm() {
   const { setView, closeAuthModal } = useAuthModal();
   const [email, setEmail] = useState("");
@@ -18,8 +38,25 @@ export default function SignUpForm() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSignUp = async () => {
+    // 手动验证，不依赖浏览器原生 required
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter a password.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -33,7 +70,7 @@ export default function SignUpForm() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(getFriendlyError(error.message));
       setLoading(false);
       return;
     }
@@ -94,7 +131,6 @@ export default function SignUpForm() {
 
   return (
     <div className="text-gray-900">
-      {/* 标题 */}
       <div className="flex flex-col space-y-1 text-center mb-7">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">
           Create your account
@@ -125,8 +161,8 @@ export default function SignUpForm() {
           </div>
         </div>
 
-        {/* 邮箱+密码表单 */}
-        <form className="grid gap-4" onSubmit={handleSignUp}>
+        {/* 表单 — 去掉 onSubmit，改用 div 包裹，按钮 onClick 触发 */}
+        <div className="grid gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="modal-signup-email" className="text-sm font-medium text-gray-700">
               Email
@@ -136,9 +172,9 @@ export default function SignUpForm() {
               placeholder="name@example.com"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setError(""); }}
+              onKeyDown={(e) => e.key === "Enter" && handleSignUp()}
               className="h-11 border-gray-300 bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
-              required
             />
           </div>
 
@@ -150,11 +186,11 @@ export default function SignUpForm() {
               <Input
                 id="modal-signup-password"
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="At least 6 characters"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleSignUp()}
                 className="h-11 pr-10 border-gray-300 bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
-                required
               />
               <button
                 type="button"
@@ -172,17 +208,16 @@ export default function SignUpForm() {
             </p>
           )}
 
-          {/* 两个按钮风格完全一致 */}
           <Button
-            type="submit"
+            type="button"
+            onClick={handleSignUp}
             disabled={loading}
             className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold border-0 shadow-sm transition-all mt-1"
           >
             {loading ? "Creating account..." : "Create account"}
           </Button>
-        </form>
+        </div>
 
-        {/* 切换登录 */}
         <p className="text-sm text-gray-500 text-center">
           Already have an account?{" "}
           <button

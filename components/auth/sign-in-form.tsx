@@ -9,6 +9,23 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 
+// Supabase 原始错误 → 友好提示
+function getFriendlyError(message: string): string {
+  if (message.includes("Invalid login credentials")) {
+    return "Incorrect email or password. Please try again.";
+  }
+  if (message.includes("Email not confirmed")) {
+    return "Please verify your email before signing in. Check your inbox.";
+  }
+  if (message.includes("Too many requests")) {
+    return "Too many attempts. Please wait a moment and try again.";
+  }
+  if (message.includes("User not found")) {
+    return "No account found with this email. Please sign up first.";
+  }
+  return message;
+}
+
 export default function SignInForm() {
   const { setView, closeAuthModal } = useAuthModal();
   const [email, setEmail] = useState("");
@@ -18,8 +35,21 @@ export default function SignInForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSignIn = async () => {
+    // 手动验证，不依赖浏览器原生 required
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -27,7 +57,7 @@ export default function SignInForm() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setError(error.message);
+      setError(getFriendlyError(error.message));
       setLoading(false);
       return;
     }
@@ -51,7 +81,6 @@ export default function SignInForm() {
 
   return (
     <div className="text-gray-900">
-      {/* 标题 */}
       <div className="flex flex-col space-y-1 text-center mb-7">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">
           Welcome back
@@ -82,8 +111,8 @@ export default function SignInForm() {
           </div>
         </div>
 
-        {/* 邮箱+密码表单 */}
-        <form className="grid gap-4" onSubmit={handleSignIn}>
+        {/* 表单 — 去掉 onSubmit，改用 div 包裹，按钮 onClick 触发 */}
+        <div className="grid gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="modal-email" className="text-sm font-medium text-gray-700">
               Email
@@ -93,9 +122,9 @@ export default function SignInForm() {
               placeholder="name@example.com"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setError(""); }}
+              onKeyDown={(e) => e.key === "Enter" && handleSignIn()}
               className="h-11 border-gray-300 bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
-              required
             />
           </div>
 
@@ -118,9 +147,9 @@ export default function SignInForm() {
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleSignIn()}
                 className="h-11 pr-10 border-gray-300 bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
-                required
               />
               <button
                 type="button"
@@ -139,15 +168,15 @@ export default function SignInForm() {
           )}
 
           <Button
-            type="submit"
+            type="button"
+            onClick={handleSignIn}
             disabled={loading}
             className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold border-0 shadow-sm transition-all mt-1"
           >
             {loading ? "Signing in..." : "Sign in"}
           </Button>
-        </form>
+        </div>
 
-        {/* 切换注册 */}
         <p className="text-sm text-gray-500 text-center">
           Don&apos;t have an account?{" "}
           <button
