@@ -8,8 +8,8 @@ import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-// 引入图标：Zap (积分), Flame (Scanner), ScanSearch (Scorer), ChevronDown (下拉箭头)
 import { Zap, Flame, ScanSearch, ChevronDown, Wand2 } from "lucide-react";
+import { useAuthModal } from "@/components/auth/auth-modal-context";
 
 interface HeaderProps {
   user: any;
@@ -20,8 +20,8 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
   const pathname = usePathname();
   const isDashboard = pathname?.startsWith("/dashboard");
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
+  const { openAuthModal } = useAuthModal();
 
-  // 功能菜单配置
   const featureLinks = [
     {
       title: "The Matchfix Scanner",
@@ -48,32 +48,26 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-slate-950/80 backdrop-blur supports-[backdrop-filter]:bg-slate-950/60 text-slate-50">
       <div className="container flex h-16 items-center justify-between px-4">
-        {/* 1. Logo 区域 */}
+
+        {/* Logo */}
         <div className="flex items-center">
           <Logo />
         </div>
 
-        {/* 2. 主导航区域 (PC 端) */}
+        {/* 桌面端导航 */}
         <nav className="hidden md:flex items-center gap-8 absolute left-1/2 transform -translate-x-1/2">
-
-          {/* A. Home */}
-          <Link
-            href="/"
-            className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100"
-          >
+          <Link href="/" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
             Home
           </Link>
 
-          {/* B. Features (带有 Hover 下拉逻辑) */}
           <div
             className="relative py-2 cursor-pointer group"
             onMouseEnter={() => setIsFeaturesOpen(true)}
             onMouseLeave={() => setIsFeaturesOpen(false)}
           >
             <span className="flex items-center gap-1 text-lg font-semibold text-slate-400 group-hover:text-slate-100 transition-colors">
-              Features <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isFeaturesOpen ? 'rotate-180' : ''}`} />
+              Features <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isFeaturesOpen ? "rotate-180" : ""}`} />
             </span>
-
             <AnimatePresence>
               {isFeaturesOpen && (
                 <motion.div
@@ -107,38 +101,28 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             </AnimatePresence>
           </div>
 
-          {/* C. Pricing */}
-          <Link
-            href="/#pricing"
-            className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100"
-          >
+          <Link href="/#pricing" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
             Pricing
           </Link>
         </nav>
 
-        {/* 3. 右侧操作区域 (登录态/积分) */}
+        {/* 右侧操作区 */}
         <div className="flex items-center gap-2">
           {isLoggedIn ? (
-            // 💥 注意这里：去掉了 hidden md:flex，让这个容器在手机上也显示
             <div className="flex items-center gap-2">
-
-              {/* 邮箱：加上 hidden md:inline，让它只在电脑端显示 */}
               {isDashboard && (
                 <span className="hidden md:inline text-sm text-slate-500 mr-2">
                   {user.email}
                 </span>
               )}
-
-              {/* ✨ 积分展示按钮：全端显示 ✨ */}
+              {/* 积分按钮：登录后全端显示 */}
               <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                 <Link href="/dashboard">
                   <Zap className="mr-1.5 h-4 w-4 text-amber-500 fill-amber-500" />
-                  {/* 在手机上极窄屏幕时，隐藏 "Credits" 文字只留数字和图标，更精致 */}
                   {credits} <span className="hidden sm:inline ml-1">Credits</span>
                 </Link>
               </Button>
-
-              {/* 登出按钮：加上 hidden md:block，让它退回手机端的抽屉里，不在顶部占位置 */}
+              {/* Sign out：只在桌面端显示，移动端放进抽屉 */}
               <form action={signOutAction} className="hidden md:block">
                 <Button type="submit" variant="outline" size="sm" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                   Sign out
@@ -146,24 +130,44 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
               </form>
             </div>
           ) : (
-            // 未登录状态不变，登录和注册按钮依然在手机端隐藏，放进抽屉里
-            <div className="hidden md:flex gap-2">
-              <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
-                <Link href="/sign-in">Sign in</Link>
+            <>
+              {/* 桌面端：Sign in + Sign up 两个按钮 */}
+              <div className="hidden md:flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100"
+                  onClick={() => openAuthModal("sign-in")}
+                >
+                  Sign in
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-red-600 text-white hover:bg-red-700 border-0"
+                  onClick={() => openAuthModal("sign-up")}
+                >
+                  Sign up
+                </Button>
+              </div>
+
+              {/* 移动端：单独一个 Get started 按钮，放在汉堡菜单左边 */}
+              <Button
+                size="sm"
+                className="md:hidden bg-red-600 text-white hover:bg-red-700 border-0 text-xs px-3 h-8"
+                onClick={() => openAuthModal("sign-up")}
+              >
+                Get started
               </Button>
-              <Button asChild size="sm" className="bg-red-600 text-white hover:bg-red-700 border-0">
-                <Link href="/sign-up">Sign up</Link>
-              </Button>
-            </div>
+            </>
           )}
 
-          {/* 4. 移动端导航菜单 */}
+          {/* 汉堡菜单：移动端始终显示 */}
           <MobileNav
             items={[
               { label: "Home", href: "/" },
               { label: "🔥 The Matchfix Scanner", href: "/dashboard/scanner" },
               { label: "📸 AI Photo Scorer", href: "/dashboard/photo-scorer" },
-              { label: "Pricing", href: "/#pricing" }
+              { label: "Pricing", href: "/#pricing" },
             ]}
             user={isLoggedIn ? user : null}
             isDashboard={isDashboard}
