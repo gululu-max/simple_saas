@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/card';
 import { parseAnalysisStream } from '@/utils/parseAnalysisStream';
 import { createClient } from '@/utils/supabase/client';
+import { useAuthModal } from '@/components/auth/auth-modal-context';
 
 async function compressImage(
   file: File,
@@ -67,7 +68,6 @@ export default function BoostScanner() {
 
   const [isCopied, setIsCopied] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [isResultExpanded, setIsResultExpanded] = useState(true);
 
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -79,6 +79,7 @@ export default function BoostScanner() {
 
   const router = useRouter();
   const pathname = usePathname();
+  const { openAuthModal } = useAuthModal(); // ← 替换 showLoginModal
 
   const { complete, completion, isLoading } = useCompletion({
     api: '/api/scanner',
@@ -100,7 +101,7 @@ export default function BoostScanner() {
         const errorData = JSON.parse(error.message);
         if (errorData.code === 'UNAUTHENTICATED') {
           trackEvent('boost_failed', { reason: 'unauthenticated' });
-          setShowLoginModal(true);
+          openAuthModal('sign-up'); // ← 改成弹窗
           return;
         }
         if (
@@ -114,7 +115,7 @@ export default function BoostScanner() {
         alert('Oops: ' + (errorData.error || 'Something went wrong.'));
       } catch (e) {
         if (error.message.includes('401')) {
-          setShowLoginModal(true);
+          openAuthModal('sign-up'); // ← 改成弹窗
         } else if (error.message.includes('402')) {
           setShowUpgradeModal(true);
         } else {
@@ -140,11 +141,11 @@ export default function BoostScanner() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // ✅ 先判断登录状态，未登录直接弹窗
+    // 先判断登录状态
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      setShowLoginModal(true);
+      openAuthModal('sign-up'); // ← 改成弹窗
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -166,7 +167,6 @@ export default function BoostScanner() {
   const handleSubmit = async () => {
     if (!preview || isLoading) return;
     setShowUpgradeModal(false);
-    setShowLoginModal(false);
     setIsResultExpanded(true);
     setVisibleText('');
     setAnalysisJSON(null);
@@ -195,7 +195,7 @@ export default function BoostScanner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.code === 'UNAUTHENTICATED') { setShowLoginModal(true); return; }
+        if (data.code === 'UNAUTHENTICATED') { openAuthModal('sign-up'); return; } // ← 改成弹窗
         if (data.code === 'INSUFFICIENT_CREDITS') { setShowUpgradeModal(true); return; }
         alert('Enhancement failed: ' + (data.error || 'Unknown error'));
         return;
@@ -255,7 +255,6 @@ export default function BoostScanner() {
           </CardHeader>
           <CardContent className="space-y-6">
 
-            {/* 上传/预览区域 */}
             <div
               role="button"
               tabIndex={0}
@@ -524,45 +523,7 @@ export default function BoostScanner() {
 
       </div>
 
-      {/* ===== 未登录弹窗 ===== */}
-      {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-            <div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20">
-              <Gift className="size-8 text-emerald-500" />
-            </div>
-            <h2 className="text-xl font-bold text-foreground mb-2">
-              Sign in to unlock your photo 🔥
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-              Create a free account and get{' '}
-              <span className="font-bold text-emerald-400">5 free credits</span>{' '}
-              instantly — your first boost is on us.
-            </p>
-            <div className="flex w-full gap-3">
-              <Button
-                variant="outline"
-                className="flex-1 h-11 rounded-xl"
-                onClick={() => { setShowLoginModal(false); trackEvent('login_modal_cancel'); }}
-              >
-                Maybe later
-              </Button>
-              <Button
-                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
-                onClick={() => {
-                  setShowLoginModal(false);
-                  trackEvent('login_modal_click_signup');
-                  router.push(`/sign-up?redirect=${encodeURIComponent(pathname)}`);
-                }}
-              >
-                Get Free Credits
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== 积分不足弹窗 ===== */}
+      {/* 积分不足弹窗 — 保持原样 */}
       {showUpgradeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">

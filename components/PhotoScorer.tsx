@@ -29,6 +29,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { createClient } from '@/utils/supabase/client';
+import { useAuthModal } from '@/components/auth/auth-modal-context';
 
 // ================= 图像压缩逻辑 =================
 async function compressImage(
@@ -83,6 +85,7 @@ export default function PhotoScorer() {
 
   const router = useRouter();
   const pathname = usePathname();
+  const { openAuthModal } = useAuthModal(); // ← 新增
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
@@ -97,6 +100,15 @@ export default function PhotoScorer() {
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+
+    // ✅ 先判断登录状态，未登录直接弹窗
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      openAuthModal('sign-up');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     if (imageFiles.length !== files.length) {
@@ -146,6 +158,15 @@ export default function PhotoScorer() {
   // ================= 提交分析 =================
   const handleSubmit = async () => {
     if (photos.length < 3 || isLoading) return;
+
+    // ✅ 提交前再次检查登录状态
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      openAuthModal('sign-up');
+      return;
+    }
+
     setIsLoading(true);
     setAnalysisResult(null);
 
@@ -165,6 +186,13 @@ export default function PhotoScorer() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+
+        if (response.status === 401 || errorData.code === 'UNAUTHENTICATED') {
+          trackEvent('photo_scorer_failed', { reason: 'unauthenticated' });
+          openAuthModal('sign-up');
+          setIsLoading(false);
+          return;
+        }
 
         if (response.status === 403 || errorData.code === 'INSUFFICIENT_CREDITS') {
           trackEvent('photo_scorer_failed', { reason: 'insufficient_credits' });
@@ -355,9 +383,7 @@ export default function PhotoScorer() {
 
         {/* ================= 结果展示卡片 ================= */}
         {(analysisResult || isLoading) && (
-          <Card
-            className="border-border bg-card shadow-sm overflow-hidden mt-2 animate-in fade-in slide-in-from-bottom-4"
-          >
+          <Card className="border-border bg-card shadow-sm overflow-hidden mt-2 animate-in fade-in slide-in-from-bottom-4">
             <CardHeader className="bg-primary/5 border-b border-border flex flex-row items-center justify-between py-4">
               <CardTitle className="text-primary flex items-center gap-2 text-lg">
                 <Trophy className="size-5 text-amber-500" />
@@ -447,17 +473,13 @@ export default function PhotoScorer() {
                                         <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
                                           <CheckCircle className="w-4 h-4" /> THE STRENGTHS
                                         </div>
-                                        <p className="text-zinc-300 text-sm leading-relaxed">
-                                          {detail.pros}
-                                        </p>
+                                        <p className="text-zinc-300 text-sm leading-relaxed">{detail.pros}</p>
                                       </div>
                                       <div className="space-y-3">
                                         <div className="flex items-center gap-2 text-rose-400 font-bold text-sm">
                                           <AlertTriangle className="w-4 h-4" /> THE FLAWS
                                         </div>
-                                        <p className="text-zinc-300 text-sm leading-relaxed">
-                                          {detail.cons}
-                                        </p>
+                                        <p className="text-zinc-300 text-sm leading-relaxed">{detail.cons}</p>
                                       </div>
                                     </div>
                                   </div>
@@ -468,9 +490,7 @@ export default function PhotoScorer() {
                                       <Zap className="w-4 h-4 fill-primary" />
                                       RESCUE PLAN
                                     </div>
-                                    <p className="text-white text-sm font-semibold leading-relaxed">
-                                      {detail.action}
-                                    </p>
+                                    <p className="text-white text-sm font-semibold leading-relaxed">{detail.action}</p>
                                   </div>
                                 </div>
                               </div>
@@ -524,11 +544,9 @@ export default function PhotoScorer() {
         {showCreditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-
               <div className="grid size-16 place-items-center rounded-full bg-primary/10 mb-4 border border-primary/20">
                 <Coins className="size-8 text-primary" />
               </div>
-
               <h2 className="text-xl font-bold text-foreground mb-2">
                 😅 Low Balance!
               </h2>
@@ -536,7 +554,6 @@ export default function PhotoScorer() {
                 This AI analysis requires <span className="font-bold text-foreground">10 Credits</span>.<br />
                 Get more credits now to continue building your perfect profile!
               </p>
-
               <div className="flex w-full gap-3">
                 <Button
                   variant="outline"
