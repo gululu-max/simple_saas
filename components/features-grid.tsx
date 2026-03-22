@@ -6,20 +6,20 @@ import { ArrowRight, Flame, Wand2, Ghost } from "lucide-react";
 
 const features = [
   {
-    title: "The Matchfix Scanner",
-    description: "Your gym selfies are cringe. Our AI will use ruthless but accurate feedback to point out exactly why you're scaring away matches.",
-    icon: <Flame className="w-6 h-6" />,
-    link: "/dashboard/scanner"
+    title: "AI Photo Enhancer",
+    description: "Your best photo, made even better. Our AI retouches lighting, sharpens details, and elevates your look — so you always put your best face forward.",
+    icon: <Wand2 className="w-6 h-6" />,
+    link: "/dashboard/photo-enhancer"
   },
   {
     title: "AI Photo Scorer",
-    description: "Stop guessing which photo works. Our AI analyzes facial expressions, lighting, and social cues to pick your top 3 winners.",
-    icon: <Wand2 className="w-6 h-6" />,
+    description: "Not sure which photo to use? Our AI analyzes facial expressions, lighting, and composition to find your top performers — so you lead with your strongest shot.",
+    icon: <Flame className="w-6 h-6" />,
     link: "/dashboard/photo-scorer"
   },
   {
     title: "Burn After Reading",
-    description: "Your embarrassing photos are safe. We don't save your tragic screenshots—they are permanently deleted from our servers the second your boost is done.",
+    description: "Your photos stay private. Every image you upload is permanently deleted from our servers the moment your session ends — no storage, no risk.",
     icon: <Ghost className="w-6 h-6" />,
     link: null
   },

@@ -22,13 +22,8 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const { openAuthModal } = useAuthModal();
 
+  // ✅ 改动1: 移除 Scanner，web端只显示 Enhancer 和 Scorer
   const featureLinks = [
-    {
-      title: "The Matchfix Scanner",
-      description: "Ruthless AI profile boost",
-      icon: <Flame className="w-4 h-4 text-red-500" />,
-      href: "/dashboard/scanner",
-    },
     {
       title: "AI Photo Enhancer",
       description: "Unlock your best-looking photo with AI",
@@ -115,14 +110,12 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
                   {user.email}
                 </span>
               )}
-              {/* 积分按钮：登录后全端显示 */}
               <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                 <Link href="/dashboard">
                   <Zap className="mr-1.5 h-4 w-4 text-amber-500 fill-amber-500" />
                   {credits} <span className="hidden sm:inline ml-1">Credits</span>
                 </Link>
               </Button>
-              {/* Sign out：只在桌面端显示，移动端放进抽屉 */}
               <form action={signOutAction} className="hidden md:block">
                 <Button type="submit" variant="outline" size="sm" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
                   Sign out
@@ -131,7 +124,6 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             </div>
           ) : (
             <>
-              {/* 桌面端：Sign in + Sign up 两个按钮 */}
               <div className="hidden md:flex gap-2">
                 <Button
                   size="sm"
@@ -150,7 +142,6 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
                 </Button>
               </div>
 
-              {/* 移动端：单独一个 Get started 按钮，放在汉堡菜单左边 */}
               <Button
                 size="sm"
                 variant="outline"
@@ -162,11 +153,11 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             </>
           )}
 
-          {/* 汉堡菜单：移动端始终显示 */}
+          {/* ✅ 改动2: 手机端 Scanner 换成 Enhancer */}
           <MobileNav
             items={[
               { label: "Home", href: "/" },
-              { label: "🔥 The Matchfix Scanner", href: "/dashboard/scanner" },
+              { label: "✨ AI Photo Enhancer", href: "/dashboard/photo-enhancer" },
               { label: "📸 AI Photo Scorer", href: "/dashboard/photo-scorer" },
               { label: "Pricing", href: "/#pricing" },
             ]}

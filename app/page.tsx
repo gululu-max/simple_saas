@@ -17,7 +17,6 @@ export default function Home() {
         <div className="container px-4 md:px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
 
-            {/* 文字内容直接渲染，不参与动画 */}
             <div className="space-y-8 text-center lg:text-left">
               <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-400">
                 <ScanSearch className="w-3 h-3 mr-2" /> Matchfix: The Ultimate AI Profile booster
@@ -40,7 +39,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 2. Before & After 处刑展示（已加入图片对比） */}
+      {/* 2. Before & After */}
       <section className="py-20 border-y border-slate-800 bg-slate-950/50">
         <div className="container px-4 md:px-6 max-w-5xl mx-auto">
           <div className="text-center mb-12">
@@ -51,7 +50,6 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-6">
             {/* Before Card */}
             <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4">
-              {/* 🎯 Before 图片区域 */}
               <div className="aspect-[4/3] w-full rounded-lg overflow-hidden bg-slate-800 relative">
                 <Image
                   src="/before-demo.jpg"
@@ -72,11 +70,10 @@ export default function Home() {
               </div>
             </div>
 
-            {/* After/boost Card */}
+            {/* After Card */}
             <div className="p-6 rounded-xl border border-red-500/50 bg-red-950/20 space-y-4 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 blur-3xl" />
 
-              {/* 🎯 After 图片区域 */}
               <div className="aspect-[4/3] w-full rounded-lg overflow-hidden bg-slate-800 relative border border-red-500/30">
                 <Image
                   src="/after-demo.jpg"
@@ -102,12 +99,12 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 3. Features Grid */}
+      {/* 3. Features Grid — ✅ 标题和副标题改成温和鼓励风格 */}
       <section id="features" className="py-20">
         <div className="container px-4 md:px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Fix Your Awful Profile</h2>
-            <p className="text-slate-400 text-lg">Better to get boosted by us than swiped left by everyone else.</p>
+            <h2 className="text-3xl font-bold mb-4">Unlock Your Best-Looking Photos</h2>
+            <p className="text-slate-400 text-lg">AI-powered tools to help you look your best and get more matches.</p>
           </div>
 
           <FeaturesGrid />
@@ -161,10 +158,10 @@ export default function Home() {
         <div className="absolute inset-0 bg-[url('/textures/cubes.png')] opacity-20 mix-blend-overlay" />
         <div className="container px-4 md:px-6 text-center relative z-10">
           <h2 className="text-3xl md:text-4xl font-extrabold mb-4 text-white drop-shadow-lg tracking-tight">
-            Ready to face reality?
+          Ready to look your best?
           </h2>
           <p className="text-pink-50 max-w-2xl mx-auto text-lg drop-shadow-md">
-            Don't let terrible photos ruin your dating life. Upload a screenshot and let our AI give you the reality check you desperately need.
+          Great photos make a real difference. Upload yours and let our AI help you put your best self forward.
           </p>
         </div>
       </section>
@@ -176,7 +173,6 @@ export default function Home() {
     </div>
   );
 }
-
 
 const stats = [
   { value: "100%", label: "Unfiltered boosts" },

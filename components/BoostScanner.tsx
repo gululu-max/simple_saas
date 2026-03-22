@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useCompletion } from 'ai/react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Zap, Loader2, Wand2, Download, Lock, ChevronDown, ChevronUp } from "lucide-react";
@@ -81,13 +81,35 @@ export default function BoostScanner() {
   const pathname = usePathname();
   const { openAuthModal } = useAuthModal();
 
+  useEffect(() => {
+    const savedPreview = sessionStorage.getItem('mf_preview');
+    const savedText = sessionStorage.getItem('mf_visibleText');
+    const savedJSON = sessionStorage.getItem('mf_analysisJSON');
+    if (savedPreview) setPreview(savedPreview);
+    if (savedText) setVisibleText(savedText);
+    if (savedJSON) setAnalysisJSON(savedJSON);
+  }, []);
+
+  const handleReset = () => {
+    setPreview(null);
+    setEnhancedImage(null);
+    setVisibleText('');
+    setAnalysisJSON(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    sessionStorage.removeItem('mf_preview');
+    sessionStorage.removeItem('mf_visibleText');
+    sessionStorage.removeItem('mf_analysisJSON');
+    trackEvent('boost_image_reset');
+  };
+
   const { complete, completion, isLoading } = useCompletion({
     api: '/api/scanner',
     onFinish: (_prompt, fullCompletion) => {
       const { visibleText: text, analysisJSON: json } = parseAnalysisStream(fullCompletion);
       setVisibleText(text);
       setAnalysisJSON(json);
-
+      sessionStorage.setItem('mf_visibleText', text);
+      if (json) sessionStorage.setItem('mf_analysisJSON', json);
       trackEvent('boost_complete', { status: 'success' });
       fetch('/api/meta-event', {
         method: 'POST',
@@ -161,6 +183,9 @@ export default function BoostScanner() {
     const compressed = await compressImage(file, { maxSize: 1024, quality: 0.75 });
     setPreview(compressed);
     setEnhancedImage(null);
+    sessionStorage.setItem('mf_preview', compressed);
+    sessionStorage.removeItem('mf_visibleText');
+    sessionStorage.removeItem('mf_analysisJSON');
   };
 
   const handleSubmit = async () => {
@@ -169,6 +194,8 @@ export default function BoostScanner() {
     setIsResultExpanded(true);
     setVisibleText('');
     setAnalysisJSON(null);
+    sessionStorage.removeItem('mf_visibleText');
+    sessionStorage.removeItem('mf_analysisJSON');
     trackEvent('boost_start_click');
     await complete('', {
       body: {
@@ -220,7 +247,7 @@ export default function BoostScanner() {
     trackEvent('enhance_download');
   };
 
-  const showOverlay = !!(completion && !isLoading && !enhancedImage && !isEnhancing);
+  const showOverlay = !!(visibleText && !isLoading && !enhancedImage && !isEnhancing);
 
   return (
     <div className="w-full text-foreground relative">
@@ -231,14 +258,10 @@ export default function BoostScanner() {
             <div className="grid size-12 place-items-center rounded-xl bg-primary/10">
               <Wand2 className="size-6 text-primary" />
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
-                The Matchfix Scanner
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Upload Photo → AI Deep Scan → Get Your Enhanced Photo
-              </p>
-            </div>
+            {/* ✅ 删掉了重复的副标题 */}
+            <h1 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
+              The Matchfix Scanner
+            </h1>
           </div>
         </div>
 
@@ -293,11 +316,13 @@ export default function BoostScanner() {
                         <p className="text-white font-semibold text-sm animate-pulse">
                           AI is analyzing your photo...
                         </p>
+                        <p className="text-white/60 text-xs">
+                          Usually done within 7 seconds
+                        </p>
                       </div>
                     </div>
                   )}
 
-                  {/* ✅ 改动1: 加了 "Usually done within 10 seconds" 提示 */}
                   {isEnhancing && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
                       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -348,6 +373,14 @@ export default function BoostScanner() {
                           </>
                         )}
                       </Button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleReset(); }}
+                        className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors mt-1"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        Use a different photo
+                      </button>
                     </div>
                   )}
                 </div>
@@ -382,9 +415,8 @@ export default function BoostScanner() {
               }
             `}</style>
 
-            {(completion || isLoading) && (
+            {(completion || isLoading || visibleText) && (
               <div className="border border-border rounded-xl overflow-hidden">
-                {/* ✅ 改动2: 文案改成 "🎯 Your Profile Breakdown:" + 改动3: 加了 sticky top-0 z-10 */}
                 <button
                   type="button"
                   onClick={() => setIsResultExpanded(v => !v)}
@@ -429,7 +461,7 @@ export default function BoostScanner() {
               </div>
             )}
 
-            {!(completion && !isLoading) && (
+            {!(visibleText && !isLoading) && (
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-border">
                 <div className="text-sm text-muted-foreground">
                   {preview ? '✅ Photo loaded. Ready to boost.' : 'No photo selected yet.'}
@@ -439,14 +471,7 @@ export default function BoostScanner() {
                     type="button"
                     variant="outline"
                     className="w-full sm:w-auto h-11 text-muted-foreground gap-2"
-                    onClick={() => {
-                      setPreview(null);
-                      setEnhancedImage(null);
-                      setVisibleText('');
-                      setAnalysisJSON(null);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                      trackEvent('boost_image_reset');
-                    }}
+                    onClick={handleReset}
                     disabled={isLoading || isEnhancing || !preview}
                   >
                     <XCircle className="w-4 h-4" /> Swap Photo
