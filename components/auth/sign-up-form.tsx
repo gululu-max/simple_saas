@@ -39,7 +39,6 @@ export default function SignUpForm() {
   const [success, setSuccess] = useState(false);
 
   const handleSignUp = async () => {
-    // 手动验证，不依赖浏览器原生 required
     if (!email.trim()) {
       setError("Please enter your email address.");
       return;
@@ -59,6 +58,23 @@ export default function SignUpForm() {
 
     setLoading(true);
     setError("");
+
+    // 先查邮箱是否已注册
+    try {
+      const checkRes = await fetch("/api/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const { exists } = await checkRes.json();
+      if (exists) {
+        setError("This email is already registered. Please sign in instead.");
+        setLoading(false);
+        return;
+      }
+    } catch (e) {
+      console.error("check-email error", e);
+    }
 
     const supabase = createClient();
     const { error } = await supabase.auth.signUp({
@@ -102,7 +118,6 @@ export default function SignUpForm() {
     if (data.url) window.location.href = data.url;
   };
 
-  // 注册成功状态
   if (success) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-6 px-4 text-gray-900">
@@ -141,7 +156,6 @@ export default function SignUpForm() {
       </div>
 
       <div className="grid gap-5">
-        {/* Google 按钮 */}
         <Button
           type="button"
           onClick={signUpWithGoogle}
@@ -151,7 +165,6 @@ export default function SignUpForm() {
           Continue with Google
         </Button>
 
-        {/* 分割线 */}
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-gray-200" />
@@ -161,7 +174,6 @@ export default function SignUpForm() {
           </div>
         </div>
 
-        {/* 表单 — 去掉 onSubmit，改用 div 包裹，按钮 onClick 触发 */}
         <div className="grid gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="modal-signup-email" className="text-sm font-medium text-gray-700">
