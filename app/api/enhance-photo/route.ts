@@ -52,7 +52,7 @@ async function callGeminiImageGeneration(
   analysisResult?: string,
 ) {
   const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY!;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`;
 
   const enhancementContext = buildEnhancementContext(analysisResult);
 

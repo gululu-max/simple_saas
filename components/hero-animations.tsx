@@ -101,7 +101,8 @@ export function HeroButtons() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-4 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent"
+            className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pt-4 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent"
+            style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
           >
             <Link href="/dashboard/scanner">
               <Button
