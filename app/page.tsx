@@ -45,8 +45,8 @@ export default function Home() {
       <section className="py-20 border-y border-slate-800 bg-slate-950/50">
         <div className="container px-4 md:px-6 max-w-5xl mx-auto">
           <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-4">How It Works</h2>
-          <p className="text-slate-400 text-lg">Upload Your Photos → See What's Killing Your Matches → Fix It Instantly</p>
+            <h2 className="text-3xl font-bold mb-4">How It Works</h2>
+            <p className="text-slate-400 text-lg">Upload Your Photos → See What's Killing Your Matches → Fix It Instantly</p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
@@ -103,12 +103,22 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 3. Features Grid — ✅ 标题和副标题改成温和鼓励风格 */}
+      {/* 3. User Cases (replaces Features Grid) */}
       <section id="features" className="py-20">
         <div className="container px-4 md:px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Unlock Your Best-Looking Photos</h2>
-            <p className="text-slate-400 text-lg">AI-powered tools to help you look your best and get more matches.</p>
+            <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-400 mb-4">
+              Real User Stories
+            </div>
+            <h2 className="text-3xl font-bold mb-4">
+              They changed their dating luck{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
+                with better photos
+              </span>
+            </h2>
+            <p className="text-slate-400 text-lg">
+              Not filters. Not editing. The kind of change that makes you genuinely look your best.
+            </p>
           </div>
 
           <FeaturesGrid />
