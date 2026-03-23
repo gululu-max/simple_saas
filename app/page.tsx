@@ -168,9 +168,11 @@ export default function Home() {
       </section>
 
       {/* 6. CTA Section */}
-      <section className="pt-12 pb-[calc(3rem+env(safe-area-inset-bottom))] bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700 text-white relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.2)]">
+      <section className="pt-12 pb-12 bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700 text-white relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.2)]">
         <div className="absolute inset-0 bg-[url('/textures/cubes.png')] opacity-20 mix-blend-overlay" />
-        <div className="container px-4 md:px-6 text-center relative z-10">
+
+        {/* 👇 safe-area 放这里 */}
+        <div className="container px-4 md:px-6 text-center relative z-10 pb-[env(safe-area-inset-bottom)]">
           <h2 className="text-3xl md:text-4xl font-extrabold mb-4 text-white drop-shadow-lg tracking-tight">
             Ready to look your best?
           </h2>
