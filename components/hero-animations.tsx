@@ -87,10 +87,11 @@ export function HeroButtons() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.5 }}
-        className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm text-slate-400"
+        className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3 text-sm text-slate-400"
       >
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> No sign-up required</div>
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Auto-deleted instantly</div>
+        <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Start Free · 3 Analyses</div>
       </motion.div>
 
       {/* 底部悬浮 CTA：仅移动端显示，桌面端不需要 */}
