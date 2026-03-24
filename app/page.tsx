@@ -1,10 +1,8 @@
 import { HeroAnimations, HeroButtons } from "@/components/hero-animations";
-import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Flame, Wand2, Ghost, CheckCircle2, ScanSearch, X, Check } from "lucide-react";
-import { PricingSection } from "@/components/pricing-section";
+import { Flame, ScanSearch, X, Check } from "lucide-react";
 import { FeaturesGrid } from "@/components/features-grid";
+import { ScrollToTop } from "@/components/scroll-to-top";
 
 export default function Home() {
   return (
@@ -103,7 +101,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 3. User Cases (replaces Features Grid) */}
+      {/* 3. User Cases */}
       <section id="features" className="py-20">
         <div className="container px-4 md:px-6">
           <div className="text-center mb-16">
@@ -139,60 +137,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 5. 价格锚点对比 */}
-      <section className="py-20">
-        <div className="container px-4 md:px-6 max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold mb-12">100X Cheaper Than Remaining Single.</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900 opacity-70">
-              <h4 className="font-bold text-slate-300 mb-2">Bad Dates</h4>
-              <div className="text-2xl font-bold mb-4">$100+</div>
-              <div className="flex items-center gap-2 text-sm text-slate-400"><X className="w-4 h-4 text-red-500" /> Wasted weekends</div>
-              <div className="flex items-center gap-2 text-sm text-slate-400 mt-2"><X className="w-4 h-4 text-red-500" /> Zero feedback</div>
-            </div>
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900 opacity-70">
-              <h4 className="font-bold text-slate-300 mb-2">Dating Coach</h4>
-              <div className="text-2xl font-bold mb-4">$200/hr</div>
-              <div className="flex items-center gap-2 text-sm text-slate-400"><X className="w-4 h-4 text-red-500" /> Expensive</div>
-              <div className="flex items-center gap-2 text-sm text-slate-400 mt-2"><X className="w-4 h-4 text-red-500" /> Sugarcoated advice</div>
-            </div>
-            <div className="p-6 rounded-xl border border-red-500 bg-red-950/20 shadow-[0_0_30px_rgba(220,38,38,0.15)] relative transform md:-translate-y-2">
-              <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">SMART CHOICE</div>
-              <h4 className="font-bold text-red-400 mb-2">Matchfix AI</h4>
-              <div className="text-2xl font-bold text-white mb-4">From $6.99</div>
-              <div className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-500" /> Brutally honest</div>
-              <div className="flex items-center gap-2 text-sm text-slate-300 mt-2"><Check className="w-4 h-4 text-emerald-500" /> Instant results</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. CTA Section */}
+      {/* 5. CTA Section */}
       <section className="pt-12 pb-12 bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700 text-white relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.2)]">
         <div className="absolute inset-0 bg-[url('/textures/cubes.png')] opacity-20 mix-blend-overlay" />
 
-        {/* 👇 safe-area 放这里 */}
         <div className="container px-4 md:px-6 text-center relative z-10 pb-[env(safe-area-inset-bottom)]">
           <h2 className="text-3xl md:text-4xl font-extrabold mb-4 text-white drop-shadow-lg tracking-tight">
-            Ready to look your best?
+            Ready for dating?
           </h2>
           <p className="text-pink-50 max-w-2xl mx-auto text-lg drop-shadow-md">
-            Great photos make a real difference. Upload yours and let our AI help you put your best self forward.
+            With the right photos, your matches go up — fast.<br />
+            More people interested, more choices, and more nights that don't end early.
           </p>
         </div>
       </section>
 
-      {/* 7. PricingSection */}
-      <div className="bg-slate-950 pb-6 pt-0">
-        <PricingSection />
-      </div>
+      {/* 回到顶部按钮 */}
+      <ScrollToTop />
+
     </div>
   );
 }
 
 const stats = [
   { value: "100%", label: "Unfiltered boosts" },
-  { value: "3", label: "Key Fixes Per boost" },
+  { value: "5+", label: "Key Fixes Per boost" },
   { value: "0", label: "Privacy Risks" },
   { value: "24/7", label: "Relentless boosting" },
 ];

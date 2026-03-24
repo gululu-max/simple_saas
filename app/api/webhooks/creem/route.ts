@@ -169,7 +169,7 @@ async function handleSubscriptionPaid(event: CreemWebhookEvent) {
     // ✅ 用 last_transaction.id 做幂等凭证，resend 不会重复发积分
     const transactionId = subscription.last_transaction?.id;
     if (!transactionId) {
-      throw new Error("subscription.paid: 缺少 last_transaction.id，无法保证幂等");
+      throw new Error("subscription.paid: 缺少 last_transaction.id,无法保证幂等");
     }
 
     await addCreditsToCustomer(
