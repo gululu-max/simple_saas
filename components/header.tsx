@@ -18,23 +18,22 @@ interface HeaderProps {
 
 export default function Header({ user, credits = 0 }: HeaderProps) {
   const pathname = usePathname();
-  const isDashboard = pathname?.startsWith("/dashboard");
+  const isSubscribe = pathname?.startsWith("/subscribe");
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const { openAuthModal } = useAuthModal();
 
-  // ✅ 改动1: 移除 Scanner，web端只显示 Enhancer 和 Scorer
   const featureLinks = [
     {
       title: "AI Photo Enhancer",
       description: "Unlock your best-looking photo with AI",
       icon: <Wand2 className="w-4 h-4 text-purple-500" />,
-      href: "/dashboard/photo-enhancer",
+      href: "/subscribe/photo-enhancer",
     },
     {
       title: "AI Photo Scorer",
       description: "Rank your best photos and pick winners",
       icon: <ScanSearch className="w-4 h-4 text-orange-500" />,
-      href: "/dashboard/photo-scorer",
+      href: "/subscribe/photo-scorer",
     },
   ];
 
@@ -105,13 +104,13 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
         <div className="flex items-center gap-2">
           {isLoggedIn ? (
             <div className="flex items-center gap-2">
-              {isDashboard && (
+              {isSubscribe && (
                 <span className="hidden md:inline text-sm text-slate-500 mr-2">
                   {user.email}
                 </span>
               )}
               <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
-                <Link href="/dashboard">
+                <Link href="/subscribe">
                   <Zap className="mr-1.5 h-4 w-4 text-amber-500 fill-amber-500" />
                   {credits} <span className="hidden sm:inline ml-1">Credits</span>
                 </Link>
@@ -153,16 +152,15 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             </>
           )}
 
-          {/* ✅ 改动2: 手机端 Scanner 换成 Enhancer */}
           <MobileNav
             items={[
               { label: "Home", href: "/" },
-              { label: "✨ AI Photo Enhancer", href: "/dashboard/photo-enhancer" },
-              { label: "📸 AI Photo Scorer", href: "/dashboard/photo-scorer" },
+              { label: "✨ AI Photo Enhancer", href: "/subscribe/photo-enhancer" },
+              { label: "📸 AI Photo Scorer", href: "/subscribe/photo-scorer" },
               { label: "Pricing", href: "/#pricing" },
             ]}
             user={isLoggedIn ? user : null}
-            isDashboard={isDashboard}
+            isDashboard={isSubscribe}
           />
         </div>
       </div>

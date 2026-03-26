@@ -1,7 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { PricingSection } from "@/components/pricing-section";
-import { SubscriptionStatusBar } from "@/components/dashboard/subscription-status-bar";
+import { PriceComparisonSection } from "@/components/price-comparison-section";
+import { SubscriptionStatusBar } from "@/components/subscribe/subscription-status-bar";
 import { CreditTransaction } from "@/types/creem";
 
 export const dynamic = "force-dynamic";
@@ -56,9 +57,7 @@ export default async function SubscribePage() {
   const hasActiveAccess = (() => {
     if (!subscription) return false;
     const { status, current_period_end } = subscription;
-    // Active or trialing = definitely subscribed
     if (status === "active" || status === "trialing") return true;
-    // Canceled but period hasn't ended yet = still has access
     if (status === "canceled" && current_period_end && new Date(current_period_end) > new Date()) return true;
     return false;
   })();
@@ -74,6 +73,9 @@ export default async function SubscribePage() {
           hasActiveAccess={hasActiveAccess}
         />
       </div>
+
+      {/* ── Price Comparison (moved from /pricing) ── */}
+      <PriceComparisonSection />
 
       {/* ── Pricing Section (hero) ── */}
       <div className="w-full mt-2 sm:mt-4">

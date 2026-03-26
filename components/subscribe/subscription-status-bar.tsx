@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { CreditCard, Zap, CalendarClock, ChevronDown } from "lucide-react";
-import { CreditsBalanceCard } from "@/components/dashboard/credits-balance-card";
-import { SubscriptionStatusCard } from "@/components/dashboard/subscription-status-card";
+import { CreditsBalanceCard } from "@/components/subscribe/credits-balance-card";
+import { SubscriptionStatusCard } from "@/components/subscribe/subscription-status-card";
 import { CreditTransaction } from "@/types/creem";
 
 interface SubscriptionStatusBarProps {

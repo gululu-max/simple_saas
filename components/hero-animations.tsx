@@ -59,7 +59,6 @@ export function HeroButtons() {
   const [showSticky, setShowSticky] = useState(false);
   const [buttonText, setButtonText] = useState("Get 1 Free Photo Now");
 
-  // 仅查文案：登录 + free_enhance_used=true → 换文案，其余不动
   useEffect(() => {
     async function checkText() {
       try {
@@ -102,7 +101,7 @@ export function HeroButtons() {
         transition={{ duration: 0.4, delay: 0.3 }}
         className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
       >
-        <Link href="/dashboard/scanner" ref={btnRef}>
+        <Link href="/subscribe/scanner" ref={btnRef}>
           <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]">
             🔥 {buttonText} <ArrowRight className="w-4 h-4" />
           </Button>
@@ -120,7 +119,7 @@ export function HeroButtons() {
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Start Free · 1 Analyses</div>
       </motion.div>
 
-      {/* 底部悬浮 CTA：仅移动端显示，桌面端不需要 */}
+      {/* 底部悬浮 CTA：仅移动端显示 */}
       <AnimatePresence>
         {showSticky && (
           <motion.div
@@ -131,7 +130,7 @@ export function HeroButtons() {
             className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pt-4 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent"
             style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
           >
-            <Link href="/dashboard/scanner">
+            <Link href="/subscribe/scanner">
               <Button
                 size="lg"
                 className="w-full h-14 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_30px_rgba(220,38,38,0.5)] rounded-xl border-0"

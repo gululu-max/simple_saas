@@ -2,10 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const updateSession = async (request: NextRequest) => {
-  // This `try/catch` block is only here for the interactive tutorial.
-  // Feel free to remove once you have Supabase connected.
   try {
-    // Create an unmodified response
     let response = NextResponse.next({
       request: {
         headers: request.headers,
@@ -35,30 +32,32 @@ export const updateSession = async (request: NextRequest) => {
       }
     );
 
-    // This will refresh session if expired - required for Server Components
-    // https://supabase.com/docs/guides/auth/server-side/nextjs
     const user = await supabase.auth.getUser();
 
-    // Only protect dashboard routes
+    // Only protect subscribe routes (except public ones: scanner, photo-scorer, photo-enhancer)
     if (
-      request.nextUrl.pathname.startsWith("/dashboard") &&
-      !request.nextUrl.pathname.startsWith("/dashboard/scanner") &&
-      !request.nextUrl.pathname.startsWith("/dashboard/photo-scorer") &&
-      !request.nextUrl.pathname.startsWith("/dashboard/photo-enhancer") &&
+      request.nextUrl.pathname.startsWith("/subscribe") &&
+      !request.nextUrl.pathname.startsWith("/subscribe/scanner") &&
+      !request.nextUrl.pathname.startsWith("/subscribe/photo-scorer") &&
+      !request.nextUrl.pathname.startsWith("/subscribe/photo-enhancer") &&
       user.error
     ) {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
-    // Redirect to dashboard all the time if user is logged in
-    // if (request.nextUrl.pathname === "/" && !user.error) {
-    //   return NextResponse.redirect(new URL("/dashboard", request.url));
-    // }
+
+    // Legacy /dashboard redirects → /subscribe
+    if (request.nextUrl.pathname.startsWith("/dashboard")) {
+      const newPath = request.nextUrl.pathname.replace("/dashboard", "/subscribe");
+      return NextResponse.redirect(new URL(newPath + request.nextUrl.search, request.url), 301);
+    }
+
+    // Legacy /pricing redirect → /subscribe
+    if (request.nextUrl.pathname === "/pricing") {
+      return NextResponse.redirect(new URL("/subscribe", request.url), 301);
+    }
 
     return response;
   } catch (e) {
-    // If you are here, a Supabase client could not be created!
-    // This is likely because you have not set up environment variables.
-    // Check out http://localhost:3000 for Next Steps.
     return NextResponse.next({
       request: {
         headers: request.headers,
