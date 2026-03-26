@@ -203,7 +203,7 @@ export default function AboutPage() {
             className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8 md:p-12"
           >
             <HeartCrack className="h-12 w-12 text-primary mx-auto mb-6" />
-            <h3 className="text-2xl font-bold mb-4">Stop Guessing. Start boosting.</h3>
+            <h3 className="text-2xl font-bold mb-4">Stop guessing. Get a date tonight.</h3>
             <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
               Got a screenshot of someone you just matched with? Let our AI tear their profile apart before you commit to that coffee date.
             </p>

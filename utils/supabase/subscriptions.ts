@@ -129,10 +129,14 @@ export async function createOrUpdateSubscription(
   return newSubscription.id;
 }
 
+// ─────────────────────────────────────────────
+// ✅ 修改：查询用户有效订阅（active 或 canceled 但还没到期的）
+// ─────────────────────────────────────────────
 export async function getUserSubscription(userId: string) {
   const supabase = createServiceRoleClient();
 
-  const { data, error } = await supabase
+  // 先查 active 的订阅
+  const { data: activeSub, error: activeError } = await supabase
     .from("subscriptions")
     .select(
       `
@@ -144,11 +148,43 @@ export async function getUserSubscription(userId: string) {
     .eq("status", "active")
     .single();
 
-  if (error && error.code !== "PGRST116") {
-    throw error;
+  if (activeSub) return activeSub;
+  if (activeError && activeError.code !== "PGRST116") throw activeError;
+
+  // 没有 active 的，再查 canceled 但还没到期的
+  const { data: canceledSub, error: canceledError } = await supabase
+    .from("subscriptions")
+    .select(
+      `
+      *,
+      customers!inner(user_id)
+    `
+    )
+    .eq("customers.user_id", userId)
+    .eq("status", "canceled")
+    .gte("current_period_end", new Date().toISOString())
+    .single();
+
+  if (canceledError && canceledError.code !== "PGRST116") throw canceledError;
+
+  return canceledSub || null;
+}
+
+// ─────────────────────────────────────────────
+// ✅ 新增：判断订阅是否仍然有效（可在前端/后端任意地方调用）
+// ─────────────────────────────────────────────
+export function isSubscriptionActive(subscription: any): boolean {
+  if (!subscription) return false;
+
+  // active 状态 → 直接有效
+  if (subscription.status === "active") return true;
+
+  // canceled 状态 → 看 current_period_end 是否还没到
+  if (subscription.status === "canceled" && subscription.current_period_end) {
+    return new Date(subscription.current_period_end) > new Date();
   }
 
-  return data;
+  return false;
 }
 
 export async function addCreditsToCustomer(
@@ -179,8 +215,6 @@ export async function addCreditsToCustomer(
   }
 
   // ✅ 先写历史记录，再更新余额
-  // 原因：history 写入失败可重试且不影响余额；
-  // 若先加余额再写记录，余额增加但无记录是最坏情况
   const { error: historyError } = await supabase
     .from("credits_history")
     .insert({

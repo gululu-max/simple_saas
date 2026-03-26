@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, Zap, Shield } from "lucide-react";
+import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
@@ -27,9 +27,12 @@ const trackEvent = (eventName: string, params?: Record<string, any>) => {
 
 interface PricingSectionProps {
   className?: string;
+  hideHeader?: boolean;
+  defaultTab?: 'subscription' | 'credits';
+  onAfterPurchase?: () => void;
 }
 
-export function PricingSection({ className }: PricingSectionProps) {
+export function PricingSection({ className, hideHeader = false, defaultTab = 'subscription', onAfterPurchase }: PricingSectionProps) {
   const router = useRouter();
   const { user } = useUser();
   const { toast } = useToast();
@@ -89,33 +92,29 @@ export function PricingSection({ className }: PricingSectionProps) {
     });
 
     setIsProcessing(tier.id);
-    
+
     try {
       const response = await fetch('/api/creem/create-checkout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: tier.productId,
           productType: itemCategory,
           userId: user.id,
-          credits: tier.creditAmount, 
+          credits: tier.creditAmount,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
-      }
+      if (!response.ok) throw new Error('Failed to create checkout session');
 
       const { checkoutUrl } = await response.json();
-      
+
       if (checkoutUrl) {
+        onAfterPurchase?.();
         window.location.href = checkoutUrl;
       } else {
         throw new Error('No checkout URL received');
       }
-      
     } catch (error) {
       console.error('Payment error:', error);
       toast({
@@ -129,57 +128,60 @@ export function PricingSection({ className }: PricingSectionProps) {
   };
 
   return (
-    <section id="pricing" className={`w-full py-8 bg-transparent ${className}`}>
+    <section id="pricing" className={`w-full py-4 sm:py-8 bg-transparent ${className ?? ''}`}>
       <div className="container px-4 md:px-6">
-        <div className="text-center space-y-4 mb-12">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Simple, Transparent Pricing
-          </h2>
-          <p className="mx-auto max-w-2xl text-slate-400 text-lg">
-            Choose the perfect plan for your needs.
-          </p>
-        </div>
+        {/* Conditionally render header */}
+        {!hideHeader && (
+          <div className="text-center space-y-4 mb-8 sm:mb-12">
+            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Simple, Transparent Pricing
+            </h2>
+            <p className="mx-auto max-w-2xl text-slate-400 text-lg">
+              Choose the perfect plan for your needs.
+            </p>
+          </div>
+        )}
 
-        <Tabs defaultValue="subscription" className="w-full flex flex-col items-center">
-          <TabsList className="mb-8 bg-slate-900/80 border border-slate-800 p-1">
-            <TabsTrigger 
-              value="subscription" 
-              className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400"
+        <Tabs defaultValue={defaultTab} className="w-full flex flex-col items-center">
+          <TabsList className="mb-5 sm:mb-8 bg-slate-900/80 border border-slate-800 p-1">
+            <TabsTrigger
+              value="subscription"
+              className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400 text-sm"
             >
               Subscriptions
             </TabsTrigger>
-            <TabsTrigger 
-              value="credits" 
-              className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400"
+            <TabsTrigger
+              value="credits"
+              className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400 text-sm"
             >
               Credit Packs
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="subscription" className="w-full">
-            <div className="grid gap-8 lg:grid-cols-3 max-w-6xl mx-auto">
+            <div className="grid gap-4 sm:gap-8 lg:grid-cols-3 max-w-6xl mx-auto">
               {SUBSCRIPTION_TIERS.map((tier, index) => (
-                <PricingCard 
-                  key={tier.id} 
-                  tier={tier} 
-                  index={index} 
-                  isProcessing={isProcessing} 
-                  onPurchase={handlePurchase} 
+                <PricingCard
+                  key={tier.id}
+                  tier={tier}
+                  index={index}
+                  isProcessing={isProcessing}
+                  onPurchase={handlePurchase}
                   type="subscription"
                 />
               ))}
             </div>
           </TabsContent>
-          
+
           <TabsContent value="credits" className="w-full">
-            <div className="grid gap-8 lg:grid-cols-3 max-w-6xl mx-auto">
+            <div className="grid gap-4 sm:gap-8 lg:grid-cols-3 max-w-6xl mx-auto">
               {CREDITS_TIERS.map((tier, index) => (
-                <PricingCard 
-                  key={tier.id} 
-                  tier={tier} 
-                  index={index} 
-                  isProcessing={isProcessing} 
-                  onPurchase={handlePurchase} 
+                <PricingCard
+                  key={tier.id}
+                  tier={tier}
+                  index={index}
+                  isProcessing={isProcessing}
+                  onPurchase={handlePurchase}
                   type="credits"
                 />
               ))}
@@ -191,16 +193,16 @@ export function PricingSection({ className }: PricingSectionProps) {
   );
 }
 
-function PricingCard({ 
-  tier, 
-  index, 
-  isProcessing, 
+function PricingCard({
+  tier,
+  index,
+  isProcessing,
   onPurchase,
-  type
-}: { 
-  tier: ProductTier; 
-  index: number; 
-  isProcessing: string | null; 
+  type,
+}: {
+  tier: ProductTier;
+  index: number;
+  isProcessing: string | null;
   onPurchase: (tier: ProductTier) => void;
   type: 'subscription' | 'credits';
 }) {
@@ -222,36 +224,35 @@ function PricingCard({
       )}
 
       <Card className={`h-full flex flex-col relative overflow-hidden transition-all duration-300 ${
-        tier.featured 
-          ? 'bg-slate-900 border-rose-500/50 shadow-[0_0_30px_rgba(225,29,72,0.15)] scale-105 z-10' 
+        tier.featured
+          ? 'bg-slate-900 border-rose-500/50 shadow-[0_0_30px_rgba(225,29,72,0.15)] sm:scale-105 z-10'
           : 'bg-slate-900/50 border-slate-800 text-slate-50 hover:border-slate-700'
       }`}>
-        
         {tier.featured && (
           <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/10 blur-3xl -z-10 pointer-events-none" />
         )}
-        
-        <CardHeader className="pt-8">
-          <CardTitle className={`text-2xl ${tier.featured ? 'text-white' : 'text-slate-100'}`}>
+
+        <CardHeader className="pt-6 sm:pt-8 pb-3 sm:pb-4">
+          <CardTitle className={`text-xl sm:text-2xl ${tier.featured ? 'text-white' : 'text-slate-100'}`}>
             {tier.name}
           </CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardDescription className="text-slate-400 text-sm">
             {tier.description}
           </CardDescription>
-          <div className="mt-4 flex items-baseline">
-            <span className={`text-4xl font-extrabold ${tier.featured ? 'text-white' : 'text-slate-100'}`}>
+          <div className="mt-3 sm:mt-4 flex items-baseline">
+            <span className={`text-3xl sm:text-4xl font-extrabold ${tier.featured ? 'text-white' : 'text-slate-100'}`}>
               {tier.priceMonthly}
             </span>
-            <span className="text-slate-500 ml-1 font-medium">
+            <span className="text-slate-500 ml-1 font-medium text-sm">
               {type === 'subscription' ? '/month' : ' one-time'}
             </span>
           </div>
         </CardHeader>
 
-        <CardContent className="flex-1">
-          <ul className="space-y-3">
+        <CardContent className="flex-1 pb-3 sm:pb-4">
+          <ul className="space-y-2.5 sm:space-y-3">
             {tier.features?.map((feature, i) => (
-              <li key={i} className="flex items-center gap-3">
+              <li key={i} className="flex items-center gap-2.5 sm:gap-3">
                 <Check className="h-4 w-4 text-emerald-500 shrink-0 font-bold" />
                 <span className="text-sm text-slate-300">{feature}</span>
               </li>
@@ -259,18 +260,18 @@ function PricingCard({
           </ul>
         </CardContent>
 
-        <CardFooter>
+        <CardFooter className="pb-5 sm:pb-6">
           {tier.featured ? (
-            <Button 
-              className="w-full h-12 text-md font-bold bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white border-0 shadow-lg transition-transform hover:scale-105"
+            <Button
+              className="w-full h-11 sm:h-12 text-sm sm:text-md font-bold bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white border-0 shadow-lg transition-transform hover:scale-105"
               onClick={() => onPurchase(tier)}
               disabled={isProcessing === tier.id}
             >
               {isProcessing === tier.id ? "Processing..." : buttonText}
             </Button>
           ) : (
-            <Button 
-              className="w-full h-12 text-md font-semibold bg-slate-950 text-slate-300 border border-slate-800 hover:bg-slate-800 hover:text-white transition-all"
+            <Button
+              className="w-full h-11 sm:h-12 text-sm sm:text-md font-semibold bg-slate-950 text-slate-300 border border-slate-800 hover:bg-slate-800 hover:text-white transition-all"
               onClick={() => onPurchase(tier)}
               disabled={isProcessing === tier.id}
             >

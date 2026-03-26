@@ -8,6 +8,7 @@ import { useAuthModal } from "./auth-modal-context";
 import { sendCompleteRegistrationEvent } from "@/lib/meta-capi";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 // Supabase 原始错误 → 友好提示
 function getFriendlyError(message: string): string {
@@ -37,6 +38,8 @@ export default function SignUpForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  
+  const pathname = usePathname(); // 获取当前页面路径
 
   const handleSignUp = async () => {
     if (!email.trim()) {
@@ -81,7 +84,8 @@ export default function SignUpForm() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // 将当前路径作为 redirect_to 参数传递给验证邮件的 callback
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirect_to=${pathname}`,
       },
     });
 
@@ -110,7 +114,8 @@ export default function SignUpForm() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        // 将当前路径作为 redirect_to 参数传递给 callback 路由
+        redirectTo: `${window.location.origin}/auth/callback?redirect_to=${pathname}`,
         queryParams: { access_type: "offline", prompt: "consent" },
       },
     });
@@ -151,7 +156,7 @@ export default function SignUpForm() {
           Create your account
         </h1>
         <p className="text-sm text-gray-500">
-          Stop guessing. Start boosting.
+        Stop guessing. Get a date tonight.
         </p>
       </div>
 

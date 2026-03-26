@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 
 export function HeroAnimations() {
   return (
@@ -56,6 +57,31 @@ export function HeroAnimations() {
 export function HeroButtons() {
   const btnRef = useRef<HTMLAnchorElement>(null);
   const [showSticky, setShowSticky] = useState(false);
+  const [buttonText, setButtonText] = useState("Get 1 Free Photo Now");
+
+  // 仅查文案：登录 + free_enhance_used=true → 换文案，其余不动
+  useEffect(() => {
+    async function checkText() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: customer } = await supabase
+          .from("customers")
+          .select("free_enhance_used")
+          .eq("user_id", user.id)
+          .single();
+
+        if (customer?.free_enhance_used) {
+          setButtonText("Instant Glow-Up");
+        }
+      } catch {
+        // 失败保持默认文案
+      }
+    }
+    checkText();
+  }, []);
 
   useEffect(() => {
     const el = btnRef.current;
@@ -78,7 +104,7 @@ export function HeroButtons() {
       >
         <Link href="/dashboard/scanner" ref={btnRef}>
           <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]">
-            🔥 Get 1 Free Photo Now <ArrowRight className="w-4 h-4" />
+            🔥 {buttonText} <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
       </motion.div>
@@ -110,7 +136,7 @@ export function HeroButtons() {
                 size="lg"
                 className="w-full h-14 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_30px_rgba(220,38,38,0.5)] rounded-xl border-0"
               >
-                🔥 Get 1 Free Photo Now <ArrowRight className="w-4 h-4" />
+                🔥 {buttonText} <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
           </motion.div>

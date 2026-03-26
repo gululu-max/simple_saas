@@ -11,11 +11,11 @@ export default function ScannerPage() {
             <Flame className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-          Upload Photo → AI Deep Scan → Get Your Enhanced Photo
+          Drop a Pic → AI Glow-Up → Matches Explode
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Drop your Tinder or Hinge photo.
-          We’ll show you exactly what’s killing your matches — and fix it.
+          End the dry spell.
+          One photo is all it takes for AI to turn you into a right-swipe magnet.
           </p>
         </div>
         

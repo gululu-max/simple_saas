@@ -22,42 +22,38 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── 1. 校验登录状态 ──
+    // ── 1. 尝试获取登录状态（不强制要求登录）──
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Please sign in to continue', code: 'UNAUTHENTICATED' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ── 2. 校验积分余额 ──
+    // ── 2. 已登录用户：校验并预检积分（扣费在 onFinish 里执行）──
     const COST_PER_SCAN = 5;
 
-    const { data: customer, error: customerError } = await supabase
-      .from('customers')
-      .select('credits')
-      .eq('user_id', user.id)
-      .single();
+    if (user) {
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('credits')
+        .eq('user_id', user.id)
+        .single();
 
-    if (customerError || !customer) {
-      console.error('Fetch customer error:', customerError);
-      return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      if (customerError || !customer) {
+        console.error('Fetch customer error:', customerError);
+        return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (customer.credits < COST_PER_SCAN) {
+        return new Response(
+          JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
+          { status: 402, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
     }
+    // 未登录用户：跳过积分检查，免费分析
 
-    if (customer.credits < COST_PER_SCAN) {
-      return new Response(
-        JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
-        { status: 402, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ── 3. 代理配置（仅开发环境） ──
+    // ── 3. 代理配置（仅开发环境）──
     let fetchOptions: Record<string, unknown> = {};
 
     if (process.env.NODE_ENV === 'development') {
@@ -75,71 +71,88 @@ export async function POST(req: Request) {
 
     const mimeType = receivedMimeType || 'image/jpeg';
 
-    // ── 4. Prompt：人类可见的分析 + 末尾隐藏结构化 JSON ──
-    // 前端流结束后调用 parseAnalysisStream() 剥离 <analysis_json> 块：
-    //   - visibleText  → 展示给用户
-    //   - analysisJSON → 存入 state，传给 enhance 接口
     const userPrompt = `
 Role:
-You are a sharp, witty dating profile expert who gives brutally honest but fair feedback. Your goal is not just to analyze the photo, but to make the user feel curious and slightly uncomfortable in a way that makes them want to see an improved version of themselves.
+You are a sharp, witty dating profile expert. Brutally honest but fair.
 
 Input:
-The user provides a dating profile photo.
+A dating profile photo.
 
-Instructions:
+Step 1 — Authenticity Check (internal, never show this process to user):
+Before scoring, assess the photo for signs of heavy editing:
+- Overly smooth skin with no texture
+- Warped lines/surfaces near face or body
+- Unnatural lighting uniformity
+- AI-generated artifacts (extra fingers, asymmetric ears, melted backgrounds)
+- Filter-heavy color grading (extreme warmth, fake film grain)
+- Teeth/eyes unnaturally white or bright
 
-Start with a short scoring block:
+Rate authenticity: raw / lightly_edited / heavily_edited / ai_generated
 
-Attractiveness: X/10  
-Approachability: X/10  
-Confidence: X/10  
+Step 2 — Route output based on authenticity:
 
-Then give a quick positioning line like:
-"This is around the top X% of profiles" or "This sits slightly below average"
+[If heavily_edited or ai_generated]:
+Skip the normal scoring. Instead write a short, witty paragraph (40-60 words) that:
+- Acknowledges the photo looks polished
+- Points out that dating app users can sense over-editing and it kills trust
+- Tells them their real face is the one that gets the date, not the filtered version
+- Asks them to upload an unedited photo for a real analysis
+End with: "Send me the raw version. That's the one worth working with."
 
-Then immediately identify the ONE biggest issue that is hurting their match rate. Be direct and specific. This is the most important part.
+[If raw or lightly_edited AND score would be 8+/10 across all three]:
+Score block as normal, then a short paragraph (40-60 words) that:
+- Genuinely compliments what works
+- Makes it clear no major edits are needed
+- Suggests at most 1 micro-tweak (or says "honestly, don't touch it")
+End with: "This one's ready. Go get your matches."
+Set fix_plan to null in JSON.
 
-After that:
-- Briefly mention 1–2 genuine positives (keep it short)
-- Then expand slightly on what's holding the photo back (lighting, background, expression, vibe, etc.)
-- If there are red flags (mirror selfie, messy room, sunglasses, etc.), point them out naturally and explain why they reduce matches
+[If raw or lightly_edited AND any score below 8]:
+Score block, then the standard analysis:
+1. ONE biggest issue — direct and specific
+2. 1 genuine positive (one sentence)
+3. First impression on a dating app (one sentence)
+4. End with: "Want to see what a +2 version could look like? I can show you in 10 seconds."
 
-Then describe the likely first impression this photo gives on a dating app.
-
-Before ending, subtly hint that this photo could look significantly better with small changes. Create curiosity about an improved version.
-
-Finally:
-Give exactly 3 short, practical, easy-to-follow suggestions.
-
-End with a light, encouraging tone.
-
-Constraints:
-
-- Keep it between 120–180 words (shorter, punchier)
-- Natural paragraphs only (no lists except the score block)
-- Tone: slightly sharp, honest, but not insulting
-- Must feel like a real human, not a report
-- Do NOT mention "AI" in the output
+Constraints (all routes):
+- Natural paragraphs only — no bullets, no headers, no lists
+- Tone: sharp, human, slightly teasing — never cruel
+- Do NOT mention "AI" or "AI-generated" — say "heavily edited" or "filtered"
+- Do NOT reveal the authenticity check process
+- Red flags must be called out if present
 
 ---
 
-After your main response, append the following block ON A NEW LINE.
-Do NOT render it as part of your visible response. It will be stripped by the client.
-
 <analysis_json>
 {
+  "authenticity": "<raw|lightly_edited|heavily_edited|ai_generated>",
+  "authenticity_signals": ["<signal1>", "<signal2>"],
+  "route": "<needs_real_photo|already_great|can_improve>",
+  "scores": { "attractiveness": X, "approachability": X, "confidence": X },
+  "percentile": X,
   "lighting": "<low|medium|high>",
   "background": "<clean|neutral|messy>",
   "expression": "<warm|neutral|closed>",
-  "main_issues": ["<issue1>", "<issue2>"],
-  "improvement_focus": ["<focus1>", "<focus2>"]
+  "main_issue": "<the single biggest problem or 'none'>",
+  "positive": "<the one genuine strength>",
+  "red_flags": [],
+  "fix_plan": {
+    "crop": "<suggestion or 'none'>",
+    "brightness": <-100 to 100>,
+    "contrast": <-100 to 100>,
+    "saturation": <-100 to 100>,
+    "warmth": <-100 to 100>,
+    "sharpen": <0 to 100>,
+    "vignette": <0 to 100>,
+    "suggestion": "<one-line or 'no edit needed'>"
+  } // set entire fix_plan to null if route is "needs_real_photo" or "already_great"
 }
 </analysis_json>
 `;
 
-    // ── 5. 流式调用 Gemini ──
+    // ── 4. 流式调用 Gemini ──
     const result = await streamText({
-      model: googleCustom('gemini-2.5-flash') as any,  // ✅ 修复类型冲突
+      model: googleCustom('gemini-2.5-flash') as any,
       maxRetries: 1,
       messages: [
         {
@@ -151,7 +164,8 @@ Do NOT render it as part of your visible response. It will be stripped by the cl
         },
       ],
       async onFinish({ finishReason }) {
-        if (finishReason === 'stop' || finishReason === 'length') {
+        // 只有登录用户才扣积分
+        if (user && (finishReason === 'stop' || finishReason === 'length')) {
           const deduction = await consumeCredits(user.id, 'MatchfixScanner');
           if (!deduction.success) {
             console.error(`扣费/写流水失败 (User: ${user.id}):`, deduction.message);
@@ -160,6 +174,8 @@ Do NOT render it as part of your visible response. It will be stripped by the cl
               `✅ 成功扣除积分并写入流水 (User: ${user.id}, Remaining: ${deduction.remaining})`
             );
           }
+        } else if (!user) {
+          console.log('👤 Guest user scan completed — no credits deducted');
         }
       },
     });

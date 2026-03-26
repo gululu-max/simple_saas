@@ -23,7 +23,6 @@ type StatusConfigs = {
   [key in SubscriptionState]: StatusConfig;
 };
 
-// 1️⃣ 强制指定 en-US 格式，减少 SSR 和 CSR 的差异
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("en-US");
 }
@@ -149,7 +148,6 @@ export function SubscriptionStatusCard({
             return (
               <>
                 <Icon className={`h-4 w-4 ${config.iconColor}`} />
-                {/* 2️⃣ 增加 suppressHydrationWarning 彻底消灭水合警告 */}
                 <span className="text-muted-foreground" suppressHydrationWarning>
                   {config.message}
                 </span>

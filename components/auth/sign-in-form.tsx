@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { useAuthModal } from "./auth-modal-context";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 
 // Supabase 原始错误 → 友好提示
@@ -33,7 +33,9 @@ export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  
   const router = useRouter();
+  const pathname = usePathname(); // 获取当前页面路径
 
   const handleSignIn = async () => {
     // 手动验证，不依赖浏览器原生 required
@@ -71,7 +73,8 @@ export default function SignInForm() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        // 将当前路径作为 redirect_to 参数传递给 callback 路由
+        redirectTo: `${window.location.origin}/auth/callback?redirect_to=${pathname}`,
         queryParams: { access_type: "offline", prompt: "consent" },
       },
     });

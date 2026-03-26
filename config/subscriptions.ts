@@ -6,7 +6,7 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
     id: "tier-starter",
     productId: "prod_5rb8HwRBFYrkLIk4Jo0zk4", // 替换为真实的支付网关 Product ID prod_1xQAaVUDAS8ok2LC4ByDkt
     priceMonthly: "$6.99",
-    description: "Quickly diagnose what’s hurting your dating profile and fix your worst photos.",
+    description: "Quickly diagnose what's hurting your dating profile and fix your worst photos.",
     features: [
       "Early Bird Perk: Credits NEVER expire!", // 核心卖点置顶
       "40 Credits per month",
