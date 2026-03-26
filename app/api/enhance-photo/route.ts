@@ -3,6 +3,8 @@ import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { consumeCredits } from "@/lib/credits";
 import sharp from 'sharp';
+import path from 'path';
+import fs from 'fs';
 
 const COST_PER_ENHANCE = 20;
 const BUCKET = 'enhanced-photos';
@@ -12,6 +14,17 @@ const supabaseAdmin = createAdminClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// ─── 预加载水印瓦片（启动时读一次，常驻内存）──────────────────
+let watermarkTileBuffer: Buffer | null = null;
+
+function getWatermarkTile(): Buffer {
+  if (!watermarkTileBuffer) {
+    const tilePath = path.join(process.cwd(), 'public', 'watermark-tile.png');
+    watermarkTileBuffer = fs.readFileSync(tilePath);
+  }
+  return watermarkTileBuffer;
+}
 
 // ─── 分析 JSON 结构 ──────────────────────────────────────────
 interface AnalysisJSON {
@@ -78,16 +91,9 @@ async function callGeminiImageGeneration(
       - If the subject is off-center in an unflattering way, re-center
       
       2. BACKGROUND
-      - Evaluate the background OBJECTIVELY before making any changes:
-        * KEEP the background AS-IS if: it is a real-world setting that looks intentional (restaurant, beach, park, city street, home with reasonable decor, etc.), even if slightly busy
-        * BLUR ONLY (keep content) if: the background is acceptable but draws too much attention away from the subject
-        * REPLACE ENTIRELY only if the background has ANY of these specific dealbreakers:
-          - Other people's faces clearly visible (photobombers, crowds)
-          - Visible mess (unmade bed, pile of laundry, dirty dishes, trash)
-          - Bathroom/toilet visible
-          - Inappropriate or embarrassing content (posters, signs, etc.)
-      - When replacing, match the original setting's context — indoor stays indoor, outdoor stays outdoor
-      - Default behavior is to KEEP. Only escalate to blur or replace when the specific conditions above are met.
+      - If the background is cluttered, has other people, or is distracting: replace it with a clean, contextually appropriate blurred environment (café, park, urban street, etc.)
+      - If the background is already clean: keep it, just add natural depth-of-field blur
+      - Remove photobombers, random passersby, or any distracting elements behind the subject
       
       3. LIGHTING & COLOR
       - Simulate soft, directional golden-hour or window light on the face
@@ -172,56 +178,27 @@ async function callGeminiImageGeneration(
   return response.json();
 }
 
-// ─── 后端加水印（sharp）── 全图平铺斜45°重复水印 ──────────────
-async function addWatermarkServer(imageBuffer: Buffer, text = 'MatchFix'): Promise<Buffer> {
+// ─── 后端加水印（预制PNG瓦片平铺，不依赖系统字体）──────────────
+async function addWatermarkServer(imageBuffer: Buffer): Promise<Buffer> {
   const meta = await sharp(imageBuffer).metadata();
   const w = meta.width ?? 800;
   const h = meta.height ?? 800;
 
-  // 字号：图片宽度的 1/5，确保水印够大够醒目
-  const fontSize = Math.max(48, Math.floor(w / 5));
-  // 单个水印文字的近似宽度和行高
-  const textWidth = text.length * fontSize * 0.62;
-  const lineHeight = fontSize * 1.2;
+  const tile = getWatermarkTile();
+  const tileMeta = await sharp(tile).metadata();
+  const tileW = tileMeta.width ?? 600;
+  const tileH = tileMeta.height ?? 600;
 
-  // 平铺间距
-  const spacingX = textWidth + fontSize * 1.5;  // 水平间距
-  const spacingY = lineHeight + fontSize * 2;    // 垂直间距
-
-  // 为了旋转后仍能覆盖全图，画布需要更大（对角线长度）
-  const diagonal = Math.ceil(Math.sqrt(w * w + h * h));
-
-  // 生成重复平铺的水印文字行
-  const rows: string[] = [];
-  const startX = -diagonal / 2;
-  const startY = -diagonal / 2;
-
-  for (let y = startY; y < diagonal; y += spacingY) {
-    for (let x = startX; x < diagonal; x += spacingX) {
-      rows.push(
-        `<text x="${x}" y="${y}" dominant-baseline="middle">${text}</text>`
-      );
+  // 构建平铺的 composite 列表，覆盖整张图
+  const composites: sharp.OverlayOptions[] = [];
+  for (let y = 0; y < h; y += tileH) {
+    for (let x = 0; x < w; x += tileW) {
+      composites.push({ input: tile, top: y, left: x, blend: 'over' });
     }
   }
 
-  // SVG 水印层：在中心旋转 -35° 以形成斜铺效果
-  const svgText = `
-    <svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
-      <style>
-        text {
-          font-family: Arial, Helvetica, sans-serif;
-          font-weight: 900;
-          font-size: ${fontSize}px;
-          fill: rgba(255, 255, 255, 0.35);
-        }
-      </style>
-      <g transform="translate(${w / 2}, ${h / 2}) rotate(-35)">
-        ${rows.join('\n        ')}
-      </g>
-    </svg>`;
-
   return sharp(imageBuffer)
-    .composite([{ input: Buffer.from(svgText), blend: 'over' }])
+    .composite(composites)
     .png()
     .toBuffer();
 }
@@ -281,7 +258,7 @@ export async function POST(req: Request) {
     const rawBuffer = Buffer.from(rawBase64, 'base64');
 
     // ── 后端加水印 ──
-    const watermarkedBuffer = await addWatermarkServer(rawBuffer, 'MatchFix');
+    const watermarkedBuffer = await addWatermarkServer(rawBuffer);
     const watermarkedBase64 = watermarkedBuffer.toString('base64');
 
     // ── 无水印图上传到 Supabase Storage ──
@@ -312,7 +289,6 @@ export async function POST(req: Request) {
       .single();
 
     if (dbError || !enhRecord) {
-      // 插入失败时清理已上传的文件
       await supabaseAdmin.storage.from(BUCKET).remove([storageKey]);
       console.error("DB insert error:", dbError);
       return new Response(JSON.stringify({ error: "Failed to record enhancement" }), { status: 500 });
@@ -339,8 +315,8 @@ export async function POST(req: Request) {
     return new Response(
       JSON.stringify({
         success: true,
-        enhancementId: enhRecord.id,       // 前端下载时用
-        watermarkedImage: watermarkedBase64, // 水印预览图
+        enhancementId: enhRecord.id,
+        watermarkedImage: watermarkedBase64,
         mimeType: 'image/png',
         creditsRemaining,
         isFreeTrial,
