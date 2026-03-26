@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
 import { SUBSCRIPTION_TIERS, CREDITS_TIERS } from "@/config/subscriptions";
@@ -34,9 +34,13 @@ interface PricingSectionProps {
 
 export function PricingSection({ className, hideHeader = false, defaultTab = 'subscription', onAfterPurchase }: PricingSectionProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useUser();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+
+  // 从 URL 读取 returnPath（从 enhance 页跳过来时会带这个参数）
+  const returnPath = searchParams.get('returnPath');
 
   useEffect(() => {
     const allItems = [
@@ -102,6 +106,8 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
           productType: itemCategory,
           userId: user.id,
           credits: tier.creditAmount,
+          // 支付成功后跳回来源页（enhance 页 → 回 enhance 页，subscribe 页 → 回 subscribe 页）
+          returnPath: returnPath || '/subscribe',
         }),
       });
 

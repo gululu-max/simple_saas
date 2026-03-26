@@ -1,20 +1,29 @@
 import { ProductTier } from "@/types/subscriptions";
 
+// ─── Product IDs from env ────────────────────────────────
+// 切环境只需要改 .env，不用动代码
+const PRODUCT_IDS = {
+  STARTER:      process.env.NEXT_PUBLIC_PRODUCT_ID_STARTER!,
+  PRO:          process.env.NEXT_PUBLIC_PRODUCT_ID_PRO!,
+  ULTRA:        process.env.NEXT_PUBLIC_PRODUCT_ID_ULTRA!,
+  PACK_STARTER: process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_STARTER!,
+  PACK_VALUE:   process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_VALUE!,
+  PACK_PRO:     process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_PRO!,
+};
+
 export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Starter",
     id: "tier-starter",
-    productId: "prod_5rb8HwRBFYrkLIk4Jo0zk4", // 替换为真实的支付网关 Product ID prod_1xQAaVUDAS8ok2LC4ByDkt
+    productId: PRODUCT_IDS.STARTER,
     priceMonthly: "$6.99",
-    description: "Quickly diagnose what's hurting your dating profile and fix your worst photos.",
+    description: "Fix your worst photos and start getting more matches.",
     features: [
-      "Early Bird Perk: Credits NEVER expire!", // 核心卖点置顶
       "40 Credits per month",
-      "Analyze up to 8 photos with AI",
-      "Rank your best photos for dating apps",
-      "Find red flags hurting your match rate",
-      "Access to Matchfix Scanner",
-      "Access to AI Photo Scorer",
+      "Enhance up to 2 photos with AI",
+      "Unlimited watermark-free downloads",
+      "AI photo analysis included free",
+      "Credits never expire",
     ],
     featured: false,
     discountCode: "",
@@ -22,18 +31,16 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Pro",
     id: "tier-pro",
-    productId: "prod_1OW6mmHO9dwQv7tcLvoWqE", // 替换为真实的支付网关 Product ID prod_2Ec2MDEKTw4m2eTpeK2QDI
+    productId: PRODUCT_IDS.PRO,
     priceMonthly: "$19.99",
-    description: "Optimize your entire dating profile and dramatically increase your swipe-right rate.",
+    description: "Optimize your entire profile — the #1 choice for serious daters.",
     features: [
-      "Early Bird Perk: Credits NEVER expire!", 
       "200 Credits per month",
-      "Analyze up to 40 photos with AI",
-      "Find your highest-performing dating photos",
-      "Spot hidden profile red flags instantly",
-      "Perfect for testing multiple photo combinations",
-      "Access to Matchfix Scanner",
-      "Access to AI Photo Scorer",
+      "Enhance up to 10 photos with AI",
+      "Unlimited watermark-free downloads",
+      "AI photo analysis included free",
+      "Save $1.50/photo vs credit packs",
+      "Credits never expire",
     ],
     featured: true,
     discountCode: "",
@@ -41,18 +48,16 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Ultra",
     id: "tier-ultra",
-    productId: "prod_5lQJo4e8joxLuDMZXzaNAX", // 替换为真实的支付网关 Product ID
+    productId: PRODUCT_IDS.ULTRA,
     priceMonthly: "$39.99",
-    description: "Built for power users who constantly test and optimize dating profiles.",
+    description: "For power users, dating coaches, and profile makeover pros.",
     features: [
-      "Early Bird Perk: Credits NEVER expire!", 
       "500 Credits per month",
-      "Analyze up to 100 photos with AI",
-      "Bulk photo scoring and ranking",
-      "Ideal for A/B testing dating photos",
-      "Perfect for dating coaches and profile reviews",
-      "Access to Matchfix Scanner",
-      "Access to AI Photo Scorer",
+      "Enhance up to 25 photos with AI",
+      "Unlimited watermark-free downloads",
+      "AI photo analysis included free",
+      "Best per-photo value",
+      "Credits never expire",
     ],
     featured: false,
     discountCode: "",
@@ -61,52 +66,50 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
 
 export const CREDITS_TIERS: ProductTier[] = [
   {
-    name: "Basic Pack",
-    id: "pack-25-credits",
-    productId: "prod_45VZKvDlwmOeCaZmtpVVht", // 替换为真实的支付网关 Product ID
-    priceMonthly: "$5", 
-    description: "Quickly test how your dating photos perform.",
-    creditAmount: 25,
+    name: "Starter Pack",
+    id: "pack-75-credits",
+    productId: PRODUCT_IDS.PACK_STARTER,
+    priceMonthly: "$9.99", 
+    description: "Try it out — enough for 3 full photo enhancements.",
+    creditAmount: 75,
     features: [
-      "25 Credits",
-      "Score up to 5 photos",
-      "Rank your best dating pictures",
+      "75 Credits",
+      "Enhance up to 3 photos",
+      "Watermark-free downloads included",
       "Credits never expire",
-      "Full access to Matchfix tools"
     ],
     featured: false,
     discountCode: "",
   },
   {
     name: "Value Pack",
-    id: "pack-100-credits",
-    productId: "prod_7BZsaTaYuNSxV3J351zJEU", // 替换为真实的支付网关 Product ID
-    priceMonthly: "$12",
-    description: "The most popular choice for fully optimizing your dating profile.",
-    creditAmount: 100,
+    id: "pack-200-credits",
+    productId: PRODUCT_IDS.PACK_VALUE,
+    priceMonthly: "$19.99",
+    description: "Best seller — revamp your entire dating profile.",
+    creditAmount: 200,
     features: [
-      "100 Credits",
-      "Score up to 20 photos",
-      "Find your best-performing dating pictures",
+      "200 Credits",
+      "Enhance up to 8 photos",
+      "Watermark-free downloads included",
       "Credits never expire",
-      "Full access to Matchfix tools"
     ],
     featured: true,
     discountCode: "",
   },
   {
     name: "Pro Pack",
-    id: "pack-300-credits",
-    productId: "prod_40nACa3LIp8EPw46bHJyyE", // 替换为真实的支付网关 Product ID
-    priceMonthly: "$25",
-    description: "Best value for continuous profile testing and optimization.",
-    creditAmount: 300,
+    id: "pack-500-credits",
+    productId: PRODUCT_IDS.PACK_PRO,
+    priceMonthly: "$39.99",
+    description: "Maximum value — test every angle, every outfit, every look.",
+    creditAmount: 500,
     features: [
-      "300 Credits",
-      "Score up to 60 photos",
-      "Perfect for testing multiple photo combinations",
+      "500 Credits",
+      "Enhance up to 20 photos",
+      "Watermark-free downloads included",
+      "Lowest cost per photo",
       "Credits never expire",
-      "Full access to Matchfix tools"
     ],
     featured: false,
     discountCode: "",

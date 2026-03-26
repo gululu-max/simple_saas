@@ -29,12 +29,7 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
       icon: <Wand2 className="w-4 h-4 text-purple-500" />,
       href: "/subscribe/photo-enhancer",
     },
-    {
-      title: "AI Photo Scorer",
-      description: "Rank your best photos and pick winners",
-      icon: <ScanSearch className="w-4 h-4 text-orange-500" />,
-      href: "/subscribe/photo-scorer",
-    },
+    // Photo Scorer 已下线，后续优化完再上
   ];
 
   const isLoggedIn = user && user?.email;
@@ -156,7 +151,7 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             items={[
               { label: "Home", href: "/" },
               { label: "✨ AI Photo Enhancer", href: "/subscribe/photo-enhancer" },
-              { label: "📸 AI Photo Scorer", href: "/subscribe/photo-scorer" },
+              // Photo Scorer 已下线
               { label: "Pricing", href: "/#pricing" },
             ]}
             user={isLoggedIn ? user : null}

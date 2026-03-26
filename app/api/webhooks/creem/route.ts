@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { CreemWebhookEvent } from "@/types/creem";
-// 在文件顶部 import 区加上
 import { sendPurchaseEvent } from "@/lib/meta-capi";
 import {
   createOrUpdateCustomer,
@@ -12,15 +11,17 @@ import crypto from "crypto";
 
 const CREEM_WEBHOOK_SECRET = process.env.CREEM_WEBHOOK_SECRET!;
 
+// ─── 从环境变量读取 Product IDs，构建积分映射表 ─────────────
+// 这样切测试/生产环境只需要改 .env，不用动代码
 const CREDITS_MAP: Record<string, { type: "subscription" | "package"; amount: number }> = {
-  // 订阅套餐
-  "prod_5rb8HwRBFYrkLIk4Jo0zk4": { type: "subscription", amount: 40 },
-  "prod_1OW6mmHO9dwQv7tcLvoWqE": { type: "subscription", amount: 200 },
-  "prod_5lQJo4e8joxLuDMZXzaNAX": { type: "subscription", amount: 500 },
-  // 单次积分包
-  "prod_45VZKvDlwmOeCaZmtpVVht": { type: "package", amount: 25 },
-  "prod_7BZsaTaYuNSxV3J351zJEU": { type: "package", amount: 100 },
-  "prod_40nACa3LIp8EPw46bHJyyE": { type: "package", amount: 300 },
+  // 订阅套餐（每月发放积分数）
+  [process.env.NEXT_PUBLIC_PRODUCT_ID_STARTER!]: { type: "subscription", amount: 40 },
+  [process.env.NEXT_PUBLIC_PRODUCT_ID_PRO!]:     { type: "subscription", amount: 200 },
+  [process.env.NEXT_PUBLIC_PRODUCT_ID_ULTRA!]:   { type: "subscription", amount: 500 },
+  // 单次积分包（新定价：75 / 200 / 500）
+  [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_STARTER!]: { type: "package", amount: 75 },
+  [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_VALUE!]:   { type: "package", amount: 200 },
+  [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_PRO!]:     { type: "package", amount: 500 },
 };
 
 export async function POST(request: Request) {
@@ -100,7 +101,6 @@ async function handleCheckoutCompleted(event: CreemWebhookEvent) {
   const productConfig = productId ? CREDITS_MAP[productId] : null;
 
   if (productConfig?.type === "package") {
-    // ✅ 积分包：用 order.id 做幂等凭证
     const orderId = checkout.order?.id;
     if (!orderId) {
       throw new Error("checkout.completed: 积分包缺少 order.id，无法保证幂等");
@@ -115,7 +115,6 @@ async function handleCheckoutCompleted(event: CreemWebhookEvent) {
       `✅ 用户 ${checkout.metadata.user_id} 充值积分包 ${productConfig.amount}`
     );
 
-    // Meta CAPI: 追踪积分包购买
     await sendPurchaseEvent(checkout.customer?.email ?? "", {
       value: checkout.order?.amount ? checkout.order.amount / 100 : 0,
       currency: checkout.currency ?? "USD",
@@ -123,7 +122,6 @@ async function handleCheckoutCompleted(event: CreemWebhookEvent) {
       eventId: `purchase_${orderId}`,
     });
   } else if (checkout.subscription) {
-    // ✅ 订阅首次：只建记录，积分由 subscription.paid 统一发放
     await createOrUpdateSubscription(checkout.subscription, customerId);
     console.log(`✅ 订阅创建完成，积分将由 subscription.paid 事件发放`);
   } else {
@@ -166,7 +164,6 @@ async function handleSubscriptionPaid(event: CreemWebhookEvent) {
   const productConfig = productId ? CREDITS_MAP[productId] : null;
 
   if (productConfig?.type === "subscription") {
-    // ✅ 用 last_transaction.id 做幂等凭证，resend 不会重复发积分
     const transactionId = subscription.last_transaction?.id;
     if (!transactionId) {
       throw new Error("subscription.paid: 缺少 last_transaction.id,无法保证幂等");
@@ -175,12 +172,11 @@ async function handleSubscriptionPaid(event: CreemWebhookEvent) {
     await addCreditsToCustomer(
       customerId,
       productConfig.amount,
-      transactionId, // 👈 关键：用 transaction ID 而不是 event ID
+      transactionId,
       `Monthly Subscription Renewal: ${productConfig.amount} credits`
     );
     console.log(`✅ 订阅扣款成功，发放月度积分 ${productConfig.amount}`);
 
-    // Meta CAPI: 追踪订阅付款
     await sendPurchaseEvent(subscription.customer?.email ?? "", {
       value: subscription.last_transaction?.amount
         ? subscription.last_transaction.amount / 100

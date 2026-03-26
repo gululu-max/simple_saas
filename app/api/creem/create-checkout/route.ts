@@ -5,7 +5,7 @@ import { creem } from '@/lib/creem';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { productId, productType, userId, credits } = body;
+    const { productId, productType, userId, credits, returnPath } = body;
 
     // Verify authentication
     const supabase = await createClient();
@@ -15,13 +15,20 @@ export async function POST(request: Request) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
+    // 支付成功后跳回来源页，默认跳首页
+    const origin = request.headers.get('origin') || '';
+    const successPath = returnPath || '/';
+    // 拼接 payment=success 参数
+    const separator = successPath.includes('?') ? '&' : '?';
+    const successUrl = `${origin}${successPath}${separator}payment=success`;
+
     // Create checkout session using SDK
     const checkout = await creem.checkouts.create({
       productId: productId,
       customer: {
         email: user.email,
       },
-      successUrl: `${request.headers.get('origin')}/?payment=success`,
+      successUrl,
       metadata: {
         user_id: user.id,
         product_type: productType,

@@ -6,11 +6,13 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// 定义消耗常量
+// ─── 定义消耗常量 ───────────────────────────────────────────
+// PhotoEnhance 分两档：会员 20，非会员 25（含免水印下载）
 export const COST_CONFIG = {
   MatchfixScanner: 5,
   AIPhotoScorer: 10,
-  PhotoEnhance: 20,
+  PhotoEnhance_Member: 20,
+  PhotoEnhance_NonMember: 25,
 } as const;
 
 export type ActionType = keyof typeof COST_CONFIG;
@@ -28,7 +30,7 @@ export async function consumeCredits(userId: string, actionType: ActionType) {
   // 1. 获取当前总积分和客户主键 ID
   const { data: customerData, error: fetchError } = await supabaseAdmin
     .from('customers')
-    .select('id, credits') // 🚨 核心修复：必须查出 id
+    .select('id, credits')
     .eq('user_id', userId)
     .single();
 
@@ -53,7 +55,7 @@ export async function consumeCredits(userId: string, actionType: ActionType) {
   const { error: updateError } = await supabaseAdmin
     .from('customers')
     .update({ credits: newTotal })
-    .eq('id', customerData.id); // 使用主键更新更严谨
+    .eq('id', customerData.id);
 
   if (updateError) {
     console.error(`更新用户积分失败:`, updateError);
@@ -62,7 +64,7 @@ export async function consumeCredits(userId: string, actionType: ActionType) {
 
   // 4. 写入审计流水 credits_history
   await supabaseAdmin.from('credits_history').insert({
-    customer_id: customerData.id, // 🚨 核心修复：使用查出来的客户主键
+    customer_id: customerData.id,
     amount: amountToDeduct,
     type: 'subtract',
     description: `Used ${actionType}`,
@@ -89,7 +91,7 @@ export async function addCreditsToCustomer(
   // 1. 获取当前总积分和客户主键 ID
   const { data: customerData, error: fetchError } = await supabaseAdmin
     .from('customers')
-    .select('id, credits') // 🚨 核心修复：查出关联的 id
+    .select('id, credits')
     .eq('user_id', userId)
     .single();
 
@@ -116,7 +118,7 @@ export async function addCreditsToCustomer(
   const { error: historyError } = await supabaseAdmin
     .from('credits_history')
     .insert({
-      customer_id: customerData.id,  // 🚨 核心修复：匹配 SQL 脚本结构
+      customer_id: customerData.id,
       amount: amount,
       type: 'add',
       description: description,

@@ -86,6 +86,7 @@ export default function BoostScanner() {
 
   const [isGuestEnhanced, setIsGuestEnhanced] = useState(false);
   const [isFreeGeneration, setIsFreeGeneration] = useState(false);
+  const [isDownloadFree, setIsDownloadFree] = useState(false); // 新增：付费用户下载免费
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -119,6 +120,22 @@ export default function BoostScanner() {
     if (savedText)    { setVisibleText(savedText);  sessionStorage.setItem('mf_visibleText', savedText); }
     if (savedJSON)    { setAnalysisJSON(savedJSON); sessionStorage.setItem('mf_analysisJSON', savedJSON); }
 
+    // 恢复增强结果（支付跳转回来时关键）
+    const savedWatermarked   = sessionStorage.getItem('mf_watermarkedImage');
+    const savedEnhancementId = sessionStorage.getItem('mf_enhancementId');
+    const savedMimeType      = sessionStorage.getItem('mf_enhancedMimeType');
+    const savedFreeTrial     = sessionStorage.getItem('mf_isFreeGeneration');
+    const savedDownloadFree  = sessionStorage.getItem('mf_isDownloadFree');
+
+    if (savedWatermarked && savedEnhancementId) {
+      setWatermarkedImage(savedWatermarked);
+      setEnhancementId(savedEnhancementId);
+      if (savedMimeType) setEnhancedMimeType(savedMimeType);
+      setIsFreeGeneration(savedFreeTrial === 'true');
+      setIsDownloadFree(savedDownloadFree === 'true');
+      setSliderIndex(1);
+    }
+
     if (guestFlag === 'true' && savedPreview) {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -128,6 +145,18 @@ export default function BoostScanner() {
           sessionStorage.setItem('mf_pending_enhance', 'true');
         }
       });
+    }
+
+    // 检测支付回跳：清理 URL 参数，显示成功提示
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      // 清理 URL 中的 payment 参数（不刷新页面）
+      params.delete('payment');
+      const cleanUrl = params.toString()
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+      trackEvent('payment_return_success');
     }
   }, []);
 
@@ -175,7 +204,6 @@ export default function BoostScanner() {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (skipExitWarningRef.current) return;
       e.preventDefault();
-      // Modern browsers show a generic message; setting returnValue is required
       e.returnValue = '';
     };
 
@@ -187,14 +215,10 @@ export default function BoostScanner() {
   useEffect(() => {
     if (!hasActiveResult) return;
 
-    // Push a dummy history entry so pressing "back" triggers popstate
-    // instead of immediately leaving
     window.history.pushState({ matchfixGuard: true }, '');
 
     const handlePopState = (e: PopStateEvent) => {
       if (skipExitWarningRef.current) return;
-
-      // Re-push so the user stays on this page while modal is open
       window.history.pushState({ matchfixGuard: true }, '');
       pendingNavigationRef.current = '__back__';
       setActiveModal('privacy_exit');
@@ -217,7 +241,6 @@ export default function BoostScanner() {
       const href = anchor.getAttribute('href');
       if (!href) return;
 
-      // Only intercept internal navigation (same origin, not the current page)
       const isSameOrigin =
         anchor.origin === window.location.origin ||
         href.startsWith('/') ||
@@ -243,6 +266,7 @@ export default function BoostScanner() {
     setEnhancementId(null);
     setIsGuestEnhanced(false);
     setIsFreeGeneration(false);
+    setIsDownloadFree(false);
     setEnhanceError(null);
     setSliderIndex(0);
     setVisibleText('');
@@ -252,6 +276,11 @@ export default function BoostScanner() {
     sessionStorage.removeItem('mf_visibleText');
     sessionStorage.removeItem('mf_analysisJSON');
     sessionStorage.removeItem('mf_pending_enhance');
+    sessionStorage.removeItem('mf_watermarkedImage');
+    sessionStorage.removeItem('mf_enhancementId');
+    sessionStorage.removeItem('mf_enhancedMimeType');
+    sessionStorage.removeItem('mf_isFreeGeneration');
+    sessionStorage.removeItem('mf_isDownloadFree');
     localStorage.removeItem('mf_pending_enhance');
     localStorage.removeItem('mf_guest_enhanced');
     localStorage.removeItem('mf_preview');
@@ -267,14 +296,12 @@ export default function BoostScanner() {
     setActiveModal(null);
     handleReset();
 
-    // Navigate after clearing
     if (target === '__back__') {
       window.history.back();
     } else if (target) {
       router.push(target);
     }
 
-    // Reset the skip flag after a tick
     setTimeout(() => {
       skipExitWarningRef.current = false;
       pendingNavigationRef.current = null;
@@ -349,6 +376,14 @@ export default function BoostScanner() {
       setEnhancementId(data.enhancementId);
       setEnhancedMimeType(data.mimeType ?? 'image/png');
       setIsFreeGeneration(data.isFreeTrial);
+      setIsDownloadFree(data.downloadFree ?? false);
+
+      // 缓存增强结果（支付跳转回来时可恢复）
+      sessionStorage.setItem('mf_watermarkedImage', data.watermarkedImage);
+      sessionStorage.setItem('mf_enhancementId', data.enhancementId);
+      sessionStorage.setItem('mf_enhancedMimeType', data.mimeType ?? 'image/png');
+      sessionStorage.setItem('mf_isFreeGeneration', String(data.isFreeTrial));
+      sessionStorage.setItem('mf_isDownloadFree', String(data.downloadFree ?? false));
 
       setIsGuestEnhanced(false);
       setSliderIndex(1);
@@ -434,6 +469,7 @@ export default function BoostScanner() {
     setEnhancementId(null);
     setIsGuestEnhanced(false);
     setIsFreeGeneration(false);
+    setIsDownloadFree(false);
     setEnhanceError(null);
     setSliderIndex(0);
     sessionStorage.setItem('mf_preview', compressed);
@@ -453,8 +489,6 @@ export default function BoostScanner() {
         setActiveModal('free_limit');
         return;
       }
-      // Increment count (will be saved after analysis completes in onFinish,
-      // but we save here too in case they close mid-analysis)
       localStorage.setItem('mf_free_analyses', String(usedCount + 1));
     }
 
@@ -466,6 +500,7 @@ export default function BoostScanner() {
     setEnhancementId(null);
     setIsGuestEnhanced(false);
     setIsFreeGeneration(false);
+    setIsDownloadFree(false);
     setEnhanceError(null);
     setSliderIndex(0);
     sessionStorage.removeItem('mf_visibleText');
@@ -483,11 +518,23 @@ export default function BoostScanner() {
   const handleDownload = async () => {
     if (!enhancementId) return;
 
+    // 付费用户（非免费试用）→ 已前置付费，图片已经是无水印的，直接下载 base64
+    if (isDownloadFree && watermarkedImage) {
+      const link = document.createElement('a');
+      link.href = `data:${enhancedMimeType};base64,${watermarkedImage}`;
+      link.download = 'matchfix-enhanced.png';
+      link.click();
+      trackEvent('enhance_download_paid_user');
+      return;
+    }
+
+    // 首次免费用户 → 弹下载选择弹窗
     if (isFreeGeneration) {
       setActiveModal('download_choice');
       return;
     }
 
+    // 其他情况：直接从服务器下载
     setIsDownloading(true);
     try {
       const res = await fetch('/api/download', {
@@ -715,8 +762,8 @@ export default function BoostScanner() {
                         </div>
                         <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center">
                           <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
-                          <p className="text-white font-semibold text-sm animate-pulse">Verifying user status...</p>
-                          <p className="text-white/60 text-xs">Preparing your enhanced photo</p>
+                          <p className="text-white font-semibold text-sm animate-pulse">Enhancing your photo...</p>
+                          <p className="text-white/60 text-xs">This usually takes 15-30 seconds</p>
                         </div>
                       </div>
                     )}
@@ -913,9 +960,11 @@ export default function BoostScanner() {
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                {isFreeGeneration
-                  ? 'Download Photo'
-                  : 'Download Enhanced Photo'}
+                {isDownloadFree
+                  ? 'Download Enhanced Photo'
+                  : isFreeGeneration
+                    ? 'Download Photo'
+                    : 'Download Enhanced Photo'}
               </Button>
             )}
 
@@ -1001,7 +1050,7 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: Insufficient Credits (enhance)
+          MODAL: Insufficient Credits (enhance) — 更新文案
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'enhance' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -1009,9 +1058,13 @@ export default function BoostScanner() {
             <div className="grid size-16 place-items-center rounded-full bg-primary/10 mb-4 border border-primary/20">
               <Coins className="size-8 text-primary" />
             </div>
-            <h2 className="text-xl font-bold text-foreground mb-2">Not Enough Credits 😅</h2>
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-              You need <span className="font-bold text-foreground">20 Credits</span> to enhance a photo. Top up to continue.
+            <h2 className="text-xl font-bold text-foreground mb-2">Credits Needed 🔥</h2>
+            <p className="text-sm text-muted-foreground mb-2 leading-relaxed">
+              AI photo enhancement costs <span className="font-bold text-foreground">20 credits</span> for members
+              or <span className="font-bold text-foreground">25 credits</span> with a credit pack.
+            </p>
+            <p className="text-xs text-muted-foreground/70 mb-6">
+              Members save 5 credits per photo + get free watermark-free downloads.
             </p>
             <div className="flex w-full gap-3">
               <Button
@@ -1026,7 +1079,7 @@ export default function BoostScanner() {
                 onClick={() => {
                   setActiveModal(null);
                   trackEvent('upgrade_modal_click_refill');
-                  router.push('/subscribe');
+                  router.push('/subscribe?returnPath=' + encodeURIComponent(pathname));
                 }}
               >
                 Get Credits
@@ -1037,7 +1090,7 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: Download Choice (free trial user)
+          MODAL: Download Choice (free trial user) — 更新文案
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'download_choice' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -1045,8 +1098,12 @@ export default function BoostScanner() {
             <div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20">
               <Download className="size-8 text-emerald-500" />
             </div>
-            <h2 className="text-xl font-bold text-foreground mb-1">Download Your Photo</h2>
-            <p className="text-sm text-muted-foreground mb-6">Choose how you&apos;d like to download</p>
+            <h2 className="text-xl font-bold text-foreground mb-1">Save Your Enhanced Photo</h2>
+            <p className="text-sm text-muted-foreground mb-1">Your photo looks amazing — don&apos;t lose it!</p>
+            <p className="text-xs text-red-400/80 mb-4 flex items-center gap-1">
+              <ShieldCheck className="size-3" />
+              We don&apos;t store photos. Leave this page and it&apos;s gone forever.
+            </p>
 
             <div className="flex flex-col w-full gap-3">
               <button
@@ -1057,10 +1114,10 @@ export default function BoostScanner() {
                   <Crown className="size-5 text-amber-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-foreground text-sm">Member Download</div>
-                  <div className="text-xs text-muted-foreground">No watermark · Free for members</div>
+                  <div className="font-semibold text-foreground text-sm">Become a Member</div>
+                  <div className="text-xs text-muted-foreground">No watermark · Free downloads forever</div>
                 </div>
-                <span className="text-xs font-bold text-amber-500 shrink-0">FREE</span>
+                <span className="text-xs font-bold text-amber-500 shrink-0">BEST</span>
               </button>
 
               <button
@@ -1071,8 +1128,8 @@ export default function BoostScanner() {
                   <Coins className="size-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-foreground text-sm">Use Credits</div>
-                  <div className="text-xs text-muted-foreground">No watermark · 5 credits</div>
+                  <div className="font-semibold text-foreground text-sm">Use 5 Credits</div>
+                  <div className="text-xs text-muted-foreground">No watermark · One-time purchase</div>
                 </div>
                 <span className="text-xs font-bold text-primary shrink-0">⚡ 5</span>
               </button>
@@ -1086,7 +1143,7 @@ export default function BoostScanner() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-foreground text-sm">Download with Watermark</div>
-                  <div className="text-xs text-muted-foreground">Free · Includes MatchFix watermark</div>
+                  <div className="text-xs text-muted-foreground">Free · Includes Matchfix branding</div>
                 </div>
                 <span className="text-xs font-bold text-muted-foreground shrink-0">FREE</span>
               </button>
@@ -1104,7 +1161,7 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: Membership (Pro recommendation)
+          MODAL: Membership (Pro recommendation) — 更新文案和价格
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'membership' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -1124,7 +1181,7 @@ export default function BoostScanner() {
 
             <div className="mx-4 mb-4 rounded-xl border border-rose-500/40 bg-slate-900 overflow-hidden">
               <div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">
-                ✦ RECOMMENDED FOR YOU ✦
+                ✦ MOST POPULAR ✦
               </div>
               <div className="p-5">
                 <div className="flex items-start justify-between mb-3">
@@ -1133,16 +1190,17 @@ export default function BoostScanner() {
                     <div className="text-slate-400 text-xs mt-0.5">200 credits / month</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-white font-extrabold text-2xl">9.99</div>
+                    <div className="text-white font-extrabold text-2xl">$19.99</div>
                     <div className="text-slate-500 text-xs">/month</div>
                   </div>
                 </div>
                 <ul className="space-y-2 mb-5">
                   {[
+                    'Enhance up to 10 photos per month',
                     'Unlimited watermark-free downloads',
-                    '200 Credits per month',
-                    'Analyze up to 40 photos with AI',
-                    'Credits NEVER expire',
+                    'Save 5 credits/photo vs credit packs',
+                    'AI photo analysis included free',
+                    'Credits never expire',
                   ].map((f, i) => (
                     <li key={i} className="flex items-center gap-2 text-xs text-slate-300">
                       <Check className="size-3.5 text-emerald-500 shrink-0" />
@@ -1152,16 +1210,17 @@ export default function BoostScanner() {
                 </ul>
                 <MembershipCheckoutButton
                   onStart={() => setActiveModal(null)}
+                  returnPath={pathname}
                 />
               </div>
             </div>
 
             <div className="px-4 pb-5 text-center">
               <button
-                onClick={() => { setActiveModal(null); router.push('/subscribe'); }}
+                onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}
                 className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
               >
-                View all membership plans →
+                View all plans →
               </button>
             </div>
           </div>
@@ -1169,7 +1228,7 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: Credits Shop (Basic Pack recommendation)
+          MODAL: Credits Shop — 更新文案和价格
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'credits_shop' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -1177,7 +1236,7 @@ export default function BoostScanner() {
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <div className="flex items-center gap-2">
                 <Coins className="size-4 text-primary" />
-                <span className="text-sm font-bold text-white">Buy Credits</span>
+                <span className="text-sm font-bold text-white">Get Credits</span>
               </div>
               <button
                 onClick={() => setActiveModal(null)}
@@ -1189,24 +1248,24 @@ export default function BoostScanner() {
 
             <div className="mx-4 mb-4 rounded-xl border border-primary/40 bg-slate-900 overflow-hidden">
               <div className="bg-primary text-primary-foreground text-xs font-bold text-center py-1.5 tracking-wide">
-                ✦ RECOMMENDED FOR YOU ✦
+                ✦ QUICKEST OPTION ✦
               </div>
               <div className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="text-white font-bold text-lg">Basic Pack</div>
-                    <div className="text-slate-400 text-xs mt-0.5">25 credits · one-time</div>
+                    <div className="text-white font-bold text-lg">Starter Pack</div>
+                    <div className="text-slate-400 text-xs mt-0.5">75 credits · one-time</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-white font-extrabold text-2xl"></div>
+                    <div className="text-white font-extrabold text-2xl">$9.99</div>
                     <div className="text-slate-500 text-xs">one-time</div>
                   </div>
                 </div>
                 <ul className="space-y-2 mb-5">
                   {[
                     'Download this photo without watermark',
-                    '25 Credits total',
-                    'Score up to 5 photos',
+                    '75 Credits — enough for 3 enhancements',
+                    'Watermark-free downloads included',
                     'Credits never expire',
                   ].map((f, i) => (
                     <li key={i} className="flex items-center gap-2 text-xs text-slate-300">
@@ -1217,13 +1276,14 @@ export default function BoostScanner() {
                 </ul>
                 <CreditsCheckoutButton
                   onStart={() => setActiveModal(null)}
+                  returnPath={pathname}
                 />
               </div>
             </div>
 
             <div className="px-4 pb-5 text-center">
               <button
-                onClick={() => { setActiveModal(null); router.push('/subscribe'); }}
+                onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}
                 className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
               >
                 View all credit packs →
@@ -1237,7 +1297,7 @@ export default function BoostScanner() {
 }
 
 // ─── Checkout Button: Pro Membership ─────────────────────────
-function MembershipCheckoutButton({ onStart }: { onStart: () => void }) {
+function MembershipCheckoutButton({ onStart, returnPath }: { onStart: () => void; returnPath: string }) {
   const [loading, setLoading] = React.useState(false);
 
   const handleClick = async () => {
@@ -1252,9 +1312,10 @@ function MembershipCheckoutButton({ onStart }: { onStart: () => void }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId: 'prod_1OW6mmHO9dwQv7tcLvoWqE',
+          productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PRO!,
           productType: 'subscription',
           userId: user.id,
+          returnPath,
         }),
       });
       const { checkoutUrl } = await res.json();
@@ -1273,13 +1334,13 @@ function MembershipCheckoutButton({ onStart }: { onStart: () => void }) {
       className="w-full h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
     >
       {loading ? <Loader2 className="size-4 animate-spin" /> : <Crown className="size-4" />}
-      {loading ? 'Redirecting...' : 'Get Pro — 9.99/mo'}
+      {loading ? 'Redirecting...' : 'Get Pro — $19.99/mo'}
     </button>
   );
 }
 
-// ─── Checkout Button: Basic Credits Pack ─────────────────────
-function CreditsCheckoutButton({ onStart }: { onStart: () => void }) {
+// ─── Checkout Button: Starter Credits Pack ───────────────────
+function CreditsCheckoutButton({ onStart, returnPath }: { onStart: () => void; returnPath: string }) {
   const [loading, setLoading] = React.useState(false);
 
   const handleClick = async () => {
@@ -1294,10 +1355,11 @@ function CreditsCheckoutButton({ onStart }: { onStart: () => void }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId: 'prod_45VZKvDlwmOeCaZmtpVVht',
+          productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_STARTER!,
           productType: 'credits',
           userId: user.id,
-          credits: 25,
+          credits: 75,
+          returnPath,
         }),
       });
       const { checkoutUrl } = await res.json();
@@ -1316,7 +1378,7 @@ function CreditsCheckoutButton({ onStart }: { onStart: () => void }) {
       className="w-full h-11 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
     >
       {loading ? <Loader2 className="size-4 animate-spin" /> : <Coins className="size-4" />}
-      {loading ? 'Redirecting...' : 'Buy 25 Credits — $5'}
+      {loading ? 'Redirecting...' : 'Buy 75 Credits — $9.99'}
     </button>
   );
 }

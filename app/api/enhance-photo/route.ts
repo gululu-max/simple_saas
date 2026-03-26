@@ -6,7 +6,6 @@ import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
 
-const COST_PER_ENHANCE = 20;
 const BUCKET = 'enhanced-photos';
 
 // ─── Supabase Admin（绕过 RLS，用于写 Storage）───────────────
@@ -189,7 +188,6 @@ async function addWatermarkServer(imageBuffer: Buffer): Promise<Buffer> {
   const tileW = tileMeta.width ?? 600;
   const tileH = tileMeta.height ?? 600;
 
-  // 构建平铺的 composite 列表，覆盖整张图
   const composites: sharp.OverlayOptions[] = [];
   for (let y = 0; y < h; y += tileH) {
     for (let x = 0; x < w; x += tileW) {
@@ -225,7 +223,7 @@ export async function POST(req: Request) {
     // ── 读用户信息 ──
     const { data: customer, error: customerError } = await supabase
       .from("customers")
-      .select("credits, free_enhance_used")
+      .select("id, credits, free_enhance_used")
       .eq("user_id", user.id)
       .single();
 
@@ -236,20 +234,84 @@ export async function POST(req: Request) {
 
     const isFreeTrial = !customer.free_enhance_used;
 
-    // ── 积分检查（非首次免费才检查）──
-    if (!isFreeTrial && customer.credits < COST_PER_ENHANCE) {
-      return new Response(
-        JSON.stringify({ error: "Insufficient credits", code: "INSUFFICIENT_CREDITS" }),
-        { status: 402, headers: { "Content-Type": "application/json" } }
-      );
+    // ── 查会员状态 ──
+    const { data: subData } = await supabaseAdmin
+      .from("subscriptions")
+      .select("status")
+      .eq("customer_id", customer.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    const isSubscribed: boolean = !!subData;
+
+    // ── 前置收费（非首次免费才收费）──
+    // 会员扣 20 credits，非会员扣 25 credits（含无水印下载）
+    let creditsRemaining = customer.credits;
+
+    if (!isFreeTrial) {
+      const actionType = isSubscribed ? 'PhotoEnhance_Member' : 'PhotoEnhance_NonMember';
+      const costNeeded = isSubscribed ? 20 : 25;
+
+      if (customer.credits < costNeeded) {
+        return new Response(
+          JSON.stringify({
+            error: "Insufficient credits",
+            code: "INSUFFICIENT_CREDITS",
+            needed: costNeeded,
+            current: customer.credits,
+            isSubscribed,
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // 先扣费再生图，避免生图成功但扣费失败
+      const deduction = await consumeCredits(user.id, actionType);
+      if (!deduction.success) {
+        console.error(`扣费失败 (User: ${user.id}):`, deduction.message);
+        return new Response(
+          JSON.stringify({ error: "Failed to deduct credits" }),
+          { status: 500 }
+        );
+      }
+      creditsRemaining = deduction.remaining ?? creditsRemaining;
     }
 
     // ── 调 Gemini 生图 ──
-    const geminiResult = await callGeminiImageGeneration(imageBase64, mimeType, analysisResult);
+    let geminiResult;
+    try {
+      geminiResult = await callGeminiImageGeneration(imageBase64, mimeType, analysisResult);
+    } catch (geminiError) {
+      // 生图失败时，如果已扣费，需要退回积分（非免费试用时）
+      if (!isFreeTrial) {
+        const refundAmount = isSubscribed ? 20 : 25;
+        const { addCreditsToCustomer } = await import('@/lib/credits');
+        try {
+          await addCreditsToCustomer(user.id, refundAmount, 'refund_generation_failed', 'Refund: AI generation failed');
+          creditsRemaining += refundAmount;
+          console.log(`退款成功: ${refundAmount} credits refunded to user ${user.id}`);
+        } catch (refundErr) {
+          console.error(`退款失败 (User: ${user.id}):`, refundErr);
+        }
+      }
+      throw geminiError;
+    }
+
     const parts = geminiResult.candidates?.[0]?.content?.parts ?? [];
     const imagePart = parts.find((p: any) => p.inlineData);
 
     if (!imagePart?.inlineData) {
+      // 同样退款
+      if (!isFreeTrial) {
+        const refundAmount = isSubscribed ? 20 : 25;
+        const { addCreditsToCustomer } = await import('@/lib/credits');
+        try {
+          await addCreditsToCustomer(user.id, refundAmount, 'refund_no_image', 'Refund: No image returned');
+          creditsRemaining += refundAmount;
+        } catch (refundErr) {
+          console.error(`退款失败 (User: ${user.id}):`, refundErr);
+        }
+      }
       return new Response(JSON.stringify({ error: "No image returned from AI" }), { status: 500 });
     }
 
@@ -257,9 +319,15 @@ export async function POST(req: Request) {
     const rawBase64: string = imagePart.inlineData.data;
     const rawBuffer = Buffer.from(rawBase64, 'base64');
 
-    // ── 后端加水印 ──
-    const watermarkedBuffer = await addWatermarkServer(rawBuffer);
-    const watermarkedBase64 = watermarkedBuffer.toString('base64');
+    // ── 后端加水印（仅首次免费试用才加水印）──
+    // 付费用户已前置付费，直接给无水印图
+    let watermarkedBuffer: Buffer | null = null;
+    let watermarkedBase64: string | null = null;
+
+    if (isFreeTrial) {
+      watermarkedBuffer = await addWatermarkServer(rawBuffer);
+      watermarkedBase64 = watermarkedBuffer.toString('base64');
+    }
 
     // ── 无水印图上传到 Supabase Storage ──
     const storageKey = `${user.id}/${Date.now()}.png`;
@@ -294,32 +362,29 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify({ error: "Failed to record enhancement" }), { status: 500 });
     }
 
-    // ── 结算：首次免费只改状态，非首次扣费 ──
-    let creditsRemaining = customer.credits;
-
+    // ── 首次免费：只改状态 ──
     if (isFreeTrial) {
       await supabase
         .from("customers")
         .update({ free_enhance_used: true })
         .eq("user_id", user.id);
-    } else {
-      const deduction = await consumeCredits(user.id, "PhotoEnhance");
-      if (!deduction.success) {
-        console.error(`扣费失败 (User: ${user.id}):`, deduction.message);
-      } else {
-        creditsRemaining = deduction.remaining ?? creditsRemaining;
-      }
     }
 
-    // ── 返回水印图 + enhancement_id ──
+    // ── 返回结果 ──
+    // 首次免费 → 返回水印图 + enhancementId（下载时再收费）
+    // 付费用户 → 返回无水印图（已前置收费，下载免费）
     return new Response(
       JSON.stringify({
         success: true,
         enhancementId: enhRecord.id,
-        watermarkedImage: watermarkedBase64,
+        // 首次免费返回水印图，付费用户返回无水印原图
+        watermarkedImage: isFreeTrial ? watermarkedBase64 : rawBase64,
         mimeType: 'image/png',
         creditsRemaining,
         isFreeTrial,
+        isSubscribed,
+        // 告诉前端：付费用户的图已经是无水印的，不需要再走下载付费流程
+        downloadFree: !isFreeTrial,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );

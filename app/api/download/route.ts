@@ -2,7 +2,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 
-const COST_PER_DOWNLOAD = 5;
+const COST_DOWNLOAD_FREE_TRIAL = 5; // 仅首次免费试用用户下载时收费
 const BUCKET = 'enhanced-photos';
 
 const supabaseAdmin = createAdminClient(
@@ -49,7 +49,6 @@ export async function POST(req: Request) {
     }
 
     // ── 查积分 + 会员状态 ──
-    // ── 查积分 ──
     const { data: customer, error: customerError } = await supabaseAdmin
       .from("customers")
       .select("id, credits")
@@ -61,7 +60,6 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify({ error: "Failed to fetch customer data" }), { status: 500 });
     }
 
-    // ── 查会员状态：subscriptions.customer_id → customers.id，status='active' ──
     const { data: subData } = await supabaseAdmin
       .from("subscriptions")
       .select("status")
@@ -71,13 +69,13 @@ export async function POST(req: Request) {
 
     const isSubscribed: boolean = !!subData;
 
-    // ── 收费逻辑 ──
-    // is_free_trial=true（首次免费生图）→ 下载扣 5 credits，会员免费
-    // is_free_trial=false（付费生图）→ 下载免费，已在生图时收过费
-    const downloadIsFree = !record.is_free_trial || isSubscribed;
+    // ── 收费逻辑（新版）──
+    // is_free_trial=true → 首次免费生图，下载无水印需扣 5 credits（会员免费）
+    // is_free_trial=false → 已在生成时前置付费，下载免费
+    const needsPayment = record.is_free_trial && !isSubscribed;
 
-    if (!downloadIsFree) {
-      if (customer.credits < COST_PER_DOWNLOAD) {
+    if (needsPayment) {
+      if (customer.credits < COST_DOWNLOAD_FREE_TRIAL) {
         return new Response(
           JSON.stringify({ error: "Insufficient credits", code: "INSUFFICIENT_CREDITS" }),
           { status: 402 }
@@ -87,7 +85,7 @@ export async function POST(req: Request) {
       // 扣积分
       const { error: updateError } = await supabaseAdmin
         .from('customers')
-        .update({ credits: customer.credits - COST_PER_DOWNLOAD })
+        .update({ credits: customer.credits - COST_DOWNLOAD_FREE_TRIAL })
         .eq('id', customer.id);
 
       if (updateError) {
@@ -98,9 +96,9 @@ export async function POST(req: Request) {
       // 写流水
       await supabaseAdmin.from('credits_history').insert({
         customer_id: customer.id,
-        amount: COST_PER_DOWNLOAD,
+        amount: COST_DOWNLOAD_FREE_TRIAL,
         type: 'subtract',
-        description: 'PhotoDownload',
+        description: 'PhotoDownload (free trial conversion)',
         metadata: {
           source: 'system_deduction',
           action: 'PhotoDownload',
@@ -119,7 +117,7 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify({ error: "Failed to retrieve photo" }), { status: 500 });
     }
 
-    // ── 标记已下载（首次才更新，之后重复下载不再写 DB） ──
+    // ── 标记已下载 ──
     if (!record.downloaded) {
       await supabaseAdmin
         .from('photo_enhancements')
