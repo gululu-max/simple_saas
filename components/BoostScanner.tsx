@@ -794,7 +794,7 @@ export default function BoostScanner() {
             `}</style>
 
             {/* Analysis Result */}
-            {(completion || isLoading || visibleText) && (
+            {(isLoading || visibleText) && (
               <div className="border border-border rounded-xl overflow-hidden">
                 <button
                   type="button"
@@ -847,15 +847,6 @@ export default function BoostScanner() {
                   {preview ? '✅ Photo loaded. Ready to boost.' : 'No photo selected yet.'}
                 </div>
                 <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full sm:w-auto h-11 text-muted-foreground gap-2"
-                    onClick={handleReset}
-                    disabled={isLoading || isEnhancing || !preview}
-                  >
-                    <XCircle className="w-4 h-4" /> Swap Photo
-                  </Button>
                   <Button
                     type="button"
                     onClick={handleSubmit}
@@ -940,15 +931,15 @@ export default function BoostScanner() {
               <Button
                 variant="outline"
                 className="flex-1 h-11 rounded-xl"
-                onClick={handlePrivacyExitCancel}
-              >
-                Stay on Page
-              </Button>
-              <Button
-                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
                 onClick={pendingNavigationRef.current ? handlePrivacyExitConfirm : handleTryAnotherConfirm}
               >
                 {pendingNavigationRef.current ? 'Leave Anyway' : 'Start Over'}
+              </Button>
+              <Button
+                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
+                onClick={handlePrivacyExitCancel}
+              >
+                Stay on Page
               </Button>
             </div>
           </div>
@@ -981,7 +972,7 @@ export default function BoostScanner() {
                 onClick={() => {
                   setActiveModal(null);
                   trackEvent('upgrade_modal_click_refill');
-                  router.push('/subscribe');
+                  router.push('/pricing');
                 }}
               >
                 Get Credits
@@ -1113,7 +1104,7 @@ export default function BoostScanner() {
 
             <div className="px-4 pb-5 text-center">
               <button
-                onClick={() => { setActiveModal(null); router.push('/subscribe'); }}
+                onClick={() => { setActiveModal(null); router.push('/pricing'); }}
                 className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
               >
                 View all membership plans →
@@ -1178,7 +1169,7 @@ export default function BoostScanner() {
 
             <div className="px-4 pb-5 text-center">
               <button
-                onClick={() => { setActiveModal(null); router.push('/subscribe'); }}
+                onClick={() => { setActiveModal(null); router.push('/pricing'); }}
                 className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
               >
                 View all credit packs →
