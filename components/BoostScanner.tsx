@@ -872,7 +872,7 @@ export default function BoostScanner() {
             )}
 
             {/* ── "Try Another Photo" button (shown after results) ── */}
-            {preview && visibleText && !isLoading && (
+            {preview && visibleText && !isLoading && isLoggedIn && (
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end mt-4">
                 <Button
                   type="button"

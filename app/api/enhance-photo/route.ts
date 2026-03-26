@@ -165,33 +165,51 @@ async function callGeminiImageGeneration(
   return response.json();
 }
 
-// ─── 后端加水印（sharp） ──────────────────────────────────────
-// 在图片中央斜45°叠加半透明文字水印
+// ─── 后端加水印（sharp）── 全图平铺斜45°重复水印 ──────────────
 async function addWatermarkServer(imageBuffer: Buffer, text = 'MatchFix'): Promise<Buffer> {
   const meta = await sharp(imageBuffer).metadata();
   const w = meta.width ?? 800;
   const h = meta.height ?? 800;
 
-  const fontSize = Math.max(40, Math.floor(w / 7));
-  const textLen = text.length * fontSize * 0.6; // 近似宽度
+  // 字号：图片宽度的 1/5，确保水印够大够醒目
+  const fontSize = Math.max(48, Math.floor(w / 5));
+  // 单个水印文字的近似宽度和行高
+  const textWidth = text.length * fontSize * 0.62;
+  const lineHeight = fontSize * 1.2;
 
-  // SVG 水印层
+  // 平铺间距
+  const spacingX = textWidth + fontSize * 1.5;  // 水平间距
+  const spacingY = lineHeight + fontSize * 2;    // 垂直间距
+
+  // 为了旋转后仍能覆盖全图，画布需要更大（对角线长度）
+  const diagonal = Math.ceil(Math.sqrt(w * w + h * h));
+
+  // 生成重复平铺的水印文字行
+  const rows: string[] = [];
+  const startX = -diagonal / 2;
+  const startY = -diagonal / 2;
+
+  for (let y = startY; y < diagonal; y += spacingY) {
+    for (let x = startX; x < diagonal; x += spacingX) {
+      rows.push(
+        `<text x="${x}" y="${y}" dominant-baseline="middle">${text}</text>`
+      );
+    }
+  }
+
+  // SVG 水印层：在中心旋转 -35° 以形成斜铺效果
   const svgText = `
     <svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
       <style>
         text {
-          font-family: Arial, sans-serif;
-          font-weight: bold;
+          font-family: Arial, Helvetica, sans-serif;
+          font-weight: 900;
           font-size: ${fontSize}px;
-          fill: rgba(255,255,255,0.40);
+          fill: rgba(255, 255, 255, 0.35);
         }
       </style>
-      <g transform="translate(${w / 2}, ${h / 2}) rotate(-45)">
-        <text
-          x="${-textLen / 2}"
-          y="${fontSize / 3}"
-          dominant-baseline="middle"
-        >${text}</text>
+      <g transform="translate(${w / 2}, ${h / 2}) rotate(-35)">
+        ${rows.join('\n        ')}
       </g>
     </svg>`;
 
