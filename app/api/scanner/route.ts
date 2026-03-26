@@ -26,13 +26,14 @@ export async function POST(req: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    // ── 2. 已登录用户：校验并预检积分（扣费在 onFinish 里执行）──
+    // ── 2. 已登录用户：校验积分（首次免费用户跳过）──
     const COST_PER_SCAN = 5;
+    let isFirstFreeUser = false;
 
     if (user) {
       const { data: customer, error: customerError } = await supabase
         .from('customers')
-        .select('credits')
+        .select('credits, free_enhance_used')
         .eq('user_id', user.id)
         .single();
 
@@ -44,7 +45,10 @@ export async function POST(req: Request) {
         });
       }
 
-      if (customer.credits < COST_PER_SCAN) {
+      // 首次免费用户：分析也免费，不检查积分
+      isFirstFreeUser = !customer.free_enhance_used;
+
+      if (!isFirstFreeUser && customer.credits < COST_PER_SCAN) {
         return new Response(
           JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
           { status: 402, headers: { 'Content-Type': 'application/json' } }
@@ -164,8 +168,8 @@ Constraints (all routes):
         },
       ],
       async onFinish({ finishReason }) {
-        // 只有登录用户才扣积分
-        if (user && (finishReason === 'stop' || finishReason === 'length')) {
+        // 首次免费用户和游客都不扣积分
+        if (user && !isFirstFreeUser && (finishReason === 'stop' || finishReason === 'length')) {
           const deduction = await consumeCredits(user.id, 'MatchfixScanner');
           if (!deduction.success) {
             console.error(`扣费/写流水失败 (User: ${user.id}):`, deduction.message);
@@ -174,6 +178,8 @@ Constraints (all routes):
               `✅ 成功扣除积分并写入流水 (User: ${user.id}, Remaining: ${deduction.remaining})`
             );
           }
+        } else if (isFirstFreeUser) {
+          console.log(`🎁 首次免费用户扫描完成，不扣积分 (User: ${user!.id})`);
         } else if (!user) {
           console.log('👤 Guest user scan completed — no credits deducted');
         }

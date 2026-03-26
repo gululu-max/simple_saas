@@ -78,9 +78,16 @@ async function callGeminiImageGeneration(
       - If the subject is off-center in an unflattering way, re-center
       
       2. BACKGROUND
-      - If the background is cluttered, has other people, or is distracting: replace it with a clean, contextually appropriate blurred environment (café, park, urban street, etc.)
-      - If the background is already clean: keep it, just add natural depth-of-field blur
-      - Remove photobombers, random passersby, or any distracting elements behind the subject
+      - Evaluate the background OBJECTIVELY before making any changes:
+        * KEEP the background AS-IS if: it is a real-world setting that looks intentional (restaurant, beach, park, city street, home with reasonable decor, etc.), even if slightly busy
+        * BLUR ONLY (keep content) if: the background is acceptable but draws too much attention away from the subject
+        * REPLACE ENTIRELY only if the background has ANY of these specific dealbreakers:
+          - Other people's faces clearly visible (photobombers, crowds)
+          - Visible mess (unmade bed, pile of laundry, dirty dishes, trash)
+          - Bathroom/toilet visible
+          - Inappropriate or embarrassing content (posters, signs, etc.)
+      - When replacing, match the original setting's context — indoor stays indoor, outdoor stays outdoor
+      - Default behavior is to KEEP. Only escalate to blur or replace when the specific conditions above are met.
       
       3. LIGHTING & COLOR
       - Simulate soft, directional golden-hour or window light on the face

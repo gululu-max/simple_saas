@@ -67,7 +67,7 @@ const trackEvent = (eventName: string, params?: Record<string, any>) => {
 };
 
 // ─── Modal Types ─────────────────────────────────────────────
-type ModalType = 'enhance' | 'download_choice' | 'membership' | 'credits_shop' | 'privacy_exit';
+type ModalType = 'enhance' | 'download_choice' | 'membership' | 'credits_shop' | 'privacy_exit' | 'free_limit';
 
 export default function BoostScanner() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -443,6 +443,21 @@ export default function BoostScanner() {
 
   const handleSubmit = async () => {
     if (!preview || isLoading) return;
+
+    // ── Guest free limit: 3 analyses max ──
+    if (!isLoggedIn) {
+      const FREE_LIMIT = 3;
+      const usedCount = parseInt(localStorage.getItem('mf_free_analyses') || '0', 10);
+      if (usedCount >= FREE_LIMIT) {
+        trackEvent('free_limit_reached', { used: usedCount });
+        setActiveModal('free_limit');
+        return;
+      }
+      // Increment count (will be saved after analysis completes in onFinish,
+      // but we save here too in case they close mid-analysis)
+      localStorage.setItem('mf_free_analyses', String(usedCount + 1));
+    }
+
     setActiveModal(null);
     setIsResultExpanded(true);
     setVisibleText('');
@@ -947,6 +962,45 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
+          MODAL: Free Analysis Limit Reached (guests)
+      ════════════════════════════════════════════════════════ */}
+      {activeModal === 'free_limit' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm p-6 mx-4 bg-card border border-border rounded-2xl shadow-xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20">
+              <Wand2 className="size-8 text-amber-500" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground mb-2">You&apos;ve Used All 3 Free Analyses 🎉</h2>
+            <p className="text-sm text-muted-foreground mb-2 leading-relaxed">
+              Looks like you&apos;re enjoying Matchfix! Create a free account to keep going — it only takes 10 seconds.
+            </p>
+            <p className="text-xs text-muted-foreground/70 mb-6">
+              Plus, your first AI-enhanced photo is <span className="font-bold text-emerald-400">completely free</span> after sign-up.
+            </p>
+            <div className="flex w-full gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 h-11 rounded-xl"
+                onClick={() => setActiveModal(null)}
+              >
+                Maybe Later
+              </Button>
+              <Button
+                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-bold"
+                onClick={() => {
+                  setActiveModal(null);
+                  trackEvent('free_limit_signup_click');
+                  openAuthModal('sign-up');
+                }}
+              >
+                Sign Up Free
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════
           MODAL: Insufficient Credits (enhance)
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'enhance' && (
@@ -972,7 +1026,7 @@ export default function BoostScanner() {
                 onClick={() => {
                   setActiveModal(null);
                   trackEvent('upgrade_modal_click_refill');
-                  router.push('/pricing');
+                  router.push('/subscribe');
                 }}
               >
                 Get Credits
@@ -1104,7 +1158,7 @@ export default function BoostScanner() {
 
             <div className="px-4 pb-5 text-center">
               <button
-                onClick={() => { setActiveModal(null); router.push('/pricing'); }}
+                onClick={() => { setActiveModal(null); router.push('/subscribe'); }}
                 className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
               >
                 View all membership plans →
@@ -1169,7 +1223,7 @@ export default function BoostScanner() {
 
             <div className="px-4 pb-5 text-center">
               <button
-                onClick={() => { setActiveModal(null); router.push('/pricing'); }}
+                onClick={() => { setActiveModal(null); router.push('/subscribe'); }}
                 className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
               >
                 View all credit packs →
