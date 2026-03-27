@@ -1,23 +1,14 @@
 "use client";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { ArrowRight, CreditCard, Receipt, Settings } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
 export function SubscriptionPortalDialog() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasCustomer, setHasCustomer] = useState(false);
-  const [open, setOpen] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -34,7 +25,7 @@ export function SubscriptionPortalDialog() {
           .eq("user_id", user.id)
           .single();
 
-        setHasCustomer(!!customer?.creem_customer_id?.startsWith('cust_'));
+        setHasCustomer(!!customer?.creem_customer_id?.startsWith("cust_"));
       } catch (err) {
         console.error("Error checking customer:", err);
         setHasCustomer(false);
@@ -66,7 +57,10 @@ export function SubscriptionPortalDialog() {
       }
     } catch (err: any) {
       console.error("Error getting portal link:", err);
-      setError(err.message || "Failed to access subscription portal. Please try again later.");
+      setError(
+        err.message ||
+          "Failed to access subscription portal. Please try again later."
+      );
       setIsLoading(false);
     }
   };
@@ -76,84 +70,19 @@ export function SubscriptionPortalDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!isLoading) setOpen(v); }}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="w-full">
-          Manage Plan
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]" onPointerDownOutside={(e) => { if (isLoading) e.preventDefault(); }}>
-        <DialogHeader>
-          <DialogTitle>Subscription Management</DialogTitle>
-          <DialogDescription>
-            Access your subscription settings in our secure customer portal.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-6">
-            <div className="grid gap-4">
-              <div className="flex items-center gap-4">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Payment Methods</p>
-                  <p className="text-sm text-muted-foreground">
-                    Update your billing information
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Receipt className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Billing History</p>
-                  <p className="text-sm text-muted-foreground">
-                    View past invoices and payments
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Settings className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Plan Settings</p>
-                  <p className="text-sm text-muted-foreground">
-                    Change or cancel your subscription
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        <DialogFooter className="flex space-x-2 sm:space-x-0">
-          <Button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleManageSubscription();
-            }}
-            disabled={isLoading}
-          >
-            {isLoading ? "Redirecting..." : "Continue to Portal"}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div>
+      <Button
+        variant="outline"
+        className="w-full"
+        disabled={isLoading}
+        onClick={handleManageSubscription}
+      >
+        {isLoading ? "Redirecting..." : "Manage Plan"}
+        <ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+      {error && (
+        <p className="text-sm text-destructive mt-2">{error}</p>
+      )}
+    </div>
   );
 }
