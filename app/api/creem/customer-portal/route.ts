@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Use service role client for database operations
@@ -26,13 +26,12 @@ export async function GET(request: Request) {
       .single();
 
     if (customerError || !customer) {
-      return new NextResponse("No subscription found", { status: 404 });
+      return NextResponse.json({ error: "No subscription found" }, { status: 404 });
     }
 
-    // Check if the customer ID is a valid Creem ID (should start with 'cust_')
-    // The 'auto_' IDs are local placeholders for new users and don't exist in Creem
+    // Check if the customer ID is a valid Creem ID
     if (!customer.creem_customer_id || !customer.creem_customer_id.startsWith('cust_')) {
-      return new NextResponse("Not a paid customer yet", { status: 404 });
+      return NextResponse.json({ error: "Not a paid customer yet" }, { status: 404 });
     }
 
     // Call Creem API to get the customer portal link
@@ -58,6 +57,6 @@ export async function GET(request: Request) {
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error getting customer portal link:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

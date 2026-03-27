@@ -9,10 +9,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowRight, CreditCard, Receipt, Settings } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { useEffect } from "react";
 
 export function SubscriptionPortalDialog() {
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +34,6 @@ export function SubscriptionPortalDialog() {
           .single();
 
         // Only show portal if they have a real Creem ID (starts with cust_)
-        // Users with 'auto_' IDs are free users who haven't purchased yet
         setHasCustomer(!!customer?.creem_customer_id?.startsWith('cust_'));
       } catch (err) {
         console.error("Error checking customer:", err);
@@ -52,12 +50,16 @@ export function SubscriptionPortalDialog() {
       setError(null);
 
       const response = await fetch("/api/creem/customer-portal");
+      
+      // 1. 先判断状态码是否正常，异常则解析错误信息并抛出
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to get portal link");
+      }
+
+      // 2. 状态正常再解析成功的数据
       const data = await response.json();
       console.log("Portal response:", data);
-
-      if (!response.ok) {
-        throw new Error("Failed to get portal link");
-      }
 
       const link = data.customer_portal_link;
       if (link) {
@@ -65,9 +67,9 @@ export function SubscriptionPortalDialog() {
       } else {
         throw new Error("No portal link in response");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error getting portal link:", err);
-      setError("Failed to access subscription portal. Please try again later.");
+      setError(err.message || "Failed to access subscription portal. Please try again later.");
     } finally {
       setIsLoading(false);
     }
