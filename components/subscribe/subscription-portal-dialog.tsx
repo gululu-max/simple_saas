@@ -52,12 +52,19 @@ export function SubscriptionPortalDialog() {
       setError(null);
 
       const response = await fetch("/api/creem/customer-portal");
+      const data = await response.json();
+      console.log("Portal response:", data);
+
       if (!response.ok) {
         throw new Error("Failed to get portal link");
       }
 
-      const { customer_portal_link } = await response.json();
-      window.open(customer_portal_link, "_blank");
+      const link = data.customer_portal_link;
+      if (link) {
+        window.location.href = link;
+      } else {
+        throw new Error("No portal link in response");
+      }
     } catch (err) {
       console.error("Error getting portal link:", err);
       setError("Failed to access subscription portal. Please try again later.");
