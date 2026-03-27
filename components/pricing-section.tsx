@@ -10,6 +10,7 @@ import { Check } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthModal } from "@/components/auth/auth-modal-context";
 import { SUBSCRIPTION_TIERS, CREDITS_TIERS } from "@/config/subscriptions";
 import { ProductTier } from "@/types/subscriptions";
 
@@ -37,9 +38,9 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
   const searchParams = useSearchParams();
   const { user } = useUser();
   const { toast } = useToast();
+  const { openAuthModal } = useAuthModal();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  // 从 URL 读取 returnPath（从 enhance 页跳过来时会带这个参数）
   const returnPath = searchParams.get('returnPath');
 
   useEffect(() => {
@@ -69,12 +70,8 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
 
   const handlePurchase = async (tier: ProductTier) => {
     if (!user) {
-      toast({
-        title: "Sign In Required",
-        description: "Please sign in to subscribe.",
-        variant: "destructive",
-      });
-      router.push('/sign-in');
+      // 未登录：弹出登录弹窗，不跳转页面
+      openAuthModal("sign-in");
       return;
     }
 
@@ -106,7 +103,6 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
           productType: itemCategory,
           userId: user.id,
           credits: tier.creditAmount,
-          // 支付成功后跳回来源页（enhance 页 → 回 enhance 页，subscribe 页 → 回 subscribe 页）
           returnPath: returnPath || '/subscribe',
         }),
       });
@@ -136,7 +132,6 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
   return (
     <section id="pricing" className={`w-full py-4 sm:py-8 bg-transparent ${className ?? ''}`}>
       <div className="container px-4 md:px-6">
-        {/* Conditionally render header */}
         {!hideHeader && (
           <div className="text-center space-y-4 mb-8 sm:mb-12">
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">

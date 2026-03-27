@@ -89,6 +89,7 @@ export default function BoostScanner() {
   const [isDownloadFree, setIsDownloadFree] = useState(false); // 新增：付费用户下载免费
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false); // 新增
 
   const [sliderIndex, setSliderIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -112,20 +113,20 @@ export default function BoostScanner() {
   // ─── Session Restore ─────────────────────────────────────
   useEffect(() => {
     const savedPreview = sessionStorage.getItem('mf_preview') || localStorage.getItem('mf_preview');
-    const savedText    = sessionStorage.getItem('mf_visibleText') || localStorage.getItem('mf_visibleText');
-    const savedJSON    = sessionStorage.getItem('mf_analysisJSON') || localStorage.getItem('mf_analysisJSON');
-    const guestFlag    = localStorage.getItem('mf_guest_enhanced');
+    const savedText = sessionStorage.getItem('mf_visibleText') || localStorage.getItem('mf_visibleText');
+    const savedJSON = sessionStorage.getItem('mf_analysisJSON') || localStorage.getItem('mf_analysisJSON');
+    const guestFlag = localStorage.getItem('mf_guest_enhanced');
 
-    if (savedPreview) { setPreview(savedPreview);   sessionStorage.setItem('mf_preview', savedPreview); }
-    if (savedText)    { setVisibleText(savedText);  sessionStorage.setItem('mf_visibleText', savedText); }
-    if (savedJSON)    { setAnalysisJSON(savedJSON); sessionStorage.setItem('mf_analysisJSON', savedJSON); }
+    if (savedPreview) { setPreview(savedPreview); sessionStorage.setItem('mf_preview', savedPreview); }
+    if (savedText) { setVisibleText(savedText); sessionStorage.setItem('mf_visibleText', savedText); }
+    if (savedJSON) { setAnalysisJSON(savedJSON); sessionStorage.setItem('mf_analysisJSON', savedJSON); }
 
     // 恢复增强结果（支付跳转回来时关键）
-    const savedWatermarked   = sessionStorage.getItem('mf_watermarkedImage');
+    const savedWatermarked = sessionStorage.getItem('mf_watermarkedImage');
     const savedEnhancementId = sessionStorage.getItem('mf_enhancementId');
-    const savedMimeType      = sessionStorage.getItem('mf_enhancedMimeType');
-    const savedFreeTrial     = sessionStorage.getItem('mf_isFreeGeneration');
-    const savedDownloadFree  = sessionStorage.getItem('mf_isDownloadFree');
+    const savedMimeType = sessionStorage.getItem('mf_enhancedMimeType');
+    const savedFreeTrial = sessionStorage.getItem('mf_isFreeGeneration');
+    const savedDownloadFree = sessionStorage.getItem('mf_isDownloadFree');
 
     if (savedWatermarked && savedEnhancementId) {
       setWatermarkedImage(savedWatermarked);
@@ -166,6 +167,12 @@ export default function BoostScanner() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsLoggedIn(!!session);
+      if (session) {
+        fetch('/api/credits')
+          .then(r => r.json())
+          .then(data => { if (typeof data.isSubscribed === 'boolean') setIsSubscribed(data.isSubscribed); })
+          .catch(() => { });
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -339,9 +346,9 @@ export default function BoostScanner() {
       sessionStorage.setItem('mf_pending_enhance', 'true');
       localStorage.setItem('mf_pending_enhance', 'true');
       localStorage.setItem('mf_guest_enhanced', 'true');
-      if (preview)      localStorage.setItem('mf_preview', preview);
+      if (preview) localStorage.setItem('mf_preview', preview);
       if (analysisJSON) localStorage.setItem('mf_analysisJSON', analysisJSON);
-      if (visibleText)  localStorage.setItem('mf_visibleText', visibleText);
+      if (visibleText) localStorage.setItem('mf_visibleText', visibleText);
       return;
     }
 
@@ -528,8 +535,60 @@ export default function BoostScanner() {
       return;
     }
 
-    // 首次免费用户 → 弹下载选择弹窗
+    // 首次免费用户 → 先实时查会员状态
+    // （可能刚付费订阅回来，isFreeGeneration 还是 true 但已经是会员了）
     if (isFreeGeneration) {
+      setIsDownloading(true);
+      try {
+        // 查当前会员状态
+        const creditsRes = await fetch('/api/credits');
+        if (creditsRes.ok) {
+          const creditsData = await creditsRes.json();
+          // 如果是会员，直接走服务器下载（download API 会员免费）
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            // 尝试直接下载，让后端判断会员状态
+            const res = await fetch('/api/download', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ enhancementId }),
+            });
+
+            if (res.ok) {
+              // 下载成功（会员免费或已有积分）
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = 'matchfix-enhanced.png';
+              link.click();
+              URL.revokeObjectURL(url);
+              trackEvent('enhance_download_member_free');
+              router.refresh();
+              return;
+            }
+
+            const data = await res.json();
+            if (data.code === 'INSUFFICIENT_CREDITS') {
+              // 不是会员且积分不够 → 弹选择弹窗
+              setActiveModal('download_choice');
+              return;
+            }
+            if (data.code === 'EXPIRED') {
+              alert('This enhancement has expired. Please re-enhance your photo.');
+              handleReset();
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        // 查询失败，降级为弹窗
+      } finally {
+        setIsDownloading(false);
+      }
+
+      // 兜底：弹下载选择弹窗
       setActiveModal('download_choice');
       return;
     }
@@ -763,7 +822,7 @@ export default function BoostScanner() {
                         <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center">
                           <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
                           <p className="text-white font-semibold text-sm animate-pulse">Enhancing your photo...</p>
-                          <p className="text-white/60 text-xs">This usually takes 15-30 seconds</p>
+                          <p className="text-white/60 text-xs">Usually done within 10 seconds</p>
                         </div>
                       </div>
                     )}
@@ -924,7 +983,7 @@ export default function BoostScanner() {
                       <span className="flex items-center justify-center gap-2">
                         Enhance Photo
                         <span className="inline-flex items-center rounded-full bg-background/20 px-2 py-0.5 text-xs font-semibold backdrop-blur-sm">
-                          {isLoggedIn ? '⚡ 20' : 'Free'}
+                          {isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}
                         </span>
                       </span>
                     )}

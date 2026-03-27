@@ -2,7 +2,6 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { ProxyAgent } from 'undici';
 import { createClient } from "@/utils/supabase/server";
-import { consumeCredits } from '@/lib/credits';
 
 export async function POST(req: Request) {
   try {
@@ -26,14 +25,11 @@ export async function POST(req: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    // ── 2. 已登录用户：校验积分（首次免费用户跳过）──
-    const COST_PER_SCAN = 5;
-    let isFirstFreeUser = false;
-
+    // ── 2. 已登录用户：前置校验（Scanner 本身不扣费，费用在 enhance 统一扣）──
     if (user) {
       const { data: customer, error: customerError } = await supabase
         .from('customers')
-        .select('credits, free_enhance_used')
+        .select('id, credits, free_enhance_used')
         .eq('user_id', user.id)
         .single();
 
@@ -45,14 +41,36 @@ export async function POST(req: Request) {
         });
       }
 
-      // 首次免费用户：分析也免费，不检查积分
-      isFirstFreeUser = !customer.free_enhance_used;
+      const isFirstFreeUser = !customer.free_enhance_used;
 
-      if (!isFirstFreeUser && customer.credits < COST_PER_SCAN) {
-        return new Response(
-          JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
-          { status: 402, headers: { 'Content-Type': 'application/json' } }
+      if (!isFirstFreeUser) {
+        // 查会员状态
+        const { createClient: createAdminClient } = await import('@supabase/supabase-js');
+        const adminClient = createAdminClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
+        const now = new Date().toISOString();
+        const { data: subData } = await adminClient
+          .from('subscriptions')
+          .select('status, current_period_end')
+          .eq('customer_id', customer.id)
+          .in('status', ['active', 'canceled'])
+          .maybeSingle();
+
+        const isSubscribed = !!subData && (
+          subData.status === 'active' ||
+          (subData.status === 'canceled' && !!subData.current_period_end && subData.current_period_end > now)
+        );
+
+        const requiredCredits = isSubscribed ? 20 : 25;
+
+        if (customer.credits < requiredCredits) {
+          return new Response(
+            JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
+            { status: 402, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
       }
     }
     // 未登录用户：跳过积分检查，免费分析
@@ -168,20 +186,10 @@ Constraints (all routes):
         },
       ],
       async onFinish({ finishReason }) {
-        // 首次免费用户和游客都不扣积分
-        if (user && !isFirstFreeUser && (finishReason === 'stop' || finishReason === 'length')) {
-          const deduction = await consumeCredits(user.id, 'MatchfixScanner');
-          if (!deduction.success) {
-            console.error(`扣费/写流水失败 (User: ${user.id}):`, deduction.message);
-          } else {
-            console.log(
-              `✅ 成功扣除积分并写入流水 (User: ${user.id}, Remaining: ${deduction.remaining})`
-            );
-          }
-        } else if (isFirstFreeUser) {
-          console.log(`🎁 首次免费用户扫描完成，不扣积分 (User: ${user!.id})`);
-        } else if (!user) {
-          console.log('👤 Guest user scan completed — no credits deducted');
+        if (!user) {
+          console.log('👤 Guest scan completed — no credits deducted');
+        } else {
+          console.log(`✅ Scan completed (User: ${user.id}) — credits will be deducted in enhance step`);
         }
       },
     });

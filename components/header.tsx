@@ -90,7 +90,7 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             </AnimatePresence>
           </div>
 
-          <Link href="/#pricing" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
+          <Link href="/subscribe#pricing" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
             Pricing
           </Link>
         </nav>
@@ -152,7 +152,7 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
               { label: "Home", href: "/" },
               { label: "✨ AI Photo Enhancer", href: "/subscribe/photo-enhancer" },
               // Photo Scorer 已下线
-              { label: "Pricing", href: "/#pricing" },
+              { label: "Pricing", href: "/subscribe#pricing" },
             ]}
             user={isLoggedIn ? user : null}
             isDashboard={isSubscribe}

@@ -32,18 +32,7 @@ export const updateSession = async (request: NextRequest) => {
       }
     );
 
-    const user = await supabase.auth.getUser();
-
-    // Only protect subscribe routes (except public ones: scanner, photo-scorer, photo-enhancer)
-    if (
-      request.nextUrl.pathname.startsWith("/subscribe") &&
-      !request.nextUrl.pathname.startsWith("/subscribe/scanner") &&
-      !request.nextUrl.pathname.startsWith("/subscribe/photo-scorer") &&
-      !request.nextUrl.pathname.startsWith("/subscribe/photo-enhancer") &&
-      user.error
-    ) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
+    await supabase.auth.getUser();
 
     // Legacy /dashboard redirects → /subscribe
     if (request.nextUrl.pathname.startsWith("/dashboard")) {

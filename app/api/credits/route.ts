@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+
+const supabaseAdmin = createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // GET - 获取用户积分（使用统一的customers表）
 export async function GET() {
   try {
     const supabase = await createClient();
     
-    // 获取当前用户
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
@@ -16,7 +21,6 @@ export async function GET() {
       );
     }
 
-    // 查询用户的customer记录
     const { data: customer, error } = await supabase
       .from('customers')
       .select(`
@@ -39,16 +43,30 @@ export async function GET() {
       );
     }
 
-    // 返回兼容的格式
+    // ── 查会员状态 ──
+    const now = new Date().toISOString();
+    const { data: subData } = await supabaseAdmin
+      .from('subscriptions')
+      .select('status, current_period_end')
+      .eq('customer_id', customer.id)
+      .in('status', ['active', 'canceled'])
+      .maybeSingle();
+
+    const isSubscribed = !!subData && (
+      subData.status === 'active' ||
+      (subData.status === 'canceled' && !!subData.current_period_end && subData.current_period_end > now)
+    );
+
     return NextResponse.json({ 
       credits: {
         id: customer.id,
         user_id: customer.user_id,
-        total_credits: customer.credits, // 使用当前积分作为总积分
+        total_credits: customer.credits,
         remaining_credits: customer.credits,
         created_at: customer.created_at,
         updated_at: customer.updated_at
-      }
+      },
+      isSubscribed,
     });
   } catch (error) {
     console.error('Credits API error:', error);
@@ -73,7 +91,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
     
-    // 获取当前用户
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
@@ -83,7 +100,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 获取当前customer记录
     const { data: customer, error: fetchError } = await supabase
       .from('customers')
       .select('*')
@@ -98,7 +114,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 检查积分是否足够
     if (customer.credits < amount) {
       return NextResponse.json(
         { error: 'Insufficient credits' },
@@ -106,7 +121,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 更新积分
     const newCredits = customer.credits - amount;
     const { data: updatedCustomer, error: updateError } = await supabase
       .from('customers')
@@ -126,7 +140,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 记录积分消费历史
     const { error: historyError } = await supabase
       .from('credits_history')
       .insert({
@@ -143,10 +156,8 @@ export async function POST(request: NextRequest) {
 
     if (historyError) {
       console.error('Error recording credit transaction:', historyError);
-      // 不影响主要流程，只记录错误
     }
 
-    // 返回兼容的格式
     return NextResponse.json({ 
       credits: {
         id: updatedCustomer.id,

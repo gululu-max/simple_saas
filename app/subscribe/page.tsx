@@ -1,7 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
 import { PricingSection } from "@/components/pricing-section";
-import { PriceComparisonSection } from "@/components/price-comparison-section";
 import { SubscriptionStatusBar } from "@/components/subscribe/subscription-status-bar";
 import { CreditTransaction } from "@/types/creem";
 
@@ -15,8 +13,15 @@ export default async function SubscribePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // 访客直接渲染，不跳转
   if (!user) {
-    return redirect("/sign-in");
+    return (
+      <div className="flex-1 w-full flex flex-col pb-16 sm:pb-20">
+        <div className="w-full mt-2 sm:mt-4">
+          <PricingSection hideHeader className="!py-0 sm:!py-2" />
+        </div>
+      </div>
+    );
   }
 
   const { data: customerData, error } = await supabase
@@ -64,7 +69,7 @@ export default async function SubscribePage() {
 
   return (
     <div className="flex-1 w-full flex flex-col pb-16 sm:pb-20">
-      {/* ── Status Bar (always visible) ── */}
+      {/* ── Status Bar (登录用户才显示) ── */}
       <div className="px-4 sm:px-8 max-w-4xl mx-auto w-full mt-4 sm:mt-5">
         <SubscriptionStatusBar
           subscription={subscription}
@@ -74,10 +79,7 @@ export default async function SubscribePage() {
         />
       </div>
 
-      {/* ── Price Comparison (moved from /pricing) ── */}
-      <PriceComparisonSection />
-
-      {/* ── Pricing Section (hero) ── */}
+      {/* ── Pricing Section ── */}
       <div className="w-full mt-2 sm:mt-4">
         <PricingSection hideHeader className="!py-0 sm:!py-2" />
       </div>

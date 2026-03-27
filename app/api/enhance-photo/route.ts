@@ -234,16 +234,24 @@ export async function POST(req: Request) {
 
     const isFreeTrial = !customer.free_enhance_used;
 
-    // ── 查会员状态 ──
+    // ── 查会员状态（含 canceled 但仍在有效期内的情况）──
+    const now = new Date().toISOString();
+
     const { data: subData } = await supabaseAdmin
       .from("subscriptions")
-      .select("status")
+      .select("status, current_period_end")
       .eq("customer_id", customer.id)
-      .eq("status", "active")
+      .in("status", ["active", "canceled"])
       .maybeSingle();
 
-    const isSubscribed: boolean = !!subData;
-
+    const isSubscribed: boolean = !!subData && (
+      subData.status === "active" ||
+      (subData.status === "canceled" && !!subData.current_period_end && subData.current_period_end > now)
+    );
+    console.log('🔍 user.id:', user.id);
+    console.log('🔍 customer.id:', customer.id);
+    console.log('🔍 subData:', JSON.stringify(subData));
+    console.log('🔍 isSubscribed:', isSubscribed);
     // ── 前置收费（非首次免费才收费）──
     // 会员扣 20 credits，非会员扣 25 credits（含无水印下载）
     let creditsRemaining = customer.credits;
@@ -251,6 +259,7 @@ export async function POST(req: Request) {
     if (!isFreeTrial) {
       const actionType = isSubscribed ? 'PhotoEnhance_Member' : 'PhotoEnhance_NonMember';
       const costNeeded = isSubscribed ? 20 : 25;
+      console.log('🔍 actionType:', actionType, '| costNeeded:', costNeeded);
 
       if (customer.credits < costNeeded) {
         return new Response(
