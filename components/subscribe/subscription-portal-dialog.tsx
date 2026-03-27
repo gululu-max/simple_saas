@@ -17,6 +17,7 @@ export function SubscriptionPortalDialog() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasCustomer, setHasCustomer] = useState(false);
+  const [open, setOpen] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -33,7 +34,6 @@ export function SubscriptionPortalDialog() {
           .eq("user_id", user.id)
           .single();
 
-        // Only show portal if they have a real Creem ID (starts with cust_)
         setHasCustomer(!!customer?.creem_customer_id?.startsWith('cust_'));
       } catch (err) {
         console.error("Error checking customer:", err);
@@ -50,18 +50,15 @@ export function SubscriptionPortalDialog() {
       setError(null);
 
       const response = await fetch("/api/creem/customer-portal");
-      
-      // 1. 先判断状态码是否正常，异常则解析错误信息并抛出
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to get portal link");
       }
 
-      // 2. 状态正常再解析成功的数据
       const data = await response.json();
-      console.log("Portal response:", data);
-
       const link = data.customer_portal_link;
+
       if (link) {
         window.location.href = link;
       } else {
@@ -70,7 +67,6 @@ export function SubscriptionPortalDialog() {
     } catch (err: any) {
       console.error("Error getting portal link:", err);
       setError(err.message || "Failed to access subscription portal. Please try again later.");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -80,14 +76,14 @@ export function SubscriptionPortalDialog() {
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={(v) => { if (!isLoading) setOpen(v); }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="w-full">
           Manage Plan
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px]" onPointerDownOutside={(e) => { if (isLoading) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle>Subscription Management</DialogTitle>
           <DialogDescription>
@@ -97,7 +93,6 @@ export function SubscriptionPortalDialog() {
 
         <div className="grid gap-4 py-4">
           <div className="grid gap-6">
-            {/* Portal Features */}
             <div className="grid gap-4">
               <div className="flex items-center gap-4">
                 <div className="p-2 bg-primary/10 rounded-lg">
@@ -145,7 +140,15 @@ export function SubscriptionPortalDialog() {
         )}
 
         <DialogFooter className="flex space-x-2 sm:space-x-0">
-          <Button onClick={handleManageSubscription} disabled={isLoading}>
+          <Button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleManageSubscription();
+            }}
+            disabled={isLoading}
+          >
             {isLoading ? "Redirecting..." : "Continue to Portal"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
