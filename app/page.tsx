@@ -1,42 +1,52 @@
-import { HeroAnimations, HeroButtons } from "@/components/hero-animations";
-import Image from "next/image";
+import { HeroButtons } from "@/components/hero-animations";
 import { Flame, ScanSearch, X, Check } from "lucide-react";
+import Image from "next/image";
 import { FeaturesGrid } from "@/components/features-grid";
 import { ScrollToTop } from "@/components/scroll-to-top";
+import { HeroCarousel } from "@/components/hero-carousel";
 
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 selection:bg-red-500/30 pb-24 md:pb-0">
 
-      {/* 1. Hero Section */}
-      <section className="relative py-8 md:py-32 overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-600/10 rounded-full blur-[120px] -z-10" />
+      {/* 1. Hero Section — Before/After carousel */}
+      <section className="relative min-h-[85vh] md:min-h-[90vh] flex flex-col justify-center overflow-hidden">
+        {/* Background carousel */}
+        <HeroCarousel />
 
-        <div className="container px-4 md:px-6">
-          <div className="flex flex-col lg:grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
+        {/* Gradient overlays for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-slate-950/90 z-[1]" />
 
-            <div className="space-y-8 text-center lg:text-left">
-              <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-400">
-                <ScanSearch className="w-3 h-3 mr-2" /> Matchfix: The Ultimate AI Profile booster
-              </div>
-              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tighter">
-                Get More Matches With Better Photos<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
-                  We analyze and fix your dating photos so you stand out instantly.
-                </span>
-              </h1>
-              <p className="text-xl text-slate-400 max-w-[600px] mx-auto lg:mx-0">
-                Upload your photos and see how to get more matches.
-              </p>
+        {/* Content overlay — absolute full-height, split into two zones */}
+        <div className="absolute inset-0 z-10 flex flex-col items-center text-center px-4 md:px-6">
 
-              <HeroButtons />
+          {/* Top zone: title at ~30% from top */}
+          <div className="mt-[44vh] md:mt-[20vh] flex flex-col items-center gap-3">
+            <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 backdrop-blur-sm px-3 py-1 text-xs font-medium text-red-400">
+              <ScanSearch className="w-3 h-3 mr-2" /> Matchfix AI Profile Booster
             </div>
 
-            <div className="hidden lg:block">
-              <HeroAnimations />
-            </div>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter max-w-3xl">
+              Turn 2 Matches
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
+                Into 30
+              </span>
+            </h1>
           </div>
+
+          {/* Bottom zone: subtitle + CTA at ~70% from top */}
+          <div className="mt-auto mb-[5vh] md:mb-[18vh] flex flex-col items-center gap-5">
+            <p className="text-lg md:text-xl text-slate-300 max-w-md">
+              AI fixes your dating photos in seconds.
+            </p>
+            <HeroButtons />
+          </div>
+
         </div>
+
+        {/* Bottom fade into next section */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent z-[1]" />
       </section>
 
       {/* 2. Before & After */}
@@ -44,7 +54,7 @@ export default function Home() {
         <div className="container px-4 md:px-6 max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">How It Works</h2>
-            <p className="text-slate-400 text-lg">Upload Your Photos → See What's Killing Your Matches → Fix It Instantly</p>
+            <p className="text-slate-400 text-lg">Upload Your Photos → See What&#39;s Killing Your Matches → Fix It Instantly</p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
@@ -63,7 +73,7 @@ export default function Home() {
               </div>
 
               <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Low Match Potential</div>
-              <p className="text-lg italic text-slate-400">"I love food, traveling, and the gym."</p>
+              <p className="text-lg italic text-slate-400">&quot;I love food, traveling, and the gym.&quot;</p>
               <div className="pt-2 flex flex-col gap-2 text-red-400 text-sm font-medium">
                 <div className="flex items-center gap-2"><X className="w-4 h-4" /> Face not clearly visible</div>
                 <div className="flex items-center gap-2"><X className="w-4 h-4" /> Weak first impression</div>
@@ -90,7 +100,7 @@ export default function Home() {
               <div className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                 <Flame className="w-4 h-4" /> Optimized for Matches
               </div>
-              <p className="text-lg text-slate-200">"We help you stand out instantly with small but powerful changes."</p>
+              <p className="text-lg text-slate-200">&quot;We help you stand out instantly with small but powerful changes.&quot;</p>
               <div className="pt-2 flex flex-col gap-2 text-emerald-400 text-sm font-medium">
                 <div className="flex items-center gap-2"><Check className="w-4 h-4" /> Clear eye contact</div>
                 <div className="flex items-center gap-2"><Check className="w-4 h-4" /> Confident, approachable vibe</div>
@@ -147,7 +157,7 @@ export default function Home() {
           </h2>
           <p className="text-pink-50 max-w-2xl mx-auto text-lg drop-shadow-md">
             With the right photos, your matches go up — fast.<br />
-            More people interested, more choices, and more nights that don't end early.
+            More people interested, more choices, and more nights that don&apos;t end early.
           </p>
         </div>
       </section>
