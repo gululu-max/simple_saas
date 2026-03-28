@@ -86,10 +86,10 @@ export default function BoostScanner() {
 
   const [isGuestEnhanced, setIsGuestEnhanced] = useState(false);
   const [isFreeGeneration, setIsFreeGeneration] = useState(false);
-  const [isDownloadFree, setIsDownloadFree] = useState(false); // 新增：付费用户下载免费
+  const [isDownloadFree, setIsDownloadFree] = useState(false);
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false); // 新增
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
   const [sliderIndex, setSliderIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -98,12 +98,9 @@ export default function BoostScanner() {
   const [visibleText, setVisibleText] = useState<string>('');
   const [analysisJSON, setAnalysisJSON] = useState<string | null>(null);
 
-  // Track whether there's an active result that would be lost on exit
   const hasActiveResult = !!(preview && (visibleText || watermarkedImage || isGuestEnhanced));
 
-  // Pending navigation target when privacy modal intercepts route change
   const pendingNavigationRef = useRef<string | null>(null);
-  // Whether to skip the privacy modal (after user confirms)
   const skipExitWarningRef = useRef(false);
 
   const router = useRouter();
@@ -121,7 +118,6 @@ export default function BoostScanner() {
     if (savedText) { setVisibleText(savedText); sessionStorage.setItem('mf_visibleText', savedText); }
     if (savedJSON) { setAnalysisJSON(savedJSON); sessionStorage.setItem('mf_analysisJSON', savedJSON); }
 
-    // 恢复增强结果（支付跳转回来时关键）
     const savedWatermarked = sessionStorage.getItem('mf_watermarkedImage');
     const savedEnhancementId = sessionStorage.getItem('mf_enhancementId');
     const savedMimeType = sessionStorage.getItem('mf_enhancedMimeType');
@@ -148,16 +144,26 @@ export default function BoostScanner() {
       });
     }
 
-    // 检测支付回跳：清理 URL 参数，显示成功提示
     const params = new URLSearchParams(window.location.search);
+
+    // 检测支付回跳
     if (params.get('payment') === 'success') {
-      // 清理 URL 中的 payment 参数（不刷新页面）
       params.delete('payment');
       const cleanUrl = params.toString()
         ? `${window.location.pathname}?${params.toString()}`
         : window.location.pathname;
       window.history.replaceState({}, '', cleanUrl);
       trackEvent('payment_return_success');
+    }
+
+    // 检测下载错误回跳（GET 路由积分不足时重定向回来）
+    if (params.get('download_error') === 'insufficient_credits') {
+      params.delete('download_error');
+      const cleanUrl = params.toString()
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+      setActiveModal('credits_shop');
     }
   }, []);
 
@@ -385,7 +391,6 @@ export default function BoostScanner() {
       setIsFreeGeneration(data.isFreeTrial);
       setIsDownloadFree(data.downloadFree ?? false);
 
-      // 缓存增强结果（支付跳转回来时可恢复）
       sessionStorage.setItem('mf_watermarkedImage', data.watermarkedImage);
       sessionStorage.setItem('mf_enhancementId', data.enhancementId);
       sessionStorage.setItem('mf_enhancedMimeType', data.mimeType ?? 'image/png');
@@ -487,7 +492,6 @@ export default function BoostScanner() {
   const handleSubmit = async () => {
     if (!preview || isLoading) return;
 
-    // ── Guest free limit: 3 analyses max ──
     if (!isLoggedIn) {
       const FREE_LIMIT = 3;
       const usedCount = parseInt(localStorage.getItem('mf_free_analyses') || '0', 10);
@@ -521,109 +525,59 @@ export default function BoostScanner() {
     });
   };
 
-  // ─── Download ────────────────────────────────────────────
-  const handleDownload = async () => {
+  // ════════════════════════════════════════════════════════════
+  // ─── Download（改为 GET 路由，兼容 Facebook/Instagram WebView）──
+  // ════════════════════════════════════════════════════════════
+
+  const handleDownload = () => {
     if (!enhancementId) return;
 
-    // 付费用户（非免费试用）→ 已前置付费，图片已经是无水印的，直接下载 base64
-    if (isDownloadFree && watermarkedImage) {
-      const link = document.createElement('a');
-      link.href = `data:${enhancedMimeType};base64,${watermarkedImage}`;
-      link.download = 'matchfix-enhanced.png';
-      link.click();
-      trackEvent('enhance_download_paid_user');
-      return;
+    // 付费用户（非免费试用）或已有无水印权限 → 直接 GET 下载
+    // GET /api/download/[id] 会处理鉴权、扣费、返回文件流
+    trackEvent('enhance_download_click', {
+      isDownloadFree,
+      isFreeGeneration,
+    });
+
+    // 所有情况统一走 GET 路由
+    // - isDownloadFree=true → 后端 is_free_trial=false，直接返回文件
+    // - isFreeGeneration=true → 后端检查会员/积分，够就返回文件，不够就 302 重定向回来
+    // - 其他 → 后端直接返回文件
+    if (isFreeGeneration && !isDownloadFree) {
+      // 免费试用用户：先用 fetch 检查是否有足够积分，避免页面跳转
+      handleDownloadWithPrecheck();
+    } else {
+      // 付费用户或非免费试用 → 直接触发下载
+      window.location.href = `/api/download/${enhancementId}`;
     }
+  };
 
-    // 首次免费用户 → 先实时查会员状态
-    // （可能刚付费订阅回来，isFreeGeneration 还是 true 但已经是会员了）
-    if (isFreeGeneration) {
-      setIsDownloading(true);
-      try {
-        // 查当前会员状态
-        const creditsRes = await fetch('/api/credits');
-        if (creditsRes.ok) {
-          const creditsData = await creditsRes.json();
-          // 如果是会员，直接走服务器下载（download API 会员免费）
-          const supabase = createClient();
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            // 尝试直接下载，让后端判断会员状态
-            const res = await fetch('/api/download', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ enhancementId }),
-            });
-
-            if (res.ok) {
-              // 下载成功（会员免费或已有积分）
-              const blob = await res.blob();
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = 'matchfix-enhanced.png';
-              link.click();
-              URL.revokeObjectURL(url);
-              trackEvent('enhance_download_member_free');
-              router.refresh();
-              return;
-            }
-
-            const data = await res.json();
-            if (data.code === 'INSUFFICIENT_CREDITS') {
-              // 不是会员且积分不够 → 弹选择弹窗
-              setActiveModal('download_choice');
-              return;
-            }
-            if (data.code === 'EXPIRED') {
-              alert('This enhancement has expired. Please re-enhance your photo.');
-              handleReset();
-              return;
-            }
-          }
-        }
-      } catch (err) {
-        // 查询失败，降级为弹窗
-      } finally {
-        setIsDownloading(false);
-      }
-
-      // 兜底：弹下载选择弹窗
-      setActiveModal('download_choice');
-      return;
-    }
-
-    // 其他情况：直接从服务器下载
+  // 免费试用用户下载前先检查积分（避免在 WebView 里被重定向搞乱）
+  const handleDownloadWithPrecheck = async () => {
+    if (!enhancementId) return;
     setIsDownloading(true);
     try {
-      const res = await fetch('/api/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enhancementId }),
-      });
+      const creditsRes = await fetch('/api/credits');
+      if (creditsRes.ok) {
+        const creditsData = await creditsRes.json();
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
 
-      if (!res.ok) {
-        const data = await res.json();
-        if (data.code === 'EXPIRED') {
-          alert('This enhancement has expired. Please re-enhance your photo.');
-          handleReset();
-        } else {
-          alert('Error: ' + (data.error || 'Download failed'));
+        if (user) {
+          // 会员或积分够 → 直接用 GET 下载
+          if (creditsData.isSubscribed || creditsData.credits >= 5) {
+            window.location.href = `/api/download/${enhancementId}`;
+            trackEvent('enhance_download_precheck_ok');
+            router.refresh();
+            return;
+          }
         }
-        return;
       }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'matchfix-enhanced.png';
-      link.click();
-      URL.revokeObjectURL(url);
-      trackEvent('enhance_download_success');
-      router.refresh();
+      // 积分不够 → 弹选择弹窗
+      setActiveModal('download_choice');
     } catch (err) {
-      alert('Network error during download.');
+      // 查询失败，降级弹窗
+      setActiveModal('download_choice');
     } finally {
       setIsDownloading(false);
     }
@@ -631,10 +585,17 @@ export default function BoostScanner() {
 
   const handleDownloadWatermarked = () => {
     if (!watermarkedImage) return;
-    const link = document.createElement('a');
-    link.href = `data:${enhancedMimeType};base64,${watermarkedImage}`;
-    link.download = 'matchfix-enhanced-watermark.png';
-    link.click();
+
+    // 带水印下载：走专用 GET 端点（避免 data: URI 在 WebView 里失败）
+    if (enhancementId) {
+      window.location.href = `/api/download/${enhancementId}?watermarked=1`;
+    } else {
+      // 极端 fallback：data URI（正常浏览器才会走到这里）
+      const link = document.createElement('a');
+      link.href = `data:${enhancedMimeType};base64,${watermarkedImage}`;
+      link.download = 'matchfix-enhanced-watermark.png';
+      link.click();
+    }
     setActiveModal(null);
     trackEvent('enhance_download_watermark_free');
   };
@@ -644,32 +605,17 @@ export default function BoostScanner() {
     setActiveModal(null);
     setIsDownloading(true);
     try {
-      const res = await fetch('/api/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enhancementId }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        if (data.code === 'INSUFFICIENT_CREDITS') {
+      // 先检查积分够不够
+      const creditsRes = await fetch('/api/credits');
+      if (creditsRes.ok) {
+        const creditsData = await creditsRes.json();
+        if (!creditsData.isSubscribed && creditsData.credits < 5) {
           setActiveModal('credits_shop');
-        } else if (data.code === 'EXPIRED') {
-          alert('This enhancement has expired. Please re-enhance your photo.');
-          handleReset();
-        } else {
-          alert('Error: ' + (data.error || 'Download failed'));
+          return;
         }
-        return;
       }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'matchfix-enhanced.png';
-      link.click();
-      URL.revokeObjectURL(url);
+      // 积分够 → 直接 GET 下载
+      window.location.href = `/api/download/${enhancementId}`;
       trackEvent('enhance_download_credits_success');
       router.refresh();
     } catch (err) {
@@ -1109,7 +1055,7 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: Insufficient Credits (enhance) — 更新文案
+          MODAL: Insufficient Credits (enhance)
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'enhance' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -1149,7 +1095,7 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: Download Choice (free trial user) — 更新文案
+          MODAL: Download Choice (free trial user)
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'download_choice' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -1220,7 +1166,7 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: Membership (Pro recommendation) — 更新文案和价格
+          MODAL: Membership (Pro recommendation)
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'membership' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -1287,7 +1233,7 @@ export default function BoostScanner() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: Credits Shop — 更新文案和价格
+          MODAL: Credits Shop
       ════════════════════════════════════════════════════════ */}
       {activeModal === 'credits_shop' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
