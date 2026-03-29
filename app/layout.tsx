@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 import MetaPixel from "@/components/MetaPixel";
 import { GoogleAnalytics } from '@next/third-parties/google';
+import Script from "next/script";
 import type { Metadata } from 'next';
 import { AuthModalProvider } from "@/components/auth/auth-modal-context";
 import { AuthModal } from "@/components/auth/auth-modal";
@@ -58,6 +59,15 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preload" href="/hero-demo.jpg" as="image" fetchPriority="high" />
+        <Script id="microsoft-clarity" strategy="afterInteractive">
+          {`
+            (function(c,l,a,r,i,t,y){
+              c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+              t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+              y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", "w3fj41aw6c");
+          `}
+        </Script>
       </head>
       <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
         <MetaPixel />
