@@ -3,17 +3,17 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 
-// Each slide is a before/after pair shown side by side as the background
+// 第一张 slide 用原生 <img>，跳过 /_next/image API 的实时处理
+// 后续 slides 用 Next.js Image 做 lazy loading
 const slides = [
   { before: "/hero/before-1.webp", after: "/hero/after-1.webp" },
   { before: "/hero/before-2.webp", after: "/hero/after-2.webp" },
   { before: "/hero/before-3.webp", after: "/hero/after-3.webp" },
 ];
 
-const INTERVAL = 4000; // 4s per slide
+const INTERVAL = 4000;
 
 export function HeroCarousel() {
-  // 初始值 0 — 和 SSR 输出一致，避免 hydration mismatch
   const [current, setCurrent] = useState(0);
   const [hydrated, setHydrated] = useState(false);
 
@@ -38,23 +38,31 @@ export function HeroCarousel() {
           key={i}
           className="absolute inset-0 grid grid-cols-2 transition-opacity duration-1000 ease-in-out"
           style={{ opacity: i === current ? 1 : 0 }}
-          // 非当前 slide 设为 hidden，减少不可见图片的渲染开销
           aria-hidden={i !== current}
         >
           {/* Before half */}
           <div className="relative overflow-hidden">
-            <Image
-              src={slide.before}
-              alt=""
-              fill
-              sizes="50vw"
-              className="object-cover grayscale opacity-60"
-              // 第一张 slide 的图片：priority + eager loading
-              // 其余 slide 的图片：lazy loading
-              priority={i === 0}
-              loading={i === 0 ? "eager" : "lazy"}
-            />
-            {/* Before label */}
+            {i === 0 ? (
+              // 第一帧：原生 <img>，直接从 /public 加载，零延迟
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={slide.before}
+                alt=""
+                fetchPriority="low"
+                loading="eager"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover grayscale opacity-60"
+              />
+            ) : (
+              <Image
+                src={slide.before}
+                alt=""
+                fill
+                sizes="50vw"
+                className="object-cover grayscale opacity-60"
+                loading="lazy"
+              />
+            )}
             <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2">
               <span className="bg-red-600/90 text-white text-xs font-bold px-2 py-1 rounded">
                 Before
@@ -62,22 +70,31 @@ export function HeroCarousel() {
             </div>
           </div>
 
-          {/* After half — 第一张 after 图就是 LCP 元素 */}
+          {/* After half — 第一张 after 图是 LCP 元素 */}
           <div className="relative overflow-hidden">
-            <Image
-              src={slide.after}
-              alt=""
-              fill
-              sizes="50vw"
-              className="object-cover"
-              priority={i === 0}
-              loading={i === 0 ? "eager" : "lazy"}
-              // 关键：LCP 图片需要 fetchPriority high
-              // Next.js 的 priority prop 会自动加 fetchPriority="high"
-              // 但为了保险，显式声明
-              {...(i === 0 ? { fetchPriority: "high" as const } : {})}
-            />
-            {/* After label */}
+            {i === 0 ? (
+              // LCP 图片：原生 <img> + fetchPriority="high"
+              // 跳过 /_next/image?url=...&w=384&q=75 的 API 路由
+              // 直接从 CDN/静态文件加载预压缩好的 WebP
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={slide.after}
+                alt=""
+                fetchPriority="high"
+                loading="eager"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
+              <Image
+                src={slide.after}
+                alt=""
+                fill
+                sizes="50vw"
+                className="object-cover"
+                loading="lazy"
+              />
+            )}
             <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
               <span className="bg-emerald-500/90 text-white text-xs font-bold px-2 py-1 rounded">
                 After
