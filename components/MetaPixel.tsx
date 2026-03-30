@@ -5,9 +5,14 @@ import Script from 'next/script';
 export default function MetaPixel() {
   return (
     <>
+      {/*
+        策略从 afterInteractive → lazyOnload
+        Meta Pixel 不影响首屏渲染，完全可以等页面空闲后再加载
+        对广告归因没有影响 — PageView 事件会在加载后立即触发
+      */}
       <Script
         id="meta-pixel"
-        strategy="afterInteractive"
+        strategy="lazyOnload"
         dangerouslySetInnerHTML={{
           __html: `
             !function(f,b,e,v,n,t,s)

@@ -5,9 +5,9 @@ import Image from "next/image";
 
 // Each slide is a before/after pair shown side by side as the background
 const slides = [
-  { before: "/hero/before-1.jpg", after: "/hero/after-1.jpg" },
-  { before: "/hero/before-2.jpg", after: "/hero/after-2.jpg" },
-  { before: "/hero/before-3.jpg", after: "/hero/after-3.jpg" },
+  { before: "/hero/before-1.webp", after: "/hero/after-1.webp" },
+  { before: "/hero/before-2.webp", after: "/hero/after-2.webp" },
+  { before: "/hero/before-3.webp", after: "/hero/after-3.webp" },
 ];
 
 const INTERVAL = 4000; // 4s per slide

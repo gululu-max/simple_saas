@@ -6,8 +6,7 @@ import { Button } from "./ui/button";
 import { Logo } from "./logo";
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useRef, useEffect } from "react";
 import { Zap, Flame, ScanSearch, ChevronDown, Wand2 } from "lucide-react";
 import { useAuthModal } from "@/components/auth/auth-modal-context";
 
@@ -49,6 +48,7 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             Home
           </Link>
 
+          {/* Features dropdown — 纯 CSS transition 替代 framer-motion */}
           <div
             className="relative py-2 cursor-pointer group"
             onMouseEnter={() => setIsFeaturesOpen(true)}
@@ -57,37 +57,37 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             <span className="flex items-center gap-1 text-lg font-semibold text-slate-400 group-hover:text-slate-100 transition-colors">
               Features <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isFeaturesOpen ? "rotate-180" : ""}`} />
             </span>
-            <AnimatePresence>
-              {isFeaturesOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute top-full left-1/2 -translate-x-1/2 w-72 pt-4 z-50"
-                >
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 overflow-hidden backdrop-blur-xl">
-                    {featureLinks.map((link) => (
-                      <Link
-                        key={link.title}
-                        href={link.href}
-                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors group/item"
-                      >
-                        <div className="mt-1">{link.icon}</div>
-                        <div>
-                          <div className="text-sm font-bold text-slate-100 group-hover/item:text-red-400 transition-colors">
-                            {link.title}
-                          </div>
-                          <div className="text-xs text-slate-500 line-clamp-1">
-                            {link.description}
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+
+            <div
+              className={`
+                absolute top-full left-1/2 -translate-x-1/2 w-72 pt-4 z-50
+                transition-all duration-200 ease-out
+                ${isFeaturesOpen
+                  ? "opacity-100 translate-y-0 pointer-events-auto"
+                  : "opacity-0 translate-y-2 pointer-events-none"
+                }
+              `}
+            >
+              <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 overflow-hidden backdrop-blur-xl">
+                {featureLinks.map((link) => (
+                  <Link
+                    key={link.title}
+                    href={link.href}
+                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors group/item"
+                  >
+                    <div className="mt-1">{link.icon}</div>
+                    <div>
+                      <div className="text-sm font-bold text-slate-100 group-hover/item:text-red-400 transition-colors">
+                        {link.title}
+                      </div>
+                      <div className="text-xs text-slate-500 line-clamp-1">
+                        {link.description}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
 
           <Link href="/subscribe#pricing" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">

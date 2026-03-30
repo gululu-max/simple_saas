@@ -65,10 +65,11 @@ export default async function RootLayout({
   return (
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
-        {/* Preload LCP 图片 — hero 轮播第一张 after 图 */}
-        <link rel="preload" href="/hero/after-1.jpg" as="image" fetchPriority="high" />
-        <link rel="preload" href="/hero/before-1.jpg" as="image" />
-        <Script id="microsoft-clarity" strategy="afterInteractive">
+        {/* Preload LCP 图片 — hero 轮播第一张 after 图（WebP） */}
+        <link rel="preload" href="/hero/after-1.webp" as="image" fetchPriority="high" />
+        <link rel="preload" href="/hero/before-1.webp" as="image" />
+        {/* Clarity 改为 lazyOnload — 录屏不需要阻塞首屏 */}
+        <Script id="microsoft-clarity" strategy="lazyOnload">
           {`
             (function(c,l,a,r,i,t,y){
               c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
