@@ -65,7 +65,9 @@ export default async function RootLayout({
   return (
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
-        <link rel="preload" href="/hero-demo.jpg" as="image" fetchPriority="high" />
+        {/* Preload LCP 图片 — hero 轮播第一张 after 图 */}
+        <link rel="preload" href="/hero/after-1.jpg" as="image" fetchPriority="high" />
+        <link rel="preload" href="/hero/before-1.jpg" as="image" />
         <Script id="microsoft-clarity" strategy="afterInteractive">
           {`
             (function(c,l,a,r,i,t,y){
