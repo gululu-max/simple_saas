@@ -1,6 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,12 +30,7 @@ export default function TermsPage() {
       <div className="container px-4 md:px-6 py-16">
         <div className="max-w-4xl mx-auto space-y-12">
           {/* Hero Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-center space-y-6"
-          >
+          <div className="text-center space-y-6">
             <div className="inline-flex items-center rounded-full px-3 py-1 text-sm bg-primary/10 text-primary mb-4">
               <Scale className="mr-2 h-4 w-4" />
               Legal Terms
@@ -53,15 +45,10 @@ export default function TermsPage() {
             <p className="text-sm text-muted-foreground">
               <strong>Effective Date:</strong> March 6, 2026
             </p>
-          </motion.div>
+          </div>
 
           {/* Key Points */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="grid gap-6 md:grid-cols-3"
-          >
+          <div className="grid gap-6 md:grid-cols-3">
             <Card className="border-2">
               <CardHeader>
                 <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center mb-4">
@@ -71,7 +58,7 @@ export default function TermsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">
-                  Our AI analysis and "boosts" are for entertainment purposes only, not professional dating or psychological advice.
+                  Our AI analysis and &ldquo;boosts&rdquo; are for entertainment purposes only, not professional dating or psychological advice.
                 </p>
               </CardContent>
             </Card>
@@ -103,24 +90,19 @@ export default function TermsPage() {
                 </p>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
-          {/* Service Description & AI Nature */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="space-y-8"
-          >
+          {/* AI Nature */}
+          <div className="space-y-8">
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <AlertTriangle className="h-6 w-6 text-primary" />
-                AI Nature & Entertainment Disclaimer
+                AI Nature &amp; Entertainment Disclaimer
               </h3>
               
               <div className="space-y-4 text-muted-foreground">
                 <p>
-                  Matchfix uses generative Artificial Intelligence (AI) to analyze dating profiles and provide "boosts", red-flag detection, and comedic insights. By using the Service, you acknowledge that:
+                  Matchfix uses generative Artificial Intelligence (AI) to analyze dating profiles and provide &ldquo;boosts&rdquo;, red-flag detection, and comedic insights. By using the Service, you acknowledge that:
                 </p>
                 
                 <ul className="space-y-2">
@@ -130,15 +112,10 @@ export default function TermsPage() {
                 </ul>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* User Responsibilities */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
-            className="space-y-8"
-          >
+          <div className="space-y-8">
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6">Your Responsibilities</h3>
               
@@ -168,15 +145,10 @@ export default function TermsPage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Limitation of Liability */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.8 }}
-            className="space-y-8"
-          >
+          <div className="space-y-8">
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <Gavel className="h-6 w-6 text-primary" />
@@ -194,15 +166,10 @@ export default function TermsPage() {
                 </ul>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Payment Terms */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.0 }}
-            className="space-y-8"
-          >
+          <div className="space-y-8">
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <CreditCard className="h-6 w-6 text-primary" />
@@ -223,21 +190,16 @@ export default function TermsPage() {
                   <h4 className="font-semibold mb-3">Refund Policy</h4>
                   <ul className="space-y-2 text-muted-foreground">
                     <li>• Due to the digital AI nature, all purchases are <strong>final and non-refundable</strong></li>
-                    <li>• Disagreeing with the AI's opinion is not grounds for a refund</li>
+                    <li>• Disagreeing with the AI&apos;s opinion is not grounds for a refund</li>
                     <li>• If a technical error prevents generation, contact support for credit restoration</li>
                   </ul>
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Changes to Terms */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.2 }}
-            className="space-y-8"
-          >
+          <div className="space-y-8">
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6">Changes to These Terms</h3>
               
@@ -248,25 +210,20 @@ export default function TermsPage() {
                 </p>
                 
                 <ul className="space-y-2">
-                  <li>• We will update the "Effective Date" at the top of this page</li>
+                  <li>• We will update the &ldquo;Effective Date&rdquo; at the top of this page</li>
                   <li>• Continued use of our service after changes constitutes acceptance of new terms</li>
                   <li>• You can always find the current version of our terms on this page</li>
                 </ul>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Contact Information */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.4 }}
-            className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8"
-          >
+          {/* Contact */}
+          <div className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8">
             <h3 className="text-2xl font-bold mb-4">Questions About These Terms?</h3>
             <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
               If you have any questions about these Terms of Service or need clarification about your rights and responsibilities, 
-              please contact us. We're here to help ensure you understand and can comply with these terms.
+              please contact us. We&apos;re here to help ensure you understand and can comply with these terms.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild className="gap-2">
@@ -276,7 +233,7 @@ export default function TermsPage() {
                 </a>
               </Button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

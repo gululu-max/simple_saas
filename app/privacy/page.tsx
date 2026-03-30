@@ -1,6 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,12 +30,7 @@ export default function PrivacyPage() {
       <div className="container px-4 md:px-6 py-16">
         <div className="max-w-4xl mx-auto space-y-12">
           {/* Hero Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-center space-y-6"
-          >
+          <div className="text-center space-y-6">
             <div className="inline-flex items-center rounded-full px-3 py-1 text-sm bg-primary/10 text-primary mb-4">
               <Shield className="mr-2 h-4 w-4" />
               Your Privacy Matters
@@ -53,15 +45,10 @@ export default function PrivacyPage() {
             <p className="text-sm text-muted-foreground">
               <strong>Effective Date:</strong> March 6, 2026
             </p>
-          </motion.div>
+          </div>
 
           {/* Privacy Principles */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="grid gap-6 md:grid-cols-3"
-          >
+          <div className="grid gap-6 md:grid-cols-3">
             <Card className="border-2">
               <CardHeader>
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
@@ -103,15 +90,10 @@ export default function PrivacyPage() {
                 </p>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
           {/* Information We Collect */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="space-y-8"
-          >
+          <div className="space-y-8">
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <Database className="h-6 w-6 text-primary" />
@@ -137,15 +119,10 @@ export default function PrivacyPage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* How We Use Information */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
-            className="space-y-8"
-          >
+          <div className="space-y-8">
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6">How We Use Your Information</h3>
               
@@ -153,7 +130,7 @@ export default function PrivacyPage() {
                 <div>
                   <h4 className="font-semibold mb-3">Service Provision</h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Generate AI-powered dating profile analysis and "boosts".</li>
+                    <li>• Generate AI-powered dating profile analysis and &ldquo;boosts&rdquo;.</li>
                     <li>• Manage your account and track your available analysis credits.</li>
                     <li>• Process your payments and subscriptions securely.</li>
                     <li>• Send essential service updates and payment receipts.</li>
@@ -170,15 +147,10 @@ export default function PrivacyPage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Data Sharing */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.8 }}
-            className="space-y-8"
-          >
+          <div className="space-y-8">
             <div className="bg-muted/30 rounded-2xl p-8">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <Globe className="h-6 w-6 text-primary" />
@@ -198,18 +170,13 @@ export default function PrivacyPage() {
                 </ul>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Contact Information */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.4 }}
-            className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8"
-          >
+          <div className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8">
             <h3 className="text-2xl font-bold mb-4">Questions About Privacy?</h3>
             <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-              If you have any questions about this Privacy Policy, our data practices, or if you'd like to request account deletion, please don't hesitate to contact us.
+              If you have any questions about this Privacy Policy, our data practices, or if you&apos;d like to request account deletion, please don&apos;t hesitate to contact us.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild className="gap-2">
@@ -224,7 +191,7 @@ export default function PrivacyPage() {
                 </Link>
               </Button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>
