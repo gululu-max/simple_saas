@@ -1,7 +1,6 @@
 import Header from "@/components/header";
 import { Footer } from "@/components/footer";
 import { ThemeProvider } from "next-themes";
-import { createClient } from "@/utils/supabase/server";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 import MetaPixel from "@/components/MetaPixel";
@@ -14,7 +13,7 @@ import { Inter } from "next/font/google";
 
 const inter = Inter({
   subsets: ["latin"],
-  display: "swap",          // 关键：保证文字立即可见，字体加载后替换
+  display: "swap",
   weight: ["400", "500", "600", "700", "800", "900"],
 });
 
@@ -43,32 +42,23 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+/*
+  关键改动：layout 不再做任何服务端数据请求
+  - 删掉了 createClient / getUser / credits 查询
+  - Header 改为客户端自己获取 user 和 credits
+  - 这样首页可以被 Next.js 静态生成，TTFB 从 1-3s 降到 ~50ms
+*/
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  let credits = 0;
-  if (user) {
-    const { data } = await supabase
-      .from("customers")
-      .select("credits")
-      .eq("user_id", user.id)
-      .single();
-    if (data?.credits) credits = data.credits;
-  }
-
   return (
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
-        {/* Preload LCP 图片 — hero 轮播第一张 after 图（WebP） */}
+        {/* Preload LCP 图片 */}
         <link rel="preload" href="/hero/after-1.webp" as="image" fetchPriority="high" />
         <link rel="preload" href="/hero/before-1.webp" as="image" />
-        {/* Clarity 改为 lazyOnload — 录屏不需要阻塞首屏 */}
         <Script id="microsoft-clarity" strategy="lazyOnload">
           {`
             (function(c,l,a,r,i,t,y){
@@ -90,7 +80,7 @@ export default async function RootLayout({
             disableTransitionOnChange
           >
             <div className="relative min-h-screen">
-              <Header user={user} credits={credits} />
+              <Header />
               <main className="flex-1">{children}</main>
               <div className="pb-24 md:pb-0">
                 <Footer />

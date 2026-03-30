@@ -6,20 +6,50 @@ import { Button } from "./ui/button";
 import { Logo } from "./logo";
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
-import { useState, useRef, useEffect } from "react";
-import { Zap, Flame, ScanSearch, ChevronDown, Wand2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Zap, ChevronDown, Wand2 } from "lucide-react";
 import { useAuthModal } from "@/components/auth/auth-modal-context";
+import { createClient } from "@/utils/supabase/client";
 
-interface HeaderProps {
-  user: any;
-  credits?: number;
-}
-
-export default function Header({ user, credits = 0 }: HeaderProps) {
+export default function Header() {
   const pathname = usePathname();
   const isSubscribe = pathname?.startsWith("/subscribe");
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const { openAuthModal } = useAuthModal();
+
+  // 客户端获取用户状态和 credits
+  const [user, setUser] = useState<any>(null);
+  const [credits, setCredits] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchUser() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelled) return;
+
+        if (user) {
+          setUser(user);
+          const { data } = await supabase
+            .from("customers")
+            .select("credits")
+            .eq("user_id", user.id)
+            .single();
+          if (!cancelled && data?.credits) {
+            setCredits(data.credits);
+          }
+        }
+      } catch {
+        // 失败时保持未登录状态
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    }
+    fetchUser();
+    return () => { cancelled = true; };
+  }, []);
 
   const featureLinks = [
     {
@@ -28,10 +58,9 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
       icon: <Wand2 className="w-4 h-4 text-purple-500" />,
       href: "/subscribe/photo-enhancer",
     },
-    // Photo Scorer 已下线，后续优化完再上
   ];
 
-  const isLoggedIn = user && user?.email;
+  const isLoggedIn = loaded && user && user?.email;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-slate-950/80 backdrop-blur supports-[backdrop-filter]:bg-slate-950/60 text-slate-50">
@@ -48,7 +77,7 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             Home
           </Link>
 
-          {/* Features dropdown — 纯 CSS transition 替代 framer-motion */}
+          {/* Features dropdown — 纯 CSS transition */}
           <div
             className="relative py-2 cursor-pointer group"
             onMouseEnter={() => setIsFeaturesOpen(true)}
@@ -97,7 +126,13 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
 
         {/* 右侧操作区 */}
         <div className="flex items-center gap-2">
-          {isLoggedIn ? (
+          {!loaded ? (
+            // 加载中：显示占位，避免布局跳动
+            <div className="hidden md:flex gap-2">
+              <div className="h-8 w-16 rounded-md bg-slate-800 animate-pulse" />
+              <div className="h-8 w-16 rounded-md bg-slate-800 animate-pulse" />
+            </div>
+          ) : isLoggedIn ? (
             <div className="flex items-center gap-2">
               {isSubscribe && (
                 <span className="hidden md:inline text-sm text-slate-500 mr-2">
@@ -151,11 +186,10 @@ export default function Header({ user, credits = 0 }: HeaderProps) {
             items={[
               { label: "Home", href: "/" },
               { label: "✨ AI Photo Enhancer", href: "/subscribe/photo-enhancer" },
-              // Photo Scorer 已下线
               { label: "Pricing", href: "/subscribe#pricing" },
             ]}
             user={isLoggedIn ? user : null}
-            isDashboard={isSubscribe}
+            isDashboard={isSubscribe ?? false}
           />
         </div>
       </div>
