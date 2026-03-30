@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -70,7 +69,6 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
 
   const handlePurchase = async (tier: ProductTier) => {
     if (!user) {
-      // 未登录：弹出登录弹窗，不跳转页面
       openAuthModal("sign-in");
       return;
     }
@@ -210,12 +208,7 @@ function PricingCard({
   const buttonText = type === 'subscription' ? "Subscribe" : "Purchase";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="relative h-full pt-4"
-    >
+    <div className="relative h-full pt-4">
       {tier.featured && (
         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20">
           <Badge className="bg-gradient-to-r from-rose-500 to-pink-600 text-white border-0 px-4 py-1 shadow-[0_0_15px_rgba(225,29,72,0.4)] font-bold tracking-wide">
@@ -281,6 +274,6 @@ function PricingCard({
           )}
         </CardFooter>
       </Card>
-    </motion.div>
+    </div>
   );
 }

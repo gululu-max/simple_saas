@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Image from "next/image";
 
 const cases = [
@@ -65,7 +64,7 @@ const miniQuotes = [
   },
   {
     quote:
-      "I almost didn’t try it because of privacy. But knowing my photos get deleted instantly made me trust it — and the feedback was actually useful.",
+      "I almost didn't try it because of privacy. But knowing my photos get deleted instantly made me trust it — and the feedback was actually useful.",
     name: "Ryan C.",
     sub: "29 · Hinge",
     avatarBg: "#201a15",
@@ -73,7 +72,7 @@ const miniQuotes = [
   },
   {
     quote:
-      "Getting a score changed everything. I finally understood what works and what doesn’t — and I could actually improve instead of guessing.",
+      "Getting a score changed everything. I finally understood what works and what doesn't — and I could actually improve instead of guessing.",
     name: "Alex M.",
     sub: "33 · Bumble",
     avatarBg: "#1a2035",
@@ -87,12 +86,7 @@ export function FeaturesGrid() {
   return (
     <div className="space-y-5">
       {/* Stats bar */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-800 border border-slate-800 rounded-2xl overflow-hidden bg-slate-900"
-      >
+      <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-800 border border-slate-800 rounded-2xl overflow-hidden bg-slate-900">
         {[
           { num: "+247%", label: "avg. match rate increase" },
           { num: "3.2 days", label: "avg. time to see results" },
@@ -104,19 +98,13 @@ export function FeaturesGrid() {
             <div className="text-xs text-slate-500 uppercase tracking-wider">{s.label}</div>
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Featured card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="grid md:grid-cols-2 border border-slate-800 rounded-2xl overflow-hidden bg-slate-900 hover:border-red-500/30 transition-colors"
-      >
+      <div className="grid md:grid-cols-2 border border-slate-800 rounded-2xl overflow-hidden bg-slate-900 hover:border-red-500/30 transition-colors">
         {/* Visual side */}
         <div className="bg-slate-950/60 p-8 flex items-center justify-center border-b md:border-b-0 md:border-r border-slate-800">
           <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
-            {/* Before */}
             <div className="relative rounded-xl overflow-hidden aspect-[3/4]">
               <Image
                 src={featured.beforeImg}
@@ -129,7 +117,6 @@ export function FeaturesGrid() {
                 BEFORE
               </span>
             </div>
-            {/* After */}
             <div className="relative rounded-xl overflow-hidden aspect-[3/4] ring-1 ring-red-500/40">
               <Image
                 src={featured.afterImg}
@@ -152,7 +139,7 @@ export function FeaturesGrid() {
             {featured.emoji} {featured.app} · {featured.location}
           </p>
           <p className="text-slate-300 leading-relaxed italic font-light text-[15px]">
-            "{featured.quote}"
+            &ldquo;{featured.quote}&rdquo;
           </p>
           <div className="flex items-center gap-3">
             <div
@@ -179,20 +166,15 @@ export function FeaturesGrid() {
             ))}
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Two smaller cards */}
       <div className="grid md:grid-cols-2 gap-5">
         {rest.map((c, i) => (
-          <motion.div
+          <div
             key={i}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.08 }}
             className="border border-slate-800 rounded-2xl bg-slate-900 hover:border-red-500/30 transition-colors overflow-hidden"
           >
-            {/* Mini before/after */}
             <div className="flex gap-3 p-5 pb-0">
               <div className="relative rounded-lg overflow-hidden flex-1 aspect-[3/4]">
                 <Image
@@ -225,7 +207,7 @@ export function FeaturesGrid() {
               <p className="text-[10px] text-slate-500 uppercase tracking-widest font-medium">
                 {c.emoji} {c.app} · {c.location}
               </p>
-              <p className="text-slate-400 text-sm leading-relaxed italic">"{c.quote}"</p>
+              <p className="text-slate-400 text-sm leading-relaxed italic">&ldquo;{c.quote}&rdquo;</p>
               <div className="flex items-center gap-2.5 pt-1">
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-sm border border-slate-700 shrink-0"
@@ -249,22 +231,18 @@ export function FeaturesGrid() {
                 ))}
               </div>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
       {/* Mini quote row */}
       <div className="grid md:grid-cols-3 gap-4">
         {miniQuotes.map((q, i) => (
-          <motion.div
+          <div
             key={i}
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.08 }}
             className="border border-slate-800 rounded-2xl bg-slate-900 p-5 space-y-3 hover:border-red-500/20 transition-colors"
           >
-            <span className="block font-serif text-4xl text-red-500 leading-none opacity-50">"</span>
+            <span className="block font-serif text-4xl text-red-500 leading-none opacity-50">&ldquo;</span>
             <p className="text-slate-400 text-sm leading-relaxed italic">{q.quote}</p>
             <div className="flex items-center justify-between pt-1">
               <div className="flex items-center gap-2">
@@ -281,7 +259,7 @@ export function FeaturesGrid() {
               </div>
               <span className="text-yellow-400 text-xs tracking-wide">★★★★★</span>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
     </div>
