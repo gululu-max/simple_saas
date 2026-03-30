@@ -10,6 +10,13 @@ import Script from "next/script";
 import type { Metadata } from 'next';
 import { AuthModalProvider } from "@/components/auth/auth-modal-context";
 import { AuthModal } from "@/components/auth/auth-modal";
+import { Inter } from "next/font/google";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",          // 关键：保证文字立即可见，字体加载后替换
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
 
 const baseUrl = process.env.BASE_URL
   ? `${process.env.BASE_URL}`
@@ -56,7 +63,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
         <link rel="preload" href="/hero-demo.jpg" as="image" fetchPriority="high" />
         <Script id="microsoft-clarity" strategy="afterInteractive">

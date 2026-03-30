@@ -17,29 +17,44 @@ export default function Home() {
         {/* Gradient overlays for text readability */}
         <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-slate-950/90 z-[1]" />
 
-        {/* Content overlay — absolute full-height, split into two zones */}
+        {/* Content overlay */}
         <div className="absolute inset-0 z-10 flex flex-col items-center text-center px-4 md:px-6">
 
-          {/* Top zone: title at ~30% from top */}
-          <div className="mt-[44vh] md:mt-[20vh] flex flex-col items-center gap-3">
+          {/*
+            新的文案层级：
+            1. 小标签 — 品牌标识（不变）
+            2. 副标题 — 产品核心功能（大字，立即说清楚是干嘛的）
+            3. 主标题 — 痛点 + 结果数字（视觉冲击力）
+            4. CTA 按钮（立即可见，不等 JS）
+          */}
+          <div className="mt-[28vh] md:mt-[18vh] flex flex-col items-center gap-4">
+            {/* 品牌标签 */}
             <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 backdrop-blur-sm px-3 py-1 text-xs font-medium text-red-400">
               <ScanSearch className="w-3 h-3 mr-2" /> Matchfix AI Profile Booster
             </div>
 
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter max-w-3xl">
-              Turn 2 Matches
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
-                Into 30
-              </span>
-            </h1>
-          </div>
-
-          {/* Bottom zone: subtitle + CTA at ~70% from top */}
-          <div className="mt-auto mb-[5vh] md:mb-[18vh] flex flex-col items-center gap-5">
-            <p className="text-lg md:text-xl text-slate-300 max-w-md">
+            {/* 功能说明 — 用户 1 秒内知道产品是什么 */}
+            <p className="text-lg md:text-2xl text-slate-300 font-medium max-w-lg">
               AI fixes your dating photos in seconds.
             </p>
+
+            {/* 痛点主标题 — 大字冲击 */}
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter max-w-3xl leading-[1.1]">
+              Your Photos Are
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
+                Costing You Matches
+              </span>
+            </h1>
+
+            {/* 结果数字 — 社交证明 */}
+            <p className="text-base md:text-lg text-slate-400 max-w-md">
+              Users go from 2 matches to 30+ after one boost.
+            </p>
+          </div>
+
+          {/* CTA 区域 — 紧跟标题，不再推到底部 */}
+          <div className="mt-8 md:mt-10 flex flex-col items-center gap-5">
             <HeroButtons />
           </div>
 

@@ -54,17 +54,23 @@ export function HeroAnimations() {
   );
 }
 
+/* ─── 按钮文案常量 ─── */
+const DEFAULT_TEXT = "Get 1 Free Photo Now";
+const RETURNING_TEXT = "Instant Glow-Up";
+
 export function HeroButtons() {
   const btnRef = useRef<HTMLAnchorElement>(null);
   const [showSticky, setShowSticky] = useState(false);
-  const [buttonText, setButtonText] = useState("Get 1 Free Photo Now");
+  const [buttonText, setButtonText] = useState(DEFAULT_TEXT);
 
+  // 后台查用户状态，不阻塞渲染
   useEffect(() => {
+    let cancelled = false;
     async function checkText() {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user || cancelled) return;
 
         const { data: customer } = await supabase
           .from("customers")
@@ -72,16 +78,18 @@ export function HeroButtons() {
           .eq("user_id", user.id)
           .single();
 
-        if (customer?.free_enhance_used) {
-          setButtonText("Instant Glow-Up");
+        if (!cancelled && customer?.free_enhance_used) {
+          setButtonText(RETURNING_TEXT);
         }
       } catch {
         // 失败保持默认文案
       }
     }
     checkText();
+    return () => { cancelled = true; };
   }, []);
 
+  // sticky 按钮的 IntersectionObserver
   useEffect(() => {
     const el = btnRef.current;
     if (!el) return;
@@ -95,29 +103,23 @@ export function HeroButtons() {
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.3 }}
-        className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
-      >
+      {/*
+        关键改动：去掉 motion.div 的 initial={{ opacity: 0 }}
+        按钮在 SSR 阶段就可见，不依赖 JS hydrate
+        只保留轻微的 translateY 入场动画作为增强
+      */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
         <Link href="/subscribe/scanner" ref={btnRef}>
           <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]">
             🔥 {buttonText} <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.5 }}
-        className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3 text-sm text-slate-400"
-      >
+      <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3 text-sm text-slate-400">
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> No sign-up required</div>
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Auto-deleted instantly</div>
-        {/* <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Start Free · 1 Analyses</div> */}
-      </motion.div>
+      </div>
 
       {/* 底部悬浮 CTA：仅移动端显示 */}
       <AnimatePresence>
