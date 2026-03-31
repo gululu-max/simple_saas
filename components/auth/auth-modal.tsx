@@ -3,9 +3,12 @@
 import { useAuthModal } from "./auth-modal-context";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import SignInForm from "./sign-in-form";
-import SignUpForm from "./sign-up-form";
-import ForgotPasswordForm from "./forgot-password-form";
+import dynamic from "next/dynamic";
+
+// 懒加载 — 只在弹窗打开时才下载这些组件（和它们 import 的 supabase）
+const SignInForm = dynamic(() => import("./sign-in-form"), { ssr: false });
+const SignUpForm = dynamic(() => import("./sign-up-form"), { ssr: false });
+const ForgotPasswordForm = dynamic(() => import("./forgot-password-form"), { ssr: false });
 
 export function AuthModal() {
   const { isOpen, view, closeAuthModal } = useAuthModal();

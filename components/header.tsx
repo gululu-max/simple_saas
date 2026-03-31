@@ -9,7 +9,6 @@ import { MobileNav } from "./mobile-nav";
 import { useState, useEffect } from "react";
 import { Zap, ChevronDown, Wand2 } from "lucide-react";
 import { useAuthModal } from "@/components/auth/auth-modal-context";
-import { createClient } from "@/utils/supabase/client";
 
 export default function Header() {
   const pathname = usePathname();
@@ -17,14 +16,15 @@ export default function Header() {
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const { openAuthModal } = useAuthModal();
 
-  // 客户端获取用户状态和 credits
   const [user, setUser] = useState<any>(null);
   const [credits, setCredits] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    async function fetchUser() {
+
+    // 动态 import supabase — 不打进首屏 bundle
+    import("@/utils/supabase/client").then(async ({ createClient }) => {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -46,8 +46,8 @@ export default function Header() {
       } finally {
         if (!cancelled) setLoaded(true);
       }
-    }
-    fetchUser();
+    });
+
     return () => { cancelled = true; };
   }, []);
 
@@ -66,18 +66,15 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-slate-950/80 backdrop-blur supports-[backdrop-filter]:bg-slate-950/60 text-slate-50">
       <div className="container flex h-16 items-center justify-between px-4">
 
-        {/* Logo */}
         <div className="flex items-center">
           <Logo />
         </div>
 
-        {/* 桌面端导航 */}
         <nav className="hidden md:flex items-center gap-8 absolute left-1/2 transform -translate-x-1/2">
           <Link href="/" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
             Home
           </Link>
 
-          {/* Features dropdown — 纯 CSS transition */}
           <div
             className="relative py-2 cursor-pointer group"
             onMouseEnter={() => setIsFeaturesOpen(true)}
@@ -124,10 +121,8 @@ export default function Header() {
           </Link>
         </nav>
 
-        {/* 右侧操作区 */}
         <div className="flex items-center gap-2">
           {!loaded ? (
-            // 加载中：显示占位，避免布局跳动
             <div className="hidden md:flex gap-2">
               <div className="h-8 w-16 rounded-md bg-slate-800 animate-pulse" />
               <div className="h-8 w-16 rounded-md bg-slate-800 animate-pulse" />
