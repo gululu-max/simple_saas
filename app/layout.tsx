@@ -51,12 +51,6 @@ export const metadata: Metadata = {
   },
 };
 
-/*
-  关键改动：layout 不再做任何服务端数据请求
-  - 删掉了 createClient / getUser / credits 查询
-  - Header 改为客户端自己获取 user 和 credits
-  - 这样首页可以被 Next.js 静态生成，TTFB 从 1-3s 降到 ~50ms
-*/
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -65,9 +59,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
-        {/* Preload LCP 图片 */}
+        {/* Preconnect — 让浏览器提前建立连接 */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+
+        {/* Preload LCP 图片 — 只 preload after-1，before-1 降优先级 */}
         <link rel="preload" href="/hero/after-1.webp" as="image" fetchPriority="high" />
-        <link rel="preload" href="/hero/before-1.webp" as="image" />
+
         <Script id="microsoft-clarity" strategy="lazyOnload">
           {`
             (function(c,l,a,r,i,t,y){

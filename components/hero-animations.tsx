@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
 
 /* ─── 按钮文案常量 ─── */
 const DEFAULT_TEXT = "Get 1 Free Photo Now";
@@ -15,33 +14,44 @@ export function HeroButtons() {
   const [showSticky, setShowSticky] = useState(false);
   const [buttonText, setButtonText] = useState(DEFAULT_TEXT);
 
-  // 后台查用户状态，不阻塞渲染
+  // 延迟到浏览器空闲时才查用户状态，不影响 FCP/LCP
   useEffect(() => {
     let cancelled = false;
-    async function checkText() {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user || cancelled) return;
 
-        const { data: customer } = await supabase
-          .from("customers")
-          .select("free_enhance_used")
-          .eq("user_id", user.id)
-          .single();
+    function run() {
+      // 动态 import supabase client — 不在首屏 bundle 里
+      import("@/utils/supabase/client").then(async ({ createClient }) => {
+        try {
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user || cancelled) return;
 
-        if (!cancelled && customer?.free_enhance_used) {
-          setButtonText(RETURNING_TEXT);
+          const { data: customer } = await supabase
+            .from("customers")
+            .select("free_enhance_used")
+            .eq("user_id", user.id)
+            .single();
+
+          if (!cancelled && customer?.free_enhance_used) {
+            setButtonText(RETURNING_TEXT);
+          }
+        } catch {
+          // 失败保持默认文案
         }
-      } catch {
-        // 失败保持默认文案
-      }
+      });
     }
-    checkText();
-    return () => { cancelled = true; };
+
+    // requestIdleCallback — 等首屏渲染完再执行
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(run, { timeout: 3000 });
+      return () => { cancelled = true; cancelIdleCallback(id); };
+    } else {
+      const id = setTimeout(run, 1500);
+      return () => { cancelled = true; clearTimeout(id); };
+    }
   }, []);
 
-  // sticky 按钮的 IntersectionObserver
+  // sticky 按钮
   useEffect(() => {
     const el = btnRef.current;
     if (!el) return;
@@ -55,7 +65,6 @@ export function HeroButtons() {
 
   return (
     <>
-      {/* 主 CTA — 纯 HTML，SSR 阶段就可见 */}
       <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
         <Link href="/subscribe/scanner" ref={btnRef}>
           <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]">
@@ -64,17 +73,11 @@ export function HeroButtons() {
         </Link>
       </div>
 
-      {/* 信任标签 */}
       <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3 text-sm text-slate-400">
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> No sign-up required</div>
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Auto-deleted instantly</div>
       </div>
 
-      {/*
-        底部悬浮 CTA：纯 CSS transition 替代 framer-motion AnimatePresence
-        - 省掉 framer-motion 在首屏 bundle 里的 40-50KB
-        - transition 效果视觉上完全一样
-      */}
       <div
         className={`
           md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pt-4
