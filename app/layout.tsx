@@ -4,7 +4,6 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 import MetaPixel from "@/components/MetaPixel";
-import { GoogleAnalytics } from '@next/third-parties/google';
 import Script from "next/script";
 import type { Metadata } from 'next';
 import { AuthModalProvider } from "@/components/auth/auth-modal-context";
@@ -59,11 +58,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
-        {/* Preconnect — 让浏览器提前建立连接 */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-
-        {/* Preload LCP 图片 — 只 preload after-1，before-1 降优先级 */}
         <link rel="preload" href="/hero/after-1.webp" as="image" fetchPriority="high" />
 
         <Script id="microsoft-clarity" strategy="lazyOnload">
@@ -97,7 +93,20 @@ export default function RootLayout({
           </ThemeProvider>
           <AuthModal />
         </AuthModalProvider>
-        <GoogleAnalytics gaId="G-0SVH6XDETV" />
+
+        {/* GA — lazyOnload，页面空闲后才加载，省 167KB 首屏传输 */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-0SVH6XDETV"
+          strategy="lazyOnload"
+        />
+        <Script id="ga-init" strategy="lazyOnload">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-0SVH6XDETV');
+          `}
+        </Script>
       </body>
     </html>
   );
