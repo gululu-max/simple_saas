@@ -9,36 +9,57 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 selection:bg-red-500/30 pb-24 md:pb-0">
 
-      {/* 1. Hero Section — Before/After carousel */}
+      {/* 1. Hero Section */}
       <section className="relative min-h-[85vh] md:min-h-[90vh] flex flex-col justify-center overflow-hidden">
-        {/* Background carousel */}
+
+        {/* 第一帧静态背景 — 服务端 HTML 直出，不等任何 JS */}
+        <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 grid grid-cols-2">
+            <div className="relative overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/hero/before-1.webp"
+                alt=""
+                fetchPriority="low"
+                loading="eager"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover grayscale opacity-60"
+              />
+              <div className="absolute bottom-4 left-4 z-10">
+                <span className="bg-red-600/90 text-white text-xs font-bold px-2 py-1 rounded">Before</span>
+              </div>
+            </div>
+            <div className="relative overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/hero/after-1.webp"
+                alt=""
+                fetchPriority="high"
+                loading="eager"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute bottom-4 right-4 z-10">
+                <span className="bg-emerald-500/90 text-white text-xs font-bold px-2 py-1 rounded">After</span>
+              </div>
+            </div>
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-white/20 z-10" />
+          </div>
+        </div>
+
+        {/* 客户端 carousel — hydrate 后覆盖上去接管轮播 */}
         <HeroCarousel />
 
-        {/* Gradient overlays for text readability */}
         <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-slate-950/90 z-[1]" />
 
-        {/* Content overlay */}
         <div className="absolute inset-0 z-10 flex flex-col items-center text-center px-4 md:px-6">
-
-          {/*
-            新的文案层级：
-            1. 小标签 — 品牌标识（不变）
-            2. 副标题 — 产品核心功能（大字，立即说清楚是干嘛的）
-            3. 主标题 — 痛点 + 结果数字（视觉冲击力）
-            4. CTA 按钮（立即可见，不等 JS）
-          */}
           <div className="mt-[28vh] md:mt-[18vh] flex flex-col items-center gap-4">
-            {/* 品牌标签 */}
             <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 backdrop-blur-sm px-3 py-1 text-xs font-medium text-red-400">
               <ScanSearch className="w-3 h-3 mr-2" /> Matchfix AI Profile Booster
             </div>
-
-            {/* 功能说明 — 用户 1 秒内知道产品是什么 */}
             <p className="text-lg md:text-2xl text-slate-300 font-medium max-w-lg">
               AI fixes your dating photos in seconds.
             </p>
-
-            {/* 痛点主标题 — 大字冲击 */}
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter max-w-3xl leading-[1.1]">
               Your Photos Are
               <br />
@@ -46,21 +67,15 @@ export default function Home() {
                 Costing You Matches
               </span>
             </h1>
-
-            {/* 结果数字 — 社交证明 */}
             <p className="text-base md:text-lg text-slate-400 max-w-md">
               Users go from 2 matches to 30+ after one boost.
             </p>
           </div>
-
-          {/* CTA 区域 — 紧跟标题，不再推到底部 */}
           <div className="mt-8 md:mt-10 flex flex-col items-center gap-5">
             <HeroButtons />
           </div>
-
         </div>
 
-        {/* Bottom fade into next section */}
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent z-[1]" />
       </section>
 
@@ -73,7 +88,6 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Before Card */}
             <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4">
               <div className="aspect-[4/3] w-full rounded-lg overflow-hidden bg-slate-800 relative">
                 <Image
@@ -86,7 +100,6 @@ export default function Home() {
                 />
                 <div className="absolute top-3 left-3 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">Score: 31/100</div>
               </div>
-
               <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Low Match Potential</div>
               <p className="text-lg italic text-slate-400">&quot;I love food, traveling, and the gym.&quot;</p>
               <div className="pt-2 flex flex-col gap-2 text-red-400 text-sm font-medium">
@@ -96,10 +109,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* After Card */}
             <div className="p-6 rounded-xl border border-red-500/50 bg-red-950/20 space-y-4 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 blur-3xl" />
-
               <div className="aspect-[4/3] w-full rounded-lg overflow-hidden bg-slate-800 relative border border-red-500/30">
                 <Image
                   src="/after-demo.jpg"
@@ -111,7 +122,6 @@ export default function Home() {
                 />
                 <div className="absolute top-3 left-3 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg">Score: 89/100</div>
               </div>
-
               <div className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                 <Flame className="w-4 h-4" /> Optimized for Matches
               </div>
@@ -143,7 +153,6 @@ export default function Home() {
               Not filters. Not editing. The kind of change that makes you genuinely look your best.
             </p>
           </div>
-
           <FeaturesGrid />
         </div>
       </section>
@@ -165,7 +174,6 @@ export default function Home() {
       {/* 5. CTA Section */}
       <section className="pt-12 pb-12 bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700 text-white relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.2)]">
         <div className="absolute inset-0 bg-[url('/textures/cubes.png')] opacity-20 mix-blend-overlay" />
-
         <div className="container px-4 md:px-6 text-center relative z-10 pb-[env(safe-area-inset-bottom)]">
           <h2 className="text-3xl md:text-4xl font-extrabold mb-4 text-white drop-shadow-lg tracking-tight">
             Ready for dating?
@@ -177,9 +185,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 回到顶部按钮 */}
       <ScrollToTop />
-
     </div>
   );
 }
