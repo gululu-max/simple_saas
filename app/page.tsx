@@ -23,7 +23,8 @@ export default function Home() {
                 fetchPriority="low"
                 loading="eager"
                 decoding="async"
-                className="absolute inset-0 w-full h-full object-cover grayscale opacity-60"
+                className="absolute inset-0 w-full h-full object-cover grayscale opacity-80"
+                style={{ objectPosition: "center" }}
               />
               <div className="absolute bottom-4 left-4 z-10">
                 <span className="bg-red-600/90 text-white text-xs font-bold px-2 py-1 rounded">Before</span>
@@ -38,6 +39,7 @@ export default function Home() {
                 loading="eager"
                 decoding="async"
                 className="absolute inset-0 w-full h-full object-cover"
+                style={{ objectPosition: "center" }}
               />
               <div className="absolute bottom-4 right-4 z-10">
                 <span className="bg-emerald-500/90 text-white text-xs font-bold px-2 py-1 rounded">After</span>
@@ -50,7 +52,7 @@ export default function Home() {
         {/* 客户端 carousel — hydrate 后覆盖上去接管轮播 */}
         <HeroCarousel />
 
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-950/40 to-slate-950/90 z-[1]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/20 to-slate-950/90 z-[1]" />
 
         <div className="absolute inset-0 z-10 flex flex-col items-center text-center px-4 md:px-6">
           <div className="mt-[28vh] md:mt-[18vh] flex flex-col items-center gap-4">

@@ -4,9 +4,24 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 
 const slides = [
-  { before: "/hero/before-1.webp", after: "/hero/after-1.webp" },
-  { before: "/hero/before-2.webp", after: "/hero/after-2.webp" },
-  { before: "/hero/before-3.webp", after: "/hero/after-3.webp" },
+  {
+    before: "/hero/before-1.webp",
+    after: "/hero/after-1.webp",
+    beforePos: "center",
+    afterPos: "center",
+  },
+  {
+    before: "/hero/before-2.webp",
+    after: "/hero/after-2.webp",
+    beforePos: "75% center",
+    afterPos: "75% center",
+  },
+  {
+    before: "/hero/before-3.webp",
+    after: "/hero/after-3.webp",
+    beforePos: "75% center",
+    afterPos: "85% center",
+  },
 ];
 
 const INTERVAL = 4000;
@@ -29,7 +44,6 @@ export function HeroCarousel() {
 
   const goTo = useCallback((i: number) => setCurrent(i), []);
 
-  // hydrate 前不渲染任何东西 — page.tsx 的静态第一帧已经在显示
   if (!hydrated) return null;
 
   const next = (current + 1) % slides.length;
@@ -56,7 +70,8 @@ export function HeroCarousel() {
                   fetchPriority="low"
                   loading="eager"
                   decoding="async"
-                  className="absolute inset-0 w-full h-full object-cover grayscale opacity-60"
+                  className="absolute inset-0 w-full h-full object-cover grayscale opacity-80"
+                  style={{ objectPosition: slide.beforePos }}
                 />
               ) : (
                 <Image
@@ -64,7 +79,8 @@ export function HeroCarousel() {
                   alt=""
                   fill
                   sizes="50vw"
-                  className="object-cover grayscale opacity-60"
+                  className="object-cover grayscale opacity-80"
+                  style={{ objectPosition: slide.beforePos }}
                   loading="lazy"
                 />
               )}
@@ -82,6 +98,7 @@ export function HeroCarousel() {
                   loading="eager"
                   decoding="async"
                   className="absolute inset-0 w-full h-full object-cover"
+                  style={{ objectPosition: slide.afterPos }}
                 />
               ) : (
                 <Image
@@ -90,6 +107,7 @@ export function HeroCarousel() {
                   fill
                   sizes="50vw"
                   className="object-cover"
+                  style={{ objectPosition: slide.afterPos }}
                   loading="lazy"
                 />
               )}
