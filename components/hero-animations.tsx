@@ -14,12 +14,10 @@ export function HeroButtons() {
   const [showSticky, setShowSticky] = useState(false);
   const [buttonText, setButtonText] = useState(DEFAULT_TEXT);
 
-  // 延迟到浏览器空闲时才查用户状态，不影响 FCP/LCP
   useEffect(() => {
     let cancelled = false;
 
     function run() {
-      // 动态 import supabase client — 不在首屏 bundle 里
       import("@/utils/supabase/client").then(async ({ createClient }) => {
         try {
           const supabase = createClient();
@@ -41,7 +39,6 @@ export function HeroButtons() {
       });
     }
 
-    // requestIdleCallback — 等首屏渲染完再执行
     if (typeof requestIdleCallback !== "undefined") {
       const id = requestIdleCallback(run, { timeout: 3000 });
       return () => { cancelled = true; cancelIdleCallback(id); };
@@ -51,7 +48,6 @@ export function HeroButtons() {
     }
   }, []);
 
-  // sticky 按钮
   useEffect(() => {
     const el = btnRef.current;
     if (!el) return;
@@ -67,7 +63,10 @@ export function HeroButtons() {
     <>
       <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
         <Link href="/subscribe/scanner" ref={btnRef}>
-          <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]">
+          <Button
+            size="lg"
+            className="w-full sm:w-auto h-14 px-8 text-lg gap-2 rounded-full bg-red-600/80 backdrop-blur-md hover:bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.35)] border border-red-500/30 transition-all duration-300"
+          >
             🔥 {buttonText} <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
@@ -78,6 +77,7 @@ export function HeroButtons() {
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Auto-deleted instantly</div>
       </div>
 
+      {/* sticky 底部按钮 — 保持实心红，移动端需要醒目 */}
       <div
         className={`
           md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pt-4
@@ -93,7 +93,7 @@ export function HeroButtons() {
         <Link href="/subscribe/scanner">
           <Button
             size="lg"
-            className="w-full h-14 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_30px_rgba(220,38,38,0.5)] rounded-xl border-0"
+            className="w-full h-14 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_30px_rgba(220,38,38,0.5)] rounded-full border-0"
           >
             🔥 {buttonText} <ArrowRight className="w-4 h-4" />
           </Button>

@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 import { Logo } from "./logo";
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Zap, ChevronDown, Wand2 } from "lucide-react";
 import { useAuthModal } from "@/components/auth/auth-modal-context";
 
@@ -20,10 +20,32 @@ export default function Header() {
   const [credits, setCredits] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
+  // ─── Fetch credits (reusable) ─────────────────────────────
+  const fetchCredits = useCallback(async () => {
+    try {
+      const { createClient } = await import("@/utils/supabase/client");
+      const supabase = createClient();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return;
+
+      setUser(currentUser);
+      const { data } = await supabase
+        .from("customers")
+        .select("credits")
+        .eq("user_id", currentUser.id)
+        .single();
+      if (data?.credits != null) {
+        setCredits(data.credits);
+      }
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  // ─── Initial load ─────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
-    // 动态 import supabase — 不打进首屏 bundle
     import("@/utils/supabase/client").then(async ({ createClient }) => {
       try {
         const supabase = createClient();
@@ -37,7 +59,7 @@ export default function Header() {
             .select("credits")
             .eq("user_id", user.id)
             .single();
-          if (!cancelled && data?.credits) {
+          if (!cancelled && data?.credits != null) {
             setCredits(data.credits);
           }
         }
@@ -50,6 +72,17 @@ export default function Header() {
 
     return () => { cancelled = true; };
   }, []);
+
+  // ─── Listen for credits-updated events from BoostScanner ──
+  useEffect(() => {
+    const handleCreditsUpdate = () => {
+      // Small delay to let backend finish writing
+      setTimeout(() => fetchCredits(), 800);
+    };
+
+    window.addEventListener('credits-updated', handleCreditsUpdate);
+    return () => window.removeEventListener('credits-updated', handleCreditsUpdate);
+  }, [fetchCredits]);
 
   const featureLinks = [
     {

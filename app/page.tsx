@@ -1,9 +1,10 @@
 import { HeroButtons } from "@/components/hero-animations";
-import { Flame, ScanSearch, X, Check } from "lucide-react";
+import { Flame, X, Check } from "lucide-react";
 import Image from "next/image";
 import { FeaturesGrid } from "@/components/features-grid";
 import { ScrollToTop } from "@/components/scroll-to-top";
-import { HeroCarousel } from "@/components/hero-carousel";
+import { PhotoWall } from "@/components/photo-wall";
+import { SocialProofBar } from "@/components/social-proof-bar";
 
 export default function Home() {
   return (
@@ -12,53 +13,14 @@ export default function Home() {
       {/* 1. Hero Section */}
       <section className="relative min-h-[85vh] md:min-h-[90vh] flex flex-col justify-center overflow-hidden">
 
-        {/* 第一帧静态背景 — 服务端 HTML 直出，不等任何 JS */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 grid grid-cols-2">
-            <div className="relative overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/hero/before-1.webp"
-                alt=""
-                fetchPriority="low"
-                loading="eager"
-                decoding="async"
-                className="absolute inset-0 w-full h-full object-cover grayscale opacity-80"
-                style={{ objectPosition: "center" }}
-              />
-              <div className="absolute bottom-4 left-4 z-10">
-                <span className="bg-red-600/90 text-white text-xs font-bold px-2 py-1 rounded">Before</span>
-              </div>
-            </div>
-            <div className="relative overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/hero/after-1.webp"
-                alt=""
-                fetchPriority="high"
-                loading="eager"
-                decoding="async"
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{ objectPosition: "center" }}
-              />
-              <div className="absolute bottom-4 right-4 z-10">
-                <span className="bg-emerald-500/90 text-white text-xs font-bold px-2 py-1 rounded">After</span>
-              </div>
-            </div>
-            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-white/20 z-10" />
-          </div>
-        </div>
+        {/* 照片墙背景 */}
+        <PhotoWall />
 
-        {/* 客户端 carousel — hydrate 后覆盖上去接管轮播 */}
-        <HeroCarousel />
+        {/* 整体暗色遮罩 */}
+        <div className="absolute inset-0 bg-slate-950/50 z-[1]" />
 
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/20 to-slate-950/90 z-[1]" />
-
-        <div className="absolute inset-0 z-10 flex flex-col items-center text-center px-4 md:px-6">
-          <div className="mt-[28vh] md:mt-[18vh] flex flex-col items-center gap-4">
-            <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 backdrop-blur-sm px-3 py-1 text-xs font-medium text-red-400">
-              <ScanSearch className="w-3 h-3 mr-2" /> Matchfix AI Profile Booster
-            </div>
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-end text-center px-4 md:px-6 pb-[2vh] md:pb-[4vh]">
+          <div className="flex flex-col items-center gap-3">
             <p className="text-lg md:text-2xl text-slate-300 font-medium max-w-lg">
               AI fixes your dating photos in seconds.
             </p>
@@ -73,8 +35,9 @@ export default function Home() {
               Users go from 2 matches to 30+ after one boost.
             </p>
           </div>
-          <div className="mt-8 md:mt-10 flex flex-col items-center gap-5">
+          <div className="mt-6 flex flex-col items-center gap-4">
             <HeroButtons />
+            <SocialProofBar />
           </div>
         </div>
 
@@ -82,7 +45,7 @@ export default function Home() {
       </section>
 
       {/* 2. Before & After */}
-      <section className="py-20 border-y border-slate-800 bg-slate-950/50">
+      <section className="pt-10 pb-20 border-y border-slate-800 bg-slate-950/50">
         <div className="container px-4 md:px-6 max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">How It Works</h2>
@@ -139,7 +102,7 @@ export default function Home() {
       </section>
 
       {/* 3. User Cases */}
-      <section id="features" className="py-20">
+      <section id="features" className="pt-10 pb-20">
         <div className="container px-4 md:px-6">
           <div className="text-center mb-16">
             <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-400 mb-4">
@@ -181,7 +144,7 @@ export default function Home() {
             Ready for dating?
           </h2>
           <p className="text-pink-50 max-w-2xl mx-auto text-lg drop-shadow-md">
-            With the right photos, your matches go up — fast.<br />
+            With the right photos, your matches go up fast.<br />
             More people interested, more choices, and more nights that don&apos;t end early.
           </p>
         </div>
