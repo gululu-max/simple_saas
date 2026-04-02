@@ -9,7 +9,7 @@ const DEFAULT_TEXT = "Get 1 Free Photo Now";
 const RETURNING_TEXT = "Instant Glow-Up";
 
 export function HeroButtons() {
-  const btnRef = useRef<HTMLAnchorElement>(null);
+  const btnRef = useRef<HTMLDivElement>(null);
   const [showSticky, setShowSticky] = useState(false);
   const [buttonText, setButtonText] = useState(DEFAULT_TEXT);
 
@@ -60,10 +60,9 @@ export function HeroButtons() {
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+      <div ref={btnRef as React.RefObject<HTMLDivElement>} className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
         <Link
           href="/subscribe/scanner"
-          ref={btnRef}
           className="group relative inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-600 to-orange-500 px-8 h-14 text-lg font-bold text-white shadow-xl shadow-red-600/25 transition-all hover:shadow-red-500/40 hover:scale-[1.02] active:scale-[0.98]"
         >
           <Flame className="w-5 h-5 transition-transform group-hover:rotate-12" />
