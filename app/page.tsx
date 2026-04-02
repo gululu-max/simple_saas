@@ -1,10 +1,10 @@
 import { HeroButtons } from "@/components/hero-animations";
-import { Flame, X, Check } from "lucide-react";
-import Image from "next/image";
 import { FeaturesGrid } from "@/components/features-grid";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { PhotoWall } from "@/components/photo-wall";
 import { SocialProofBar } from "@/components/social-proof-bar";
+import { PhotoDiagnosis } from "@/components/photo-diagnosis";
+import { Shield, Trash2, Zap } from "lucide-react";
 
 export default function Home() {
   return (
@@ -12,18 +12,10 @@ export default function Home() {
 
       {/* 1. Hero Section */}
       <section className="relative min-h-[85vh] md:min-h-[90vh] flex flex-col justify-center overflow-hidden">
-
-        {/* 照片墙背景 */}
         <PhotoWall />
-
-        {/* 整体暗色遮罩 */}
         <div className="absolute inset-0 bg-slate-950/50 z-[1]" />
-
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-end text-center px-4 md:px-6 pb-[2vh] md:pb-[4vh]">
           <div className="flex flex-col items-center gap-3">
-            <p className="text-lg md:text-2xl text-slate-300 font-medium max-w-lg">
-              AI fixes your dating photos in seconds.
-            </p>
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter max-w-3xl leading-[1.1]">
               Your Photos Are
               <br />
@@ -31,8 +23,8 @@ export default function Home() {
                 Costing You Matches
               </span>
             </h1>
-            <p className="text-base md:text-lg text-slate-400 max-w-md">
-              Users go from 2 matches to 30+ after one boost.
+            <p className="text-lg md:text-2xl text-white font-medium max-w-lg">
+              Get 30+ matches in seconds with one AI fix.
             </p>
           </div>
           <div className="mt-6 flex flex-col items-center gap-4">
@@ -40,113 +32,56 @@ export default function Home() {
             <SocialProofBar />
           </div>
         </div>
-
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent z-[1]" />
       </section>
 
-      {/* 2. Before & After */}
-      <section className="pt-10 pb-20 border-y border-slate-800 bg-slate-950/50">
-        <div className="container px-4 md:px-6 max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">How It Works</h2>
-            <p className="text-slate-400 text-lg">Upload Your Photos → See What&#39;s Killing Your Matches → Fix It Instantly</p>
-          </div>
+      {/* 2. Pain Point Diagnosis */}
+      <PhotoDiagnosis />
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4">
-              <div className="aspect-[4/3] w-full rounded-lg overflow-hidden bg-slate-800 relative">
-                <Image
-                  src="/before-demo.jpg"
-                  alt="Bad Profile"
-                  fill
-                  loading="lazy"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-cover opacity-60 grayscale"
-                />
-                <div className="absolute top-3 left-3 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">Score: 31/100</div>
-              </div>
-              <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Low Match Potential</div>
-              <p className="text-lg italic text-slate-400">&quot;I love food, traveling, and the gym.&quot;</p>
-              <div className="pt-2 flex flex-col gap-2 text-red-400 text-sm font-medium">
-                <div className="flex items-center gap-2"><X className="w-4 h-4" /> Face not clearly visible</div>
-                <div className="flex items-center gap-2"><X className="w-4 h-4" /> Weak first impression</div>
-                <div className="flex items-center gap-2"><X className="w-4 h-4" /> Generic bio (no personality)</div>
-              </div>
-            </div>
-
-            <div className="p-6 rounded-xl border border-red-500/50 bg-red-950/20 space-y-4 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 blur-3xl" />
-              <div className="aspect-[4/3] w-full rounded-lg overflow-hidden bg-slate-800 relative border border-red-500/30">
-                <Image
-                  src="/after-demo.jpg"
-                  alt="Good Profile"
-                  fill
-                  loading="lazy"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-cover"
-                />
-                <div className="absolute top-3 left-3 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg">Score: 89/100</div>
-              </div>
-              <div className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Flame className="w-4 h-4" /> Optimized for Matches
-              </div>
-              <p className="text-lg text-slate-200">&quot;We help you stand out instantly with small but powerful changes.&quot;</p>
-              <div className="pt-2 flex flex-col gap-2 text-emerald-400 text-sm font-medium">
-                <div className="flex items-center gap-2"><Check className="w-4 h-4" /> Clear eye contact</div>
-                <div className="flex items-center gap-2"><Check className="w-4 h-4" /> Confident, approachable vibe</div>
-                <div className="flex items-center gap-2"><Check className="w-4 h-4" /> Bio that sparks curiosity</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. User Cases */}
-      <section id="features" className="pt-10 pb-20">
-        <div className="container px-4 md:px-6">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-400 mb-4">
-              Real User Stories
-            </div>
-            <h2 className="text-3xl font-bold mb-4">
-              They changed their dating luck{" "}
+      {/* 3. Before & After Results */}
+      <section id="features" className="pt-6 pb-10">
+        <div className="container px-4 md:px-6 max-w-2xl mx-auto">
+          <div className="text-center mb-6">
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
+              Small fixes.{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
-                with better photos
+                Real results.
               </span>
             </h2>
-            <p className="text-slate-400 text-lg">
-              Not filters. Not editing. The kind of change that makes you genuinely look your best.
-            </p>
           </div>
           <FeaturesGrid />
         </div>
       </section>
 
-      {/* 4. Social Proof / Stats */}
-      <section className="py-16 border-y border-slate-800 bg-slate-900/50">
-        <div className="container px-4 md:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            {stats.map((stat, index) => (
-              <div key={index} className="space-y-2">
-                <div className="text-4xl font-bold text-slate-100">{stat.value}</div>
-                <div className="text-sm text-red-500 font-semibold uppercase tracking-wider">{stat.label}</div>
-              </div>
-            ))}
+      {/* 4. Trust + Final CTA */}
+      <section className="pt-10 pb-8 border-t border-slate-800">
+        <div className="container px-4 md:px-6 max-w-2xl mx-auto">
+          <div className="grid grid-cols-3 gap-3 mb-10">
+            <div className="text-center space-y-2 p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+              <Zap className="w-5 h-5 text-emerald-400 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-100">No sign-up</h3>
+            </div>
+            <div className="text-center space-y-2 p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+              <Trash2 className="w-5 h-5 text-emerald-400 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-100">Auto-deleted</h3>
+            </div>
+            <div className="text-center space-y-2 p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+              <Shield className="w-5 h-5 text-emerald-400 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-100">First one free</h3>
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* 5. CTA Section */}
-      <section className="pt-12 pb-12 bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700 text-white relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.2)]">
-        <div className="absolute inset-0 bg-[url('/textures/cubes.png')] opacity-20 mix-blend-overlay" />
-        <div className="container px-4 md:px-6 text-center relative z-10 pb-[env(safe-area-inset-bottom)]">
-          <h2 className="text-3xl md:text-4xl font-extrabold mb-4 text-white drop-shadow-lg tracking-tight">
-            Ready for dating?
-          </h2>
-          <p className="text-pink-50 max-w-2xl mx-auto text-lg drop-shadow-md">
-            With the right photos, your matches go up fast.<br />
-            More people interested, more choices, and more nights that don&apos;t end early.
-          </p>
+          <div className="text-center space-y-4 py-10 px-6 rounded-2xl bg-gradient-to-br from-red-950/60 via-slate-900 to-orange-950/40 border border-red-500/20">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
+              Every day you wait,<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
+                you&apos;re swiped left on.
+              </span>
+            </h2>
+            <p className="text-slate-300 text-lg max-w-md mx-auto">
+              The matches you&apos;re missing right now won&apos;t come back. One upload. 30 seconds. See what&apos;s been holding you back.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -154,10 +89,3 @@ export default function Home() {
     </div>
   );
 }
-
-const stats = [
-  { value: "100%", label: "Unfiltered boosts" },
-  { value: "5+", label: "Key Fixes Per boost" },
-  { value: "0", label: "Privacy Risks" },
-  { value: "24/7", label: "Relentless boosting" },
-];

@@ -784,7 +784,7 @@ export default function BoostScanner() {
                         <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center">
                           <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
                           <p className="text-white font-semibold text-sm animate-pulse">Enhancing your photo...</p>
-                          <p className="text-white/50 text-xs">Usually done within 10 seconds</p>
+                          <p className="text-white/50 text-xs">Ready in under 30 seconds.</p>
                         </div>
                       </div>
                     )}

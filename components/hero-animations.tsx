@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Flame } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 /* ─── 按钮文案常量 ─── */
@@ -62,13 +61,14 @@ export function HeroButtons() {
   return (
     <>
       <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-        <Link href="/subscribe/scanner" ref={btnRef}>
-          <Button
-            size="lg"
-            className="w-full sm:w-auto h-14 px-8 text-lg gap-2 rounded-full bg-red-600/80 backdrop-blur-md hover:bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.35)] border border-red-500/30 transition-all duration-300"
-          >
-            🔥 {buttonText} <ArrowRight className="w-4 h-4" />
-          </Button>
+        <Link
+          href="/subscribe/scanner"
+          ref={btnRef}
+          className="group relative inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-600 to-orange-500 px-8 h-14 text-lg font-bold text-white shadow-xl shadow-red-600/25 transition-all hover:shadow-red-500/40 hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <Flame className="w-5 h-5 transition-transform group-hover:rotate-12" />
+          {buttonText}
+          <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
 
@@ -77,7 +77,7 @@ export function HeroButtons() {
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Auto-deleted instantly</div>
       </div>
 
-      {/* sticky 底部按钮 — 保持实心红，移动端需要醒目 */}
+      {/* sticky 底部按钮 */}
       <div
         className={`
           md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pt-4
@@ -90,13 +90,13 @@ export function HeroButtons() {
         `}
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
       >
-        <Link href="/subscribe/scanner">
-          <Button
-            size="lg"
-            className="w-full h-14 text-lg gap-2 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_30px_rgba(220,38,38,0.5)] rounded-full border-0"
-          >
-            🔥 {buttonText} <ArrowRight className="w-4 h-4" />
-          </Button>
+        <Link
+          href="/subscribe/scanner"
+          className="group flex items-center justify-center gap-2 w-full h-14 rounded-full bg-gradient-to-r from-red-600 to-orange-500 text-lg font-bold text-white shadow-xl shadow-red-600/25 transition-all active:scale-[0.98]"
+        >
+          <Flame className="w-5 h-5" />
+          {buttonText}
+          <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
     </>
