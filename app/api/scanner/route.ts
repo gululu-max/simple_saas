@@ -1,5 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
 // app/api/scanner/route.ts — 直接覆盖
+//
+// prompt改动：
+// - 新增 diagnostics 8维评分（lighting/composition/background/eye_contact/expression/color_grading/clothing/sharpness）
+// - 新增 match_prediction（current_rate + enhanced_rate）
+// - usage_guide 从大段文字改成 usage_tips 数组（3条简短行动指令）
+// - 其他逻辑零改动
 // ═══════════════════════════════════════════════════════════════
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -24,11 +30,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── 1. 尝试获取登录状态（不强制要求登录）──
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    // ── 2. 已登录用户：前置校验 ──
     if (user) {
       const { data: customer, error: customerError } = await supabase
         .from('customers')
@@ -75,7 +79,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // ── 3. 代理配置（仅开发环境）──
     let fetchOptions: Record<string, unknown> = {};
     if (process.env.NODE_ENV === 'development') {
       const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:10808';
@@ -150,9 +153,20 @@ Constraints (all routes):
   "route": "<needs_real_photo|already_great|can_improve>",
   "scores": { "attractiveness": X, "approachability": X, "confidence": X },
   "percentile": X,
-  "lighting": "<low|medium|high>",
-  "background": "<clean|neutral|messy>",
-  "expression": "<warm|neutral|closed>",
+  "diagnostics": {
+    "lighting": <1-10>,
+    "composition": <1-10>,
+    "background": <1-10>,
+    "eye_contact": <1-10>,
+    "expression": <1-10>,
+    "color_grading": <1-10>,
+    "clothing": <1-10>,
+    "sharpness": <1-10>
+  },
+  "match_prediction": {
+    "current_rate": "<estimated match rate as string like '3-5%'>",
+    "enhanced_rate": "<estimated match rate after enhancement like '12-18%'>"
+  },
   "main_issue": "<the single biggest problem or 'none'>",
   "positive": "<the one genuine strength>",
   "red_flags": [],
@@ -166,27 +180,33 @@ Constraints (all routes):
     "vignette": <0 to 100>,
     "suggestion": "<one-line or 'no edit needed'>"
   },
-  "usage_guide": {
-    "platform": "<the single best dating app for this photo: Hinge, Bumble, Tinder, or other. Pick based on the photo's vibe — outdoorsy/genuine → Hinge, dressed up/social → Bumble, bold/sexy → Tinder>",
-    "impression": ["<3-4 impression keywords that this photo gives off, e.g. adventurous, warm, confident, cultured, fun, mysterious, approachable, sexy, intellectual, sporty>"],
-    "action_steps": [
-      "<Step 1: specific action with the enhanced photo, e.g. 'Set this as your Hinge cover photo tonight before 8pm'>",
-      "<Step 2: what to pair it with, e.g. 'Add a bio prompt about travel — this photo screams wanderlust'>",
-      "<Step 3: timing/strategy tip, e.g. 'Swipe selectively for 3 days — the algorithm rewards patience over spam-swiping'>"
-    ],
-    "vibe": "<1-2 sentences describing the overall energy this photo projects and what type of person it will attract. Be specific and encouraging. E.g. 'This gives off a warm, adventurous energy — the kind that attracts people who want weekend hikes and spontaneous road trips, not just Netflix.'>"
-  }
+  "usage_tips": [
+    "<tip 1: save instruction, e.g. 'Save this photo now — we delete it when you leave'>",
+    "<tip 2: where to upload, e.g. 'Set as your Hinge cover photo — don't crop it'>",
+    "<tip 3: timing/strategy, e.g. 'Swap tonight between 8-10pm for maximum visibility'>"
+  ]
 }
 </analysis_json>
 
-IMPORTANT for usage_guide:
-- If route is "needs_real_photo", set usage_guide to: { "platform": "", "impression": [], "action_steps": ["Upload a real, unedited photo first to get your personalized strategy."], "vibe": "We need to see the real you before we can help." }
-- Be specific to what you actually see in the photo — don't give generic advice
-- The action_steps should feel like a personal game plan, not a template
-- Always include a timing tip (peak hours, how long to wait, etc.)
+IMPORTANT for diagnostics:
+- Score each dimension 1-10 based on what you actually see
+- Be honest — a dark indoor selfie should get low lighting, a cluttered background should get low background score
+- These scores drive the visual diagnostics panel the user sees
+
+IMPORTANT for match_prediction:
+- Estimate realistically based on the photo quality scores
+- current_rate: what this photo would get on a typical dating app
+- enhanced_rate: what a professionally enhanced version could get
+- Express as percentage ranges like "3-5%" or "12-18%"
+
+IMPORTANT for usage_tips:
+- Exactly 3 tips, each under 15 words
+- Tip 1: always about saving/downloading
+- Tip 2: which platform to upload to + don't crop
+- Tip 3: timing or strategy tip
+- If route is "needs_real_photo", set to ["Upload a real photo first", "We need the unedited version", "Then we'll build your strategy"]
 `;
 
-    // ── 4. 流式调用 Gemini ──
     const result = await streamText({
       model: googleCustom('gemini-2.5-flash') as any,
       maxRetries: 1,
