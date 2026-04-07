@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 const ROW1 = [
   "/hero/women/w01.webp",
@@ -26,6 +27,26 @@ const ROW3 = [
   "/hero/women/w15.webp",
 ];
 
+// 根据屏幕宽度计算需要重复几次才能铺满
+function useRepeatCount(cardWidth: number, gap: number, baseCount: number) {
+  const [repeat, setRepeat] = useState(3); // SSR 默认3次
+
+  useEffect(() => {
+    function calc() {
+      const screenWidth = window.innerWidth;
+      const oneSetWidth = baseCount * (cardWidth + gap);
+      // 需要至少2倍屏幕宽度才能无缝滚动
+      const needed = Math.ceil((screenWidth * 2) / oneSetWidth) + 1;
+      setRepeat(Math.max(needed, 2));
+    }
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, [cardWidth, gap, baseCount]);
+
+  return repeat;
+}
+
 function PhotoRow({
   images,
   direction,
@@ -35,7 +56,12 @@ function PhotoRow({
   direction: "left" | "right";
   speed: number;
 }) {
-  const doubled = [...images, ...images];
+  // 桌面端卡片宽170px + gap 8px
+  const repeat = useRepeatCount(170, 8, images.length);
+  const repeated: string[] = [];
+  for (let r = 0; r < repeat; r++) {
+    repeated.push(...images);
+  }
 
   return (
     <div className="relative overflow-hidden w-full">
@@ -49,7 +75,7 @@ function PhotoRow({
           animationDuration: `${speed}s`,
         }}
       >
-        {doubled.map((src, i) => (
+        {repeated.map((src, i) => (
           <div
             key={`${src}-${i}`}
             className="relative flex-shrink-0 w-[130px] h-[190px] md:w-[170px] md:h-[220px] rounded-lg overflow-hidden"
