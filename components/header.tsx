@@ -89,7 +89,7 @@ export default function Header() {
       title: "AI Photo Enhancer",
       description: "Unlock your best-looking photo with AI",
       icon: <Wand2 className="w-4 h-4 text-purple-500" />,
-      href: "/subscribe/photo-enhancer",
+      href: "/subscribe/scanner",
     },
   ];
 
@@ -213,7 +213,7 @@ export default function Header() {
           <MobileNav
             items={[
               { label: "Home", href: "/" },
-              { label: "✨ AI Photo Enhancer", href: "/subscribe/photo-enhancer" },
+              { label: "✨ AI Photo Enhancer", href: "/subscribe/scanner" },
               { label: "Pricing", href: "/subscribe#pricing" },
             ]}
             user={isLoggedIn ? user : null}

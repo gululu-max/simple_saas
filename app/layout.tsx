@@ -8,22 +8,6 @@ import Script from "next/script";
 import type { Metadata } from 'next';
 import { AuthModalProvider } from "@/components/auth/auth-modal-context";
 import { AuthModal } from "@/components/auth/auth-modal";
-import { Inter } from "next/font/google";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  weight: ["400", "500", "600", "700", "800", "900"],
-  fallback: [
-    "-apple-system",
-    "BlinkMacSystemFont",
-    "Segoe UI",
-    "Roboto",
-    "Helvetica Neue",
-    "Arial",
-    "sans-serif",
-  ],
-});
 
 const baseUrl = process.env.BASE_URL
   ? `${process.env.BASE_URL}`
@@ -56,10 +40,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.className} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* 用 CDN 加载 Inter 字体，避免 next/font/google 在国内 build 失败 */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
         <link rel="preload" href="/hero/after-1.webp" as="image" fetchPriority="high" />
 
         <Script id="microsoft-clarity" strategy="lazyOnload">
@@ -72,7 +61,7 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body className="bg-slate-950 text-slate-50" suppressHydrationWarning>
+      <body className="bg-slate-950 text-slate-50 font-[Inter,_-apple-system,_BlinkMacSystemFont,_'Segoe_UI',_Roboto,_'Helvetica_Neue',_Arial,_sans-serif]" suppressHydrationWarning>
         <MetaPixel />
         <AuthModalProvider>
           <ThemeProvider

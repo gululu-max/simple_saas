@@ -1,3 +1,7 @@
+// ═══════════════════════════════════════════════════════════════
+// app/api/scanner/route.ts — 直接覆盖
+// ═══════════════════════════════════════════════════════════════
+
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { ProxyAgent } from 'undici';
@@ -9,8 +13,7 @@ export async function POST(req: Request) {
 
     if (!imageBase64) {
       return new Response(JSON.stringify({ error: 'No image provided' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        status: 400, headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -25,7 +28,7 @@ export async function POST(req: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    // ── 2. 已登录用户：前置校验（Scanner 本身不扣费，费用在 enhance 统一扣）──
+    // ── 2. 已登录用户：前置校验 ──
     if (user) {
       const { data: customer, error: customerError } = await supabase
         .from('customers')
@@ -36,15 +39,13 @@ export async function POST(req: Request) {
       if (customerError || !customer) {
         console.error('Fetch customer error:', customerError);
         return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
+          status: 500, headers: { 'Content-Type': 'application/json' },
         });
       }
 
       const isFirstFreeUser = !customer.free_enhance_used;
 
       if (!isFirstFreeUser) {
-        // 查会员状态
         const { createClient: createAdminClient } = await import('@supabase/supabase-js');
         const adminClient = createAdminClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -73,14 +74,11 @@ export async function POST(req: Request) {
         }
       }
     }
-    // 未登录用户：跳过积分检查，免费分析
 
     // ── 3. 代理配置（仅开发环境）──
     let fetchOptions: Record<string, unknown> = {};
-
     if (process.env.NODE_ENV === 'development') {
-      const proxyUrl =
-        process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:10808';
+      const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:10808';
       console.log('🚀 Local dev mode: using proxy', proxyUrl);
       fetchOptions = { dispatcher: new ProxyAgent(proxyUrl) };
     }
@@ -167,9 +165,25 @@ Constraints (all routes):
     "sharpen": <0 to 100>,
     "vignette": <0 to 100>,
     "suggestion": "<one-line or 'no edit needed'>"
-  } // set entire fix_plan to null if route is "needs_real_photo" or "already_great"
+  },
+  "usage_guide": {
+    "platform": "<the single best dating app for this photo: Hinge, Bumble, Tinder, or other. Pick based on the photo's vibe — outdoorsy/genuine → Hinge, dressed up/social → Bumble, bold/sexy → Tinder>",
+    "impression": ["<3-4 impression keywords that this photo gives off, e.g. adventurous, warm, confident, cultured, fun, mysterious, approachable, sexy, intellectual, sporty>"],
+    "action_steps": [
+      "<Step 1: specific action with the enhanced photo, e.g. 'Set this as your Hinge cover photo tonight before 8pm'>",
+      "<Step 2: what to pair it with, e.g. 'Add a bio prompt about travel — this photo screams wanderlust'>",
+      "<Step 3: timing/strategy tip, e.g. 'Swipe selectively for 3 days — the algorithm rewards patience over spam-swiping'>"
+    ],
+    "vibe": "<1-2 sentences describing the overall energy this photo projects and what type of person it will attract. Be specific and encouraging. E.g. 'This gives off a warm, adventurous energy — the kind that attracts people who want weekend hikes and spontaneous road trips, not just Netflix.'>"
+  }
 }
 </analysis_json>
+
+IMPORTANT for usage_guide:
+- If route is "needs_real_photo", set usage_guide to: { "platform": "", "impression": [], "action_steps": ["Upload a real, unedited photo first to get your personalized strategy."], "vibe": "We need to see the real you before we can help." }
+- Be specific to what you actually see in the photo — don't give generic advice
+- The action_steps should feel like a personal game plan, not a template
+- Always include a timing tip (peak hours, how long to wait, etc.)
 `;
 
     // ── 4. 流式调用 Gemini ──
