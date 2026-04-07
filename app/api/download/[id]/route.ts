@@ -139,8 +139,9 @@ export async function GET(
 
     if (needsPayment) {
       if (customer.credits < COST_DOWNLOAD_FREE_TRIAL) {
-        // 积分不够 → 重定向回前端，让前端弹充值弹窗
-        const returnUrl = new URL('/boost', req.url);
+        // 积分不够 → 动态获取来源页面重定向，避免硬编码 404
+        const referer = req.headers.get('referer');
+        const returnUrl = referer ? new URL(referer) : new URL('/', req.url);
         returnUrl.searchParams.set('download_error', 'insufficient_credits');
         return Response.redirect(returnUrl.toString(), 302);
       }
