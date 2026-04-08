@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { useAuthModal } from "./auth-modal-context";
 import { sendCompleteRegistrationEvent } from "@/lib/meta-capi";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { usePathname } from "next/navigation";
 
@@ -40,6 +40,29 @@ export default function SignUpForm() {
   const [success, setSuccess] = useState(false);
   
   const pathname = usePathname(); // 获取当前页面路径
+
+  // --- 新增：倒计时与重发逻辑 ---
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const handleResend = async () => {
+    setCountdown(60);
+    const supabase = createClient();
+    await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirect_to=${pathname}`,
+      }
+    });
+  };
+  // -----------------------------
 
   const handleSignUp = async () => {
     if (!email.trim()) {
@@ -107,6 +130,7 @@ export default function SignUpForm() {
 
     setSuccess(true);
     setLoading(false);
+    setCountdown(60); // 👈 新增这行，触发倒计时
   };
 
   const signUpWithGoogle = async () => {
@@ -125,26 +149,45 @@ export default function SignUpForm() {
 
   if (success) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-6 px-4 text-gray-900">
-        <div className="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-7 h-7 text-green-600">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-          </svg>
+      <div className="flex flex-col items-center justify-center gap-5 py-4 px-2 text-gray-900 animate-in fade-in zoom-in duration-300">
+        <div className="relative">
+          <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center animate-pulse">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-red-600">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+          </div>
         </div>
-        <div className="text-center space-y-2">
-          <h3 className="text-lg font-bold text-gray-900">Check your email</h3>
-          <p className="max-w-[260px] text-sm text-gray-500 leading-relaxed">
-            We&apos;ve sent a verification link to{" "}
-            <span className="font-medium text-gray-700">{email}</span>.
-            Please check your inbox.
+        
+        <div className="text-center space-y-3">
+          <h3 className="text-xl font-extrabold text-gray-900">Check your inbox now</h3>
+          <p className="max-w-[280px] text-sm text-gray-600 leading-relaxed mx-auto">
+            We just sent a magic link to <span className="font-semibold text-gray-900">{email}</span>.
           </p>
+          
+          <div className="bg-amber-50 text-amber-800 text-xs font-medium px-3 py-2.5 rounded-lg inline-block border border-amber-200 shadow-sm mt-2">
+            ⚠️ Don&apos;t close this page. Click the link in your email to continue.
+          </div>
         </div>
-        <Button
-          onClick={closeAuthModal}
-          className="mt-2 bg-gray-900 hover:bg-gray-800 text-white px-8 h-10"
-        >
-          Done
-        </Button>
+
+        <div className="w-full flex flex-col gap-3 mt-4">
+          {email.includes("@gmail.com") && (
+            <Button
+              onClick={() => window.open("https://mail.google.com/mail/u/0/#inbox", "_blank")}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium h-11 shadow-sm"
+            >
+              Open Gmail
+            </Button>
+          )}
+          
+          <Button
+            type="button"
+            onClick={handleResend}
+            disabled={countdown > 0}
+            className="w-full h-11 bg-white border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100 disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200 disabled:opacity-100 shadow-sm transition-all"
+          >
+            {countdown > 0 ? `Didn't get it? Resend in ${countdown}s` : "Resend email"}
+          </Button>
+        </div>
       </div>
     );
   }
