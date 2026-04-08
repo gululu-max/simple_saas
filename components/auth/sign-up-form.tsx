@@ -8,7 +8,7 @@ import { useAuthModal } from "./auth-modal-context";
 import { sendCompleteRegistrationEvent } from "@/lib/meta-capi";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 // Supabase 原始错误 → 友好提示
 function getFriendlyError(message: string): string {
@@ -40,6 +40,7 @@ export default function SignUpForm() {
   const [success, setSuccess] = useState(false);
   
   const pathname = usePathname(); // 获取当前页面路径
+  const router = useRouter(); // 👈 新增：用于登录成功后刷新页面
 
   // --- 新增：倒计时与重发逻辑 ---
   const [countdown, setCountdown] = useState(0);
@@ -50,6 +51,23 @@ export default function SignUpForm() {
       return () => clearTimeout(timer);
     }
   }, [countdown]);
+
+  // --- 新增：监听跨标签页登录状态 ---
+  useEffect(() => {
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // 监听到用户已登录（比如在另一个标签页点了邮件里的链接）
+      if (event === 'SIGNED_IN' && session) {
+        closeAuthModal(); // 自动关闭弹窗
+        router.refresh(); // 刷新当前页面状态
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [closeAuthModal, router]);
+  // ---------------------------------
 
   const handleResend = async () => {
     setCountdown(60);
