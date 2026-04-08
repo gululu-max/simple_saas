@@ -230,6 +230,11 @@ export default function SignUpForm() {
             {countdown > 0 ? `Didn't get it? Resend in ${countdown}s` : "Resend email"}
           </Button>
         </div>
+
+        {/* --- 新增的提示文字 --- */}
+        <p className="text-[11px] text-gray-400 text-center mt-2 px-4 leading-relaxed italic">
+          Tip: Clicking the link in your email completes your registration. Once confirmed, you can close this window and sign in directly.
+        </p>
       </div>
     );
   }
