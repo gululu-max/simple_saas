@@ -7,33 +7,34 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useEffect, Suspense } from "react";
 
-// 懒加载表单组件
-import SignInForm from "./sign-in-form";
-import SignUpForm from "./sign-up-form";
-import ForgotPasswordForm from "./forgot-password-form";
+// --- 核心修复：改回 dynamic 引入，并添加 loading 占位 ---
+const SignInForm = dynamic(() => import("./sign-in-form"), { 
+  ssr: false, 
+  loading: () => <div className="flex items-center justify-center min-h-[400px] text-sm text-gray-400">Loading form...</div>
+});
+const SignUpForm = dynamic(() => import("./sign-up-form"), { 
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center min-h-[400px] text-sm text-gray-400">Loading form...</div>
+});
+const ForgotPasswordForm = dynamic(() => import("./forgot-password-form"), { 
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center min-h-[300px] text-sm text-gray-400">Loading form...</div>
+});
 
-// 终极版监听器：同时抓取 ? 参数和 # 哈希参数
 function AuthErrorListener() {
   const searchParams = useSearchParams();
   const { openAuthModal } = useAuthModal();
 
   useEffect(() => {
-    // 1. 抓取我们自己后端抛出的 Query 参数 (?auth_error=xxx)
     const authError = searchParams.get("auth_error");
-    
-    // 2. 抓取 Supabase 原生抛出的 Hash 错误 (#error=xxx)
-    // 加一个 typeof window 判断，防止 Next.js 服务端渲染报错
     const hash = typeof window !== "undefined" ? window.location.hash : "";
     const hasHashError = 
       hash.includes("error_description=Email+link+is+invalid") || 
       hash.includes("error=unauthorized_client") ||
       hash.includes("error_description=Token+has+expired");
 
-    // 只要命中任何一种失效情况，立刻弹登录框接客
     if (authError === "expired_link" || hasHashError) {
       openAuthModal("sign-in");
-      
-      // 清理 URL 上难看的错误码，保持页面整洁
       if (typeof window !== "undefined") {
         window.history.replaceState(null, "", window.location.pathname);
       }
@@ -54,7 +55,6 @@ export function AuthModal() {
 
   return (
     <>
-      {/* Suspense 包裹的监听器 */}
       <Suspense fallback={null}>
         <AuthErrorListener />
       </Suspense>
