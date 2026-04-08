@@ -8,9 +8,9 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, Suspense } from "react";
 
 // 懒加载表单组件
-const SignInForm = dynamic(() => import("./sign-in-form"), { ssr: false });
-const SignUpForm = dynamic(() => import("./sign-up-form"), { ssr: false });
-const ForgotPasswordForm = dynamic(() => import("./forgot-password-form"), { ssr: false });
+import SignInForm from "./sign-in-form";
+import SignUpForm from "./sign-up-form";
+import ForgotPasswordForm from "./forgot-password-form";
 
 // 终极版监听器：同时抓取 ? 参数和 # 哈希参数
 function AuthErrorListener() {

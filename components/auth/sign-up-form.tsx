@@ -38,6 +38,7 @@ export default function SignUpForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
   const pathname = usePathname(); // 获取当前页面路径
   const router = useRouter(); // 👈 新增：用于登录成功后刷新页面
@@ -176,6 +177,7 @@ export default function SignUpForm() {
   };
 
   const signUpWithGoogle = async () => {
+    setIsGoogleLoading(true);
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -185,7 +187,11 @@ export default function SignUpForm() {
         queryParams: { access_type: "offline", prompt: "consent" },
       },
     });
-    if (error) { console.error(error.message); return; }
+    if (error) { 
+      console.error(error.message); 
+      setIsGoogleLoading(false);
+      return; 
+    }
     if (data.url) window.location.href = data.url;
   };
 
@@ -254,10 +260,15 @@ export default function SignUpForm() {
         <Button
           type="button"
           onClick={signUpWithGoogle}
-          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-sm font-medium transition-all h-11"
+          disabled={isGoogleLoading}
+          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-sm font-medium transition-all h-11 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          <GoogleIcon />
-          Continue with Google
+          {isGoogleLoading ? (
+            <span className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-700" />
+          ) : (
+            <GoogleIcon />
+          )}
+          {isGoogleLoading ? "Connecting..." : "Continue with Google"}
         </Button>
 
         <div className="relative">

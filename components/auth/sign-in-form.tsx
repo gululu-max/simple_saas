@@ -33,12 +33,12 @@ export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
   const router = useRouter();
-  const pathname = usePathname(); // 获取当前页面路径
+  const pathname = usePathname();
 
   const handleSignIn = async () => {
-    // 手动验证，不依赖浏览器原生 required
     if (!email.trim()) {
       setError("Please enter your email address.");
       return;
@@ -69,16 +69,20 @@ export default function SignInForm() {
   };
 
   const signInWithGoogle = async () => {
+    setIsGoogleLoading(true);
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        // 将当前路径作为 redirect_to 参数传递给 callback 路由
         redirectTo: `${window.location.origin}/auth/callback?redirect_to=${pathname}`,
         queryParams: { access_type: "offline", prompt: "consent" },
       },
     });
-    if (error) { console.error(error.message); return; }
+    if (error) { 
+      console.error(error.message); 
+      setIsGoogleLoading(false);
+      return; 
+    }
     if (data.url) window.location.href = data.url;
   };
 
@@ -98,10 +102,15 @@ export default function SignInForm() {
         <Button
           type="button"
           onClick={signInWithGoogle}
-          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-sm font-medium transition-all h-11"
+          disabled={isGoogleLoading}
+          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-sm font-medium transition-all h-11 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          <GoogleIcon />
-          Continue with Google
+          {isGoogleLoading ? (
+            <span className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-700" />
+          ) : (
+            <GoogleIcon />
+          )}
+          {isGoogleLoading ? "Connecting..." : "Continue with Google"}
         </Button>
 
         {/* 分割线 */}
@@ -114,7 +123,7 @@ export default function SignInForm() {
           </div>
         </div>
 
-        {/* 表单 — 去掉 onSubmit，改用 div 包裹，按钮 onClick 触发 */}
+        {/* 表单 */}
         <div className="grid gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="modal-email" className="text-sm font-medium text-gray-700">
