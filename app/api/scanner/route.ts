@@ -1,11 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // app/api/scanner/route.ts — 直接覆盖
 //
-// prompt改动：
-// - 新增 diagnostics 8维评分（lighting/composition/background/eye_contact/expression/color_grading/clothing/sharpness）
-// - 新增 match_prediction（current_rate + enhanced_rate）
-// - usage_guide 从大段文字改成 usage_tips 数组（3条简短行动指令）
-// - 其他逻辑零改动
+// v8 change: model gemini-2.5-flash → gemini-3-flash-preview
 // ═══════════════════════════════════════════════════════════════
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -218,7 +214,8 @@ IMPORTANT for usage_tips:
 `;
 
     const result = await streamText({
-      model: googleCustom('gemini-2.5-flash') as any,
+      // [v8] model upgraded from gemini-2.5-flash to gemini-3-flash-preview
+      model: googleCustom('gemini-3-flash-preview') as any,
       maxRetries: 1,
       messages: [
         {

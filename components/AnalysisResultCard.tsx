@@ -1,20 +1,20 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════
-// components/AnalysisResultCard.tsx
+// components/AnalysisResultCard.tsx — v3
 //
-// v2 改动：
-// - visibleText 从底部折叠改为顶部默认展示（这是核心转化文案）
-// - 新增 visual_outcome 展示区（增强预览文案）
-// - scores/diagnostics 改为折叠（数据面板是辅助信息）
-// - 保留所有原有组件和逻辑
+// v3 changes vs v2:
+// 1. Scores/Match Prediction/Diagnostics moved to TOP, always visible (no <details>)
+// 2. main_issue / positive / red_flags / visual_outcome in the middle
+// 3. visibleText (full AI analysis) moved to bottom in collapsible <details>
+// 4. All original components preserved
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useMemo } from "react";
 import {
   Sun, Camera, Mountain, Eye, Smile, Palette, Shirt, Focus,
   AlertTriangle, ThumbsUp, Crosshair, Copy, Check, TrendingUp,
-  BarChart3,
+  BarChart3, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -131,14 +131,60 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
 
       <div className="p-4 space-y-4">
 
-        {/* ── Analysis Text (primary content — always visible) ── */}
-        {visibleText && (
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
-            {visibleText}
+        {/* ── 1. Score Gauges + Overall (always visible) ── */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex gap-3 sm:gap-5">
+            <CircularGauge score={scores?.attractiveness ?? 0} label="Attractive" />
+            <CircularGauge score={scores?.approachability ?? 0} label="Approachable" />
+            <CircularGauge score={scores?.confidence ?? 0} label="Confident" />
+          </div>
+          <div className="flex flex-col items-center gap-0.5 pl-3 border-l border-slate-800/40">
+            <div className="text-2xl font-bold text-white">{overallScore}</div>
+            <div className="text-[10px] text-slate-500 font-medium">/100</div>
+            {percentile != null && <div className="text-[10px] text-slate-500">Top {percentile}%</div>}
+          </div>
+        </div>
+
+        {/* ── 2. Match Rate Prediction (always visible) ── */}
+        {match_prediction && (match_prediction.current_rate || match_prediction.enhanced_rate) && (
+          <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <TrendingUp className="size-3.5 text-slate-500" />
+              <span className="text-xs font-semibold text-slate-400">Match Rate Prediction</span>
+            </div>
+            <div className="flex items-center gap-4">
+              {match_prediction.current_rate && (
+                <div className="flex-1 text-center">
+                  <div className="text-lg font-bold text-red-400">{match_prediction.current_rate}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Current photo</div>
+                </div>
+              )}
+              {match_prediction.current_rate && match_prediction.enhanced_rate && (
+                <div className="text-slate-600 text-lg">→</div>
+              )}
+              {match_prediction.enhanced_rate && (
+                <div className="flex-1 text-center">
+                  <div className="text-lg font-bold text-emerald-400">{match_prediction.enhanced_rate}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">After enhancement</div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* ── Main Issue ── */}
+        {/* ── 3. Diagnostics Panel (always visible) ── */}
+        {diagnostics && (
+          <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3 space-y-2">
+            <div className="text-xs font-semibold text-slate-400 mb-1">Photo Diagnostics</div>
+            {diagnosticConfig.map(({ key, label, icon }) => {
+              const val = (diagnostics as any)[key];
+              if (val == null) return null;
+              return <DiagnosticBar key={key} icon={icon} label={label} score={val} />;
+            })}
+          </div>
+        )}
+
+        {/* ── 4. Main Issue ── */}
         {main_issue && main_issue !== "none" && (
           <div className="rounded-lg border border-red-500/15 bg-red-500/5 p-3">
             <div className="flex items-start gap-2.5">
@@ -148,7 +194,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
           </div>
         )}
 
-        {/* ── Positive ── */}
+        {/* ── 5. Positive ── */}
         {positive && (
           <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 p-3">
             <div className="flex items-start gap-2.5">
@@ -158,7 +204,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
           </div>
         )}
 
-        {/* ── Red Flags ── */}
+        {/* ── 6. Red Flags ── */}
         {red_flags && red_flags.length > 0 && (
           <div className="rounded-lg border border-amber-500/15 bg-amber-500/5 p-3">
             <div className="flex items-start gap-2.5">
@@ -171,7 +217,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
           </div>
         )}
 
-        {/* ── Visual Outcome (what enhancement will look like) ── */}
+        {/* ── 7. Visual Outcome ── */}
         {fix_plan?.visual_outcome && fix_plan.visual_outcome !== 'no edit needed' && (
           <div className="rounded-lg border border-rose-500/15 bg-rose-500/5 p-3">
             <div className="flex items-start gap-2.5">
@@ -181,70 +227,19 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
           </div>
         )}
 
-        {/* ── Score + Diagnostics (collapsible detail panel) ── */}
-        <details className="group">
-          <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400 transition-colors flex items-center gap-1.5 py-1">
-            <BarChart3 className="size-3.5" />
-            <span>Detailed scores &amp; diagnostics</span>
-            <span className="group-open:hidden text-slate-600 ml-1">▸</span>
-            <span className="hidden group-open:inline text-slate-600 ml-1">▾</span>
-          </summary>
-
-          <div className="mt-3 space-y-4">
-            {/* Score Gauges + Overall */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex gap-3 sm:gap-5">
-                <CircularGauge score={scores?.attractiveness ?? 0} label="Attractive" />
-                <CircularGauge score={scores?.approachability ?? 0} label="Approachable" />
-                <CircularGauge score={scores?.confidence ?? 0} label="Confident" />
-              </div>
-              <div className="flex flex-col items-center gap-0.5 pl-3 border-l border-slate-800/40">
-                <div className="text-2xl font-bold text-white">{overallScore}</div>
-                <div className="text-[10px] text-slate-500 font-medium">/100</div>
-                {percentile != null && <div className="text-[10px] text-slate-500">Top {percentile}%</div>}
-              </div>
+        {/* ── 8. Full Analysis Text (collapsible at bottom) ── */}
+        {visibleText && (
+          <details className="group">
+            <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400 transition-colors flex items-center gap-1.5 py-1">
+              <ChevronRight className="size-3.5 transition-transform duration-200 group-open:rotate-90" />
+              <span>Full analysis</span>
+            </summary>
+            <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-300 rounded-lg border border-slate-800/40 bg-slate-950/40 p-3">
+              {visibleText}
             </div>
+          </details>
+        )}
 
-            {/* Match Prediction */}
-            {match_prediction && (match_prediction.current_rate || match_prediction.enhanced_rate) && (
-              <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3">
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <TrendingUp className="size-3.5 text-slate-500" />
-                  <span className="text-xs font-semibold text-slate-400">Match Rate Prediction</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  {match_prediction.current_rate && (
-                    <div className="flex-1 text-center">
-                      <div className="text-lg font-bold text-red-400">{match_prediction.current_rate}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Current photo</div>
-                    </div>
-                  )}
-                  {match_prediction.current_rate && match_prediction.enhanced_rate && (
-                    <div className="text-slate-600 text-lg">→</div>
-                  )}
-                  {match_prediction.enhanced_rate && (
-                    <div className="flex-1 text-center">
-                      <div className="text-lg font-bold text-emerald-400">{match_prediction.enhanced_rate}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">After enhancement</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Diagnostics Panel */}
-            {diagnostics && (
-              <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3 space-y-2">
-                <div className="text-xs font-semibold text-slate-400 mb-1">Photo Diagnostics</div>
-                {diagnosticConfig.map(({ key, label, icon }) => {
-                  const val = (diagnostics as any)[key];
-                  if (val == null) return null;
-                  return <DiagnosticBar key={key} icon={icon} label={label} score={val} />;
-                })}
-              </div>
-            )}
-          </div>
-        </details>
       </div>
     </div>
   );
