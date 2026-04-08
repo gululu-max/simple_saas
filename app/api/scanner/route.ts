@@ -135,7 +135,10 @@ Score block, then the standard analysis:
 1. ONE biggest issue — direct and specific
 2. 1 genuine positive (one sentence)
 3. First impression on a dating app (one sentence)
-4. End with: "Want to see what a +2 version could look like? I can show you in 10 seconds."
+4. End with a CTA that paints the outcome, not a question. Use this structure:
+   "Same you. [specific fix 1]. [specific fix 2]. More matches. See it in 10 seconds."
+   Example: "Same you. Better lighting. Cleaner background. More matches. See it in 10 seconds."
+   Tailor the two fixes to the actual main_issue and fix_plan for this photo.
 
 Constraints (all routes):
 - Natural paragraphs only — no bullets, no headers, no lists
@@ -171,14 +174,15 @@ Constraints (all routes):
   "positive": "<the one genuine strength>",
   "red_flags": [],
   "fix_plan": {
-    "crop": "<suggestion or 'none'>",
-    "brightness": <-100 to 100>,
-    "contrast": <-100 to 100>,
-    "saturation": <-100 to 100>,
-    "warmth": <-100 to 100>,
-    "sharpen": <0 to 100>,
-    "vignette": <0 to 100>,
-    "suggestion": "<one-line or 'no edit needed'>"
+    "background": "<keep|blur|replace_outdoor_park|replace_outdoor_street|replace_cafe|replace_neutral_wall>",
+    "lighting": "<no_change|brighten_face|add_rim_light|warm_golden_hour|soften_shadows|add_directional_light>",
+    "skin_retouch": "<none|minimal_smooth|moderate_smooth_and_even>",
+    "expression": "<no_change|enhance_smile|soften_smile|add_slight_smile>",
+    "framing": "<no_change|crop_chest_up|crop_waist_up|zoom_out_slightly>",
+    "color_grade": "<no_change|warm_tone|cool_tone|neutral_balance|increase_vibrance>",
+    "sharpness": "<no_change|sharpen_face|sharpen_overall>",
+    "eye_enhance": "<no_change|brighten_eyes|sharpen_eyes>",
+    "visual_outcome": "<one sentence describing the enhanced result in plain language, e.g. 'Warmer skin tone, blurred café background, sharper jawline — looks like a natural golden-hour portrait'>"
   },
   "usage_tips": [
     "<tip 1: save instruction, e.g. 'Save this photo now — we delete it when you leave'>",
@@ -198,6 +202,12 @@ IMPORTANT for match_prediction:
 - current_rate: what this photo would get on a typical dating app
 - enhanced_rate: what a professionally enhanced version could get
 - Express as percentage ranges like "3-5%" or "12-18%"
+
+IMPORTANT for fix_plan:
+- Every field must use ONLY the predefined enum values listed above
+- Choose the single best option per field based on the photo's actual issues
+- visual_outcome is a natural language sentence for the user — describe what the enhanced photo will LOOK like, not what you're doing technically
+- If the photo is already_great, set fix_plan to null
 
 IMPORTANT for usage_tips:
 - Exactly 3 tips, each under 15 words

@@ -25,37 +25,54 @@ function getWatermarkTile(): Buffer {
   return watermarkTileBuffer;
 }
 
-// ─── 分析 JSON 结构 ──────────────────────────────────────────
-interface AnalysisJSON {
-  lighting?: 'low' | 'medium' | 'high';
-  background?: 'clean' | 'neutral' | 'messy';
-  expression?: 'warm' | 'neutral' | 'closed';
-  main_issues?: string[];
-  improvement_focus?: string[];
+// ─── 从 analysisResult 中提取 fix_plan ──────────────────────
+interface FixPlan {
+  background: string;
+  lighting: string;
+  skin_retouch: string;
+  expression: string;
+  framing: string;
+  color_grade: string;
+  sharpness: string;
+  eye_enhance: string;
+  visual_outcome: string;
 }
 
-function buildEnhancementContext(analysisResult?: string): string {
-  if (!analysisResult) {
-    return 'No prior analysis available. Apply general improvements.';
-  }
+function extractFixPlan(analysisResult?: string): FixPlan | null {
+  if (!analysisResult) return null;
   try {
-    const parsed: AnalysisJSON = JSON.parse(analysisResult);
-    const lines: string[] = [];
-    if (parsed.lighting)
-      lines.push(`- Lighting quality is currently **${parsed.lighting}** → improve to make the face clearer and more flattering`);
-    if (parsed.background)
-      lines.push(`- Background is **${parsed.background}** → ${parsed.background === 'messy' ? 'clean or simplify the background' : 'keep or subtly enhance the background'}`);
-    if (parsed.expression)
-      lines.push(`- Expression reads as **${parsed.expression}** → ${parsed.expression === 'closed' ? 'enhance warmth without altering face shape' : 'preserve this expression'}`);
-    if (parsed.main_issues?.length)
-      lines.push(`- Main issues identified: ${parsed.main_issues.join(', ')}`);
-    if (parsed.improvement_focus?.length)
-      lines.push(`- Focus improvements on: ${parsed.improvement_focus.join(', ')}`);
-    return lines.length > 0 ? lines.join('\n') : 'No specific issues found. Apply subtle general improvements.';
+    const parsed = JSON.parse(analysisResult);
+    if (parsed.fix_plan && typeof parsed.fix_plan === 'object') {
+      return parsed.fix_plan as FixPlan;
+    }
+    return null;
   } catch {
-    return `Based on this prior analysis:\n"""\n${analysisResult.trim().slice(0, 800)}\n"""\nAddress the identified issues as part of your enhancement.`;
+    // analysisResult 可能不是纯 JSON，尝试从中提取 JSON 块
+    const jsonMatch = analysisResult.match(/\{[\s\S]*"fix_plan"[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return parsed.fix_plan as FixPlan;
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 }
+
+// ─── 默认 fix_plan（当解析失败时的兜底）──────────────────────
+const DEFAULT_FIX_PLAN: FixPlan = {
+  background: "keep",
+  lighting: "no_change",
+  skin_retouch: "none",
+  expression: "no_change",
+  framing: "no_change",
+  color_grade: "no_change",
+  sharpness: "no_change",
+  eye_enhance: "no_change",
+  visual_outcome: "Minimal touch-up preserving the natural look of the original photo.",
+};
 
 // ─── 调 Gemini 生图 ──────────────────────────────────────────
 async function callGeminiImageGeneration(
@@ -65,90 +82,111 @@ async function callGeminiImageGeneration(
 ) {
   const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY!;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
-  const enhancementContext = buildEnhancementContext(analysisResult);
+
+  // 从分析结果中提取 fix_plan，失败则用保守默认值
+  const fixPlan = extractFixPlan(analysisResult) ?? DEFAULT_FIX_PLAN;
 
   const body = {
     contents: [{
       role: "user",
       parts: [
         {
-          text: `You are an elite portrait retoucher for dating app photos.
-      
-      ANALYSIS CONTEXT:
-      ${enhancementContext}
-      
-      YOUR MISSION:
-      Transform this into the best possible dating profile photo while keeping the person 100% recognizable. Think "professional photographer shot this" — not "AI touched this."
-      
-      EDITING PRIORITIES (in order):
-      
-      1. COMPOSITION & CROP
-      - Crop to a flattering frame: head and upper chest centered, slight rule-of-thirds offset
-      - Remove excessive empty space above the head
-      - If the subject is too far away, crop closer
-      - Target aspect ratio: 4:5 (optimal for dating apps)
-      - If the subject is off-center in an unflattering way, re-center
-      
-      2. BACKGROUND
-      - If the background is cluttered, has other people, or is distracting: replace it with a clean, contextually appropriate blurred environment (café, park, urban street, etc.)
-      - If the background is already clean: keep it, just add natural depth-of-field blur
-      - Remove photobombers, random passersby, or any distracting elements behind the subject
-      
-      3. LIGHTING & COLOR
-      - Simulate soft, directional golden-hour or window light on the face
-      - Lift shadows on the face without flattening depth
-      - Correct white balance if the photo looks too cold or too yellow
-      - Add subtle warmth to skin tones
-      - Add a gentle catchlight reflection in the eyes if missing — this is the single biggest "alive and attractive" signal in portraits
-      
-      4. EYES & GAZE
-      - Brighten the whites of the eyes very subtly (not unnaturally white)
-      - Enhance iris clarity and natural color just enough to make eyes pop
-      - If eyes look tired or slightly red, gently correct
-      - Do NOT enlarge eyes or change eye shape
-      
-      5. SKIN & FACE
-      - KEEP all natural skin texture: pores, fine lines, freckles, moles — these are ESSENTIAL for realism
-      - Only remove temporary blemishes (active pimples, redness, under-eye darkness)
-      - Do NOT smooth skin globally — if anything, ADD micro-texture back
-      - Do NOT reshape face, jaw, nose, or any facial features
-      - Do NOT whiten teeth or enlarge eyes beyond natural appearance
-      - Even out blotchy skin tone without removing texture
-      
-      6. HAIR
-      - Tame obvious flyaways or frizz that distract from the face
-      - Add subtle shine and definition if hair looks flat or dull
-      - Do NOT change hairstyle, color, or length
-      
-      7. CLOTHING & DETAILS
-      - Subtly reduce visible wrinkles or creases in clothing
-      - Slightly boost color vibrancy of clothing if it looks washed out
-      - Remove lint, pet hair, or small stains if visible
-      - Do NOT change the clothing itself
-      
-      8. CLEANUP & REPAIR
-      - Remove obstructions partially covering the subject (stray objects, hands of others, etc.) where possible
-      - Fix lens flare, motion blur, or compression artifacts
-      - Remove visible logos, text overlays, or watermarks if present
-      - Straighten the image if the horizon or vertical lines are noticeably tilted
-      
-      9. FINAL POLISH
-      - Add a very subtle vignette to draw focus to the face
-      - Apply gentle sharpening on eyes and facial features only
-      - If the overall image feels flat, add just enough contrast to create depth
-      - The mood should feel warm, inviting, and approachable
-      
-      STRICT PROHIBITIONS:
-      - No identity changes — the person must be immediately recognizable
-      - No plastic-surgery-level edits (slimming face, enlarging lips, etc.)
-      - No HDR or over-saturated look
-      - No obvious AI artifacts (melted edges, extra fingers, asymmetric features)
-      - No adding accessories, makeup, or clothing changes
-      - No body shape modifications of any kind
-      
-      The final image should make someone think: "Wow, that's a great photo of them" — not "That doesn't look like a real person."
-      
-      Return only the enhanced image.`
+          text: `You are an elite portrait retoucher. Your work should be invisible — viewers should think "great photo," never "edited photo."
+
+SUPREME RULE — READ THIS FIRST:
+When in doubt, do less. An under-edited photo that looks real ALWAYS beats an over-edited photo that looks fake. If you are unsure whether an edit is needed, DO NOT make it.
+
+IDENTITY LOCK — HIGHEST PRIORITY:
+The following must be PIXEL-LEVEL FAITHFUL to the original:
+- Facial bone structure (jawline, cheekbones, forehead shape)
+- All facial feature shapes and proportions (eyes, nose, mouth, ears)
+- Skin color baseline and undertone
+- Body shape and proportions
+- Hair style, color, length, and texture
+Any deviation from the above is a FAILURE, regardless of how "improved" it may look.
+
+---
+
+FIX PLAN (from analysis):
+${JSON.stringify(fixPlan, null, 2)}
+
+EXECUTION RULES:
+You must ONLY execute edits specified in the fix_plan above. For every field:
+- If the value is "no_change" or "none" → DO NOT touch that aspect AT ALL
+- If a field has a specific action → execute ONLY that action, conservatively
+- Do NOT infer, assume, or add edits beyond what fix_plan specifies
+
+---
+
+FIELD-BY-FIELD INSTRUCTIONS:
+
+【FRAMING】
+- "no_change" → Do NOT crop, reframe, or adjust composition in any way. Keep exact original framing.
+- "crop_chest_up" / "crop_waist_up" → Crop to specified frame. Center subject with slight rule-of-thirds offset. Target 4:5 aspect ratio.
+- "zoom_out_slightly" → Add contextual space around subject if image feels too tight.
+- If fix_plan says no_change but you think cropping would help: DO NOT CROP. Trust the plan.
+
+【BACKGROUND】
+- "keep" → Do NOT alter the background in any way. No blur, no color shift, no cleanup. Leave it exactly as-is.
+- "blur" → Apply subtle, natural depth-of-field blur to existing background. The original environment must remain clearly recognizable. Do NOT replace any elements.
+- "replace_outdoor_park" / "replace_outdoor_street" / "replace_cafe" / "replace_neutral_wall" → Replace background with the specified environment. Must look photorealistic — shot on a real camera, not rendered. No fake bokeh balls, no film grain, no dreamy glow.
+- NEVER replace background unless fix_plan explicitly says "replace_*".
+
+【LIGHTING】
+- "no_change" → Do NOT adjust lighting, shadows, highlights, or add any light sources.
+- "brighten_face" → Gently lift shadows on the face only. Do NOT flatten the natural light/shadow interplay. Do NOT add warmth.
+- "add_rim_light" → Add a subtle edge light to separate subject from background. Must look like a natural light source, not a studio effect.
+- "warm_golden_hour" → Apply gentle warm directional light. Use RESTRAINT — the result should feel like late afternoon sun, not an orange filter.
+- "soften_shadows" → Reduce harsh shadow contrast on face. Preserve dimensionality.
+- "add_directional_light" → Add soft light from one side to create gentle depth. Must match the existing light direction in the scene.
+
+【SKIN RETOUCH】
+- "none" → Do NOT touch skin at all. No smoothing, no evening, no blemish removal. Leave every pore, line, and mark.
+- "minimal_smooth" → Remove ONLY active temporary blemishes (fresh pimples, temporary redness). Keep ALL: pores, fine lines, freckles, moles, scars, natural skin texture. If you cannot see obvious temporary blemishes, do nothing.
+- "moderate_smooth_and_even" → Remove temporary blemishes AND gently even out blotchy skin tone. Still preserve all permanent skin features and visible texture. The skin must still look like real skin under natural light, not airbrushed.
+
+【EXPRESSION】
+- "no_change" → Do NOT alter the expression, mouth, eyes, or any facial muscles in any way.
+- "enhance_smile" / "soften_smile" / "add_slight_smile" → Make the MINIMUM adjustment needed. This is the highest-risk edit for breaking identity lock. If the result looks even slightly unnatural, revert to original expression.
+
+【COLOR GRADE】
+- "no_change" → Preserve the EXACT original color temperature, white balance, and color palette. Do NOT add warmth, coolness, or vibrance.
+- "warm_tone" → Add VERY subtle warmth. The shift should be barely noticeable in an A/B comparison. If someone would describe the result as "yellow" or "orange," you've gone too far.
+- "cool_tone" → Add very subtle cool shift. Same restraint applies.
+- "neutral_balance" → Correct obvious color cast to neutral. Do not over-correct.
+- "increase_vibrance" → Gently boost color saturation. Skin tones must remain natural.
+
+【SHARPNESS】
+- "no_change" → Do not sharpen.
+- "sharpen_face" → Apply gentle sharpening to eyes and facial features only. Must not create halos or crunchy texture.
+- "sharpen_overall" → Gentle global sharpening. Must look natural.
+
+【EYE ENHANCE】
+- "no_change" → Do NOT touch the eyes in any way.
+- "brighten_eyes" → Very subtly brighten the whites. If the result looks "glowing" or "anime," you've gone too far. The eyes must still look like they belong in the lighting conditions of the scene.
+- "sharpen_eyes" → Add subtle clarity to iris detail only.
+
+---
+
+ABSOLUTE PROHIBITIONS — VIOLATION OF ANY = FAILURE:
+1. Do NOT add ANY element not present in the original photo: no lens flare, no light leaks, no bokeh orbs, no particles, no film grain, no vignette, no glow effects, no catchlights unless eyes are completely dead-black
+2. Do NOT modify the number or shape of fingers, teeth, or any body parts
+3. Do NOT create symmetry artifacts (perfectly mirrored features that look uncanny)
+4. Do NOT produce edge bleeding, texture discontinuity, or melted/warped regions
+5. Do NOT apply any global filter or color LUT — edits must be targeted per fix_plan
+6. Do NOT add makeup, accessories, clothing changes, or tattoos
+7. Do NOT modify body shape, weight, or proportions in any way
+8. Do NOT make skin look plastic, waxy, or artificially smooth
+9. Do NOT produce output at a different resolution than the input (unless framing change is specified)
+10. Do NOT add any text, watermark, or overlay to the image
+
+OUTPUT QUALITY CHECK (apply before returning):
+- Would the subject's close friends immediately recognize this as them? If no → too much editing.
+- Does the photo look like it could have been taken by a skilled friend with a good phone? If no → too much editing.
+- Can you spot any element that wasn't in the original? If yes → remove it.
+- Does any area look "digitally painted" rather than "photographed"? If yes → pull back.
+
+Return only the enhanced image.`
         },
         { inlineData: { data: imageBase64, mimeType } }
       ]

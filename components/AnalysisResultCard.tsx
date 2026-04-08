@@ -1,18 +1,20 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════
-// components/AnalysisResultCard.tsx — 直接覆盖
+// components/AnalysisResultCard.tsx
 //
-// 改动：
-// - 新增 diagnostics 8维进度条面板
-// - 新增 match prediction 区域
-// - 保留原有的3个圆形仪表盘 + 属性pills + main_issue + positive + red_flags
+// v2 改动：
+// - visibleText 从底部折叠改为顶部默认展示（这是核心转化文案）
+// - 新增 visual_outcome 展示区（增强预览文案）
+// - scores/diagnostics 改为折叠（数据面板是辅助信息）
+// - 保留所有原有组件和逻辑
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useMemo } from "react";
 import {
   Sun, Camera, Mountain, Eye, Smile, Palette, Shirt, Focus,
   AlertTriangle, ThumbsUp, Crosshair, Copy, Check, TrendingUp,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -27,6 +29,9 @@ interface AnalysisData {
   main_issue?: string;
   positive?: string;
   red_flags?: string[];
+  fix_plan?: {
+    visual_outcome?: string;
+  } | null;
 }
 
 interface AnalysisResultCardProps {
@@ -92,7 +97,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
     try { return JSON.parse(analysisJSON); } catch { return null; }
   }, [analysisJSON]);
 
-  // Fallback: no JSON → plain text
+  // Fallback: no JSON → plain text only
   if (!data || !data.scores) {
     return (
       <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
@@ -109,7 +114,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
     );
   }
 
-  const { scores, percentile, diagnostics, match_prediction, main_issue, positive, red_flags } = data;
+  const { scores, percentile, diagnostics, match_prediction, main_issue, positive, red_flags, fix_plan } = data;
   const overallScore = scores ? Math.round(((scores.attractiveness ?? 0) + (scores.approachability ?? 0) + (scores.confidence ?? 0)) / 3 * 10) : 0;
 
   return (
@@ -125,56 +130,11 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
       </div>
 
       <div className="p-4 space-y-4">
-        {/* ── Score Gauges + Overall ── */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex gap-3 sm:gap-5">
-            <CircularGauge score={scores?.attractiveness ?? 0} label="Attractive" />
-            <CircularGauge score={scores?.approachability ?? 0} label="Approachable" />
-            <CircularGauge score={scores?.confidence ?? 0} label="Confident" />
-          </div>
-          <div className="flex flex-col items-center gap-0.5 pl-3 border-l border-slate-800/40">
-            <div className="text-2xl font-bold text-white">{overallScore}</div>
-            <div className="text-[10px] text-slate-500 font-medium">/100</div>
-            {percentile != null && <div className="text-[10px] text-slate-500">Top {percentile}%</div>}
-          </div>
-        </div>
 
-        {/* ── Match Prediction ── */}
-        {match_prediction && (match_prediction.current_rate || match_prediction.enhanced_rate) && (
-          <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3">
-            <div className="flex items-center gap-1.5 mb-2.5">
-              <TrendingUp className="size-3.5 text-slate-500" />
-              <span className="text-xs font-semibold text-slate-400">Match Rate Prediction</span>
-            </div>
-            <div className="flex items-center gap-4">
-              {match_prediction.current_rate && (
-                <div className="flex-1 text-center">
-                  <div className="text-lg font-bold text-red-400">{match_prediction.current_rate}</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Current photo</div>
-                </div>
-              )}
-              {match_prediction.current_rate && match_prediction.enhanced_rate && (
-                <div className="text-slate-600 text-lg">→</div>
-              )}
-              {match_prediction.enhanced_rate && (
-                <div className="flex-1 text-center">
-                  <div className="text-lg font-bold text-emerald-400">{match_prediction.enhanced_rate}</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">After enhancement</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Diagnostics Panel ── */}
-        {diagnostics && (
-          <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3 space-y-2">
-            <div className="text-xs font-semibold text-slate-400 mb-1">Photo Diagnostics</div>
-            {diagnosticConfig.map(({ key, label, icon }) => {
-              const val = (diagnostics as any)[key];
-              if (val == null) return null;
-              return <DiagnosticBar key={key} icon={icon} label={label} score={val} />;
-            })}
+        {/* ── Analysis Text (primary content — always visible) ── */}
+        {visibleText && (
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+            {visibleText}
           </div>
         )}
 
@@ -184,6 +144,16 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
             <div className="flex items-start gap-2.5">
               <div className="grid size-7 place-items-center rounded-lg bg-red-500/10 flex-shrink-0 mt-0.5"><Crosshair className="size-3.5 text-red-400" /></div>
               <div><div className="text-xs font-semibold text-red-400 mb-0.5">#1 Issue Killing Your Matches</div><div className="text-sm text-slate-300 leading-relaxed">{main_issue}</div></div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Positive ── */}
+        {positive && (
+          <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 p-3">
+            <div className="flex items-start gap-2.5">
+              <div className="grid size-7 place-items-center rounded-lg bg-emerald-500/10 flex-shrink-0 mt-0.5"><ThumbsUp className="size-3.5 text-emerald-400" /></div>
+              <div><div className="text-xs font-semibold text-emerald-400 mb-0.5">What&apos;s Working</div><div className="text-sm text-slate-300 leading-relaxed">{positive}</div></div>
             </div>
           </div>
         )}
@@ -201,25 +171,80 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
           </div>
         )}
 
-        {/* ── Positive ── */}
-        {positive && (
-          <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 p-3">
+        {/* ── Visual Outcome (what enhancement will look like) ── */}
+        {fix_plan?.visual_outcome && fix_plan.visual_outcome !== 'no edit needed' && (
+          <div className="rounded-lg border border-rose-500/15 bg-rose-500/5 p-3">
             <div className="flex items-start gap-2.5">
-              <div className="grid size-7 place-items-center rounded-lg bg-emerald-500/10 flex-shrink-0 mt-0.5"><ThumbsUp className="size-3.5 text-emerald-400" /></div>
-              <div><div className="text-xs font-semibold text-emerald-400 mb-0.5">What&apos;s Working</div><div className="text-sm text-slate-300 leading-relaxed">{positive}</div></div>
+              <div className="grid size-7 place-items-center rounded-lg bg-rose-500/10 flex-shrink-0 mt-0.5 text-sm">✨</div>
+              <div><div className="text-xs font-semibold text-rose-400 mb-0.5">What Enhancement Will Do</div><div className="text-sm text-slate-300 leading-relaxed">{fix_plan.visual_outcome}</div></div>
             </div>
           </div>
         )}
 
-        {/* ── Full text (collapsed) ── */}
-        {visibleText && (
-          <details className="group">
-            <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400 transition-colors flex items-center gap-1">
-              <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span> Full analysis text
-            </summary>
-            <div className="mt-2 whitespace-pre-wrap rounded-lg border border-slate-800/40 bg-slate-950/40 p-4 text-sm leading-relaxed text-slate-400">{visibleText}</div>
-          </details>
-        )}
+        {/* ── Score + Diagnostics (collapsible detail panel) ── */}
+        <details className="group">
+          <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400 transition-colors flex items-center gap-1.5 py-1">
+            <BarChart3 className="size-3.5" />
+            <span>Detailed scores &amp; diagnostics</span>
+            <span className="group-open:hidden text-slate-600 ml-1">▸</span>
+            <span className="hidden group-open:inline text-slate-600 ml-1">▾</span>
+          </summary>
+
+          <div className="mt-3 space-y-4">
+            {/* Score Gauges + Overall */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex gap-3 sm:gap-5">
+                <CircularGauge score={scores?.attractiveness ?? 0} label="Attractive" />
+                <CircularGauge score={scores?.approachability ?? 0} label="Approachable" />
+                <CircularGauge score={scores?.confidence ?? 0} label="Confident" />
+              </div>
+              <div className="flex flex-col items-center gap-0.5 pl-3 border-l border-slate-800/40">
+                <div className="text-2xl font-bold text-white">{overallScore}</div>
+                <div className="text-[10px] text-slate-500 font-medium">/100</div>
+                {percentile != null && <div className="text-[10px] text-slate-500">Top {percentile}%</div>}
+              </div>
+            </div>
+
+            {/* Match Prediction */}
+            {match_prediction && (match_prediction.current_rate || match_prediction.enhanced_rate) && (
+              <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3">
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <TrendingUp className="size-3.5 text-slate-500" />
+                  <span className="text-xs font-semibold text-slate-400">Match Rate Prediction</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  {match_prediction.current_rate && (
+                    <div className="flex-1 text-center">
+                      <div className="text-lg font-bold text-red-400">{match_prediction.current_rate}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Current photo</div>
+                    </div>
+                  )}
+                  {match_prediction.current_rate && match_prediction.enhanced_rate && (
+                    <div className="text-slate-600 text-lg">→</div>
+                  )}
+                  {match_prediction.enhanced_rate && (
+                    <div className="flex-1 text-center">
+                      <div className="text-lg font-bold text-emerald-400">{match_prediction.enhanced_rate}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">After enhancement</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Diagnostics Panel */}
+            {diagnostics && (
+              <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3 space-y-2">
+                <div className="text-xs font-semibold text-slate-400 mb-1">Photo Diagnostics</div>
+                {diagnosticConfig.map(({ key, label, icon }) => {
+                  const val = (diagnostics as any)[key];
+                  if (val == null) return null;
+                  return <DiagnosticBar key={key} icon={icon} label={label} score={val} />;
+                })}
+              </div>
+            )}
+          </div>
+        </details>
       </div>
     </div>
   );

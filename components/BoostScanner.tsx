@@ -16,15 +16,14 @@ import AnalysisResultCard from '@/components/AnalysisResultCard';
 import UsageGuideCard from '@/components/UsageGuideCard';
 
 // ═══════════════════════════════════════════════════════════════
-// components/BoostScanner.tsx — 直接覆盖
+// components/BoostScanner.tsx — v7
 //
-// v6 改动（相比v5）：
-// - 结果完成后图片区域收缩（compact mode），hero折叠
-// - 点击图片弹出lightbox全屏查看（支持双指缩放）
-// - usage_tips 显示条件修复：必须 enhancementId 存在且非guest
-// - usage_tips 从 usage_guide 改为读取 usage_tips 数组
-// - 上传区文案微调
-// - 所有原版逻辑完整保留（付费/session/modal/三重拦截等）
+// v7 changes vs v6:
+// 1. credits button fix: catch → credits_shop instead of silent close
+// 2. Try Another Photo: removed isLoggedIn gate, all users see it
+// 3. Lightbox: dual-image mode with swipe/arrows for original↔enhanced
+// 4. Privacy modal: Try Another always triggers privacy confirmation
+// 5. All original logic preserved
 // ═══════════════════════════════════════════════════════════════
 
 async function compressImage(file: File, options?: { maxSize?: number; quality?: number }): Promise<string> {
@@ -77,14 +76,15 @@ export default function BoostScanner() {
   const touchEndX = useRef<number | null>(null);
   const [isUploadHovered, setIsUploadHovered] = useState(false);
 
-  // Lightbox state
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  // Lightbox state (v7: dual-image with swipe)
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const lightboxTouchStartX = useRef<number | null>(null);
+  const lightboxTouchEndX = useRef<number | null>(null);
 
   const hasActiveResult = !!(preview && (visibleText || watermarkedImage || isGuestEnhanced));
   const showEnhanced = !!(watermarkedImage || isGuestEnhanced);
-  // Compact mode: shrink images once we have analysis results
   const isCompact = !!(visibleText && preview);
-  // Enhancement truly complete (not just guest blur)
   const isEnhancementComplete = !!(enhancementId && !isGuestEnhanced);
 
   const pendingNavigationRef = useRef<string | null>(null);
@@ -92,6 +92,16 @@ export default function BoostScanner() {
   const router = useRouter();
   const pathname = usePathname();
   const { openAuthModal } = useAuthModal();
+
+  const enhancedSrc = watermarkedImage ? `data:${enhancedMimeType};base64,${watermarkedImage}` : null;
+
+  // Lightbox images array
+  const lightboxImages = React.useMemo(() => {
+    const imgs: { src: string; label: string }[] = [];
+    if (preview) imgs.push({ src: preview, label: 'Original' });
+    if (enhancedSrc && !isGuestEnhanced) imgs.push({ src: enhancedSrc, label: 'AI Enhanced' });
+    return imgs;
+  }, [preview, enhancedSrc, isGuestEnhanced]);
 
   // ── Session Restore ────────────────────────────────────────
   useEffect(() => {
@@ -150,7 +160,6 @@ export default function BoostScanner() {
   useEffect(() => { if (!hasActiveResult) return; window.history.pushState({ matchfixGuard: true }, ''); const h = () => { if (!skipExitWarningRef.current) { window.history.pushState({ matchfixGuard: true }, ''); pendingNavigationRef.current = '__back__'; setActiveModal('privacy_exit'); } }; window.addEventListener('popstate', h); return () => window.removeEventListener('popstate', h); }, [hasActiveResult]);
   useEffect(() => { if (!hasActiveResult) return; const h = (e: MouseEvent) => { if (skipExitWarningRef.current) return; const a = (e.target as HTMLElement).closest('a'); if (!a) return; const href = a.getAttribute('href'); if (!href) return; if (!(a.origin === window.location.origin || href.startsWith('/') || href.startsWith('#'))) return; if (href === pathname || href === '#') return; e.preventDefault(); e.stopPropagation(); pendingNavigationRef.current = href; setActiveModal('privacy_exit'); }; document.addEventListener('click', h, true); return () => document.removeEventListener('click', h, true); }, [hasActiveResult, pathname]);
 
-  // ── Collapse hero when results appear ──────────────────────
   useEffect(() => {
     if (isCompact) {
       const hero = document.getElementById('scanner-hero');
@@ -160,12 +169,11 @@ export default function BoostScanner() {
 
   // ── Reset ──────────────────────────────────────────────────
   const handleReset = useCallback(() => {
-    setPreview(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setVisibleText(''); setAnalysisJSON(null); setSelectedPanel('original'); setLightboxSrc(null);
+    setPreview(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setVisibleText(''); setAnalysisJSON(null); setSelectedPanel('original'); setLightboxOpen(false); setLightboxIndex(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
     ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree'].forEach(k => sessionStorage.removeItem(k));
     ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => localStorage.removeItem(k));
     trackEvent('boost_image_reset');
-    // Restore hero
     const hero = document.getElementById('scanner-hero');
     if (hero) hero.style.display = '';
   }, []);
@@ -214,7 +222,6 @@ export default function BoostScanner() {
     const compressed = await compressImage(file, { maxSize: 1024, quality: 0.75 });
     setPreview(compressed); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setSelectedPanel('original');
     sessionStorage.setItem('mf_preview', compressed); sessionStorage.removeItem('mf_visibleText'); sessionStorage.removeItem('mf_analysisJSON');
-    // Restore hero when changing photo
     const hero = document.getElementById('scanner-hero');
     if (hero) hero.style.display = '';
   };
@@ -231,6 +238,7 @@ export default function BoostScanner() {
   const handleDownload = () => { if (!enhancementId) return; trackEvent('enhance_download_click', { isDownloadFree, isFreeGeneration }); if (isFreeGeneration && !isDownloadFree) handleDownloadWithPrecheck(); else { window.location.href = `/api/download/${enhancementId}`; dispatchCreditsUpdate(); } };
   const handleDownloadWithPrecheck = async () => { if (!enhancementId) return; setIsDownloading(true); try { const cr = await fetch('/api/credits'); if (cr.ok) { const cd = await cr.json(); const s = createClient(); const { data: { user } } = await s.auth.getUser(); if (user && (cd.isSubscribed || cd.credits >= 5)) { window.location.href = `/api/download/${enhancementId}`; trackEvent('enhance_download_precheck_ok'); dispatchCreditsUpdate(); router.refresh(); return; } } setActiveModal('download_choice'); } catch { setActiveModal('download_choice'); } finally { setIsDownloading(false); } };
   const handleDownloadWatermarked = () => { if (!watermarkedImage) return; if (enhancementId) window.location.href = `/api/download/${enhancementId}?watermarked=1`; else { const l = document.createElement('a'); l.href = `data:${enhancedMimeType};base64,${watermarkedImage}`; l.download = 'matchfix-enhanced-watermark.png'; l.click(); } setActiveModal(null); trackEvent('enhance_download_watermark_free'); };
+  // [FIX v7] catch → credits_shop instead of silent close + handle !res.ok
   const handleDownloadWithCredits = async () => {
     if (!enhancementId) return;
     setIsDownloading(true);
@@ -243,6 +251,10 @@ export default function BoostScanner() {
           setIsDownloading(false);
           return;
         }
+      } else {
+        setActiveModal('credits_shop');
+        setIsDownloading(false);
+        return;
       }
       setActiveModal(null);
       window.location.href = `/api/download/${enhancementId}`;
@@ -250,12 +262,12 @@ export default function BoostScanner() {
       dispatchCreditsUpdate();
       router.refresh();
     } catch {
-      alert('Network error during download.');
-      setActiveModal(null);
+      setActiveModal('credits_shop');
     } finally {
       setIsDownloading(false);
     }
   };
+
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => { touchEndX.current = e.touches[0].clientX; };
   const handleTouchEnd = () => { if (touchStartX.current === null || touchEndX.current === null) return; const diff = touchStartX.current - touchEndX.current; if (Math.abs(diff) > 40) { if (diff > 0 && sliderIndex < 1) { setSliderIndex(1); setSelectedPanel('enhanced'); } if (diff < 0 && sliderIndex > 0) { setSliderIndex(0); setSelectedPanel('original'); } } touchStartX.current = null; touchEndX.current = null; };
@@ -264,15 +276,28 @@ export default function BoostScanner() {
 
   const isOriginalSelected = selectedPanel === 'original';
   const downloadButtonText = isDownloadFree ? 'Download Enhanced Photo' : isFreeGeneration ? 'Download Photo' : 'Download Enhanced Photo';
-
-  // Image height class: compact when results exist
   const imgHeightClass = isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'min-h-[300px] md:min-h-[360px]';
 
-  // Lightbox helpers
-  const openLightbox = (src: string) => { if (!isGuestEnhanced) setLightboxSrc(src); };
-  const enhancedSrc = watermarkedImage ? `data:${enhancedMimeType};base64,${watermarkedImage}` : null;
+  // ── Lightbox (v7: dual-image) ──────────────────────────────
+  const openLightbox = (src: string) => {
+    if (isGuestEnhanced) return;
+    const idx = lightboxImages.findIndex(img => img.src === src);
+    setLightboxIndex(idx >= 0 ? idx : 0);
+    setLightboxOpen(true);
+  };
+  const closeLightbox = () => { setLightboxOpen(false); };
+  const lightboxPrev = () => { if (lightboxIndex > 0) setLightboxIndex(lightboxIndex - 1); };
+  const lightboxNext = () => { if (lightboxIndex < lightboxImages.length - 1) setLightboxIndex(lightboxIndex + 1); };
+  const handleLightboxTouchStart = (e: React.TouchEvent) => { lightboxTouchStartX.current = e.touches[0].clientX; };
+  const handleLightboxTouchMove = (e: React.TouchEvent) => { lightboxTouchEndX.current = e.touches[0].clientX; };
+  const handleLightboxTouchEnd = () => {
+    if (lightboxTouchStartX.current === null || lightboxTouchEndX.current === null) return;
+    const diff = lightboxTouchStartX.current - lightboxTouchEndX.current;
+    if (Math.abs(diff) > 40) { if (diff > 0) lightboxNext(); else lightboxPrev(); }
+    lightboxTouchStartX.current = null; lightboxTouchEndX.current = null;
+  };
 
-  // Shared overlay components
+  // Overlays
   const ScanningOverlay = () => (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[1px]">
       <div className="absolute inset-0 overflow-hidden pointer-events-none"><div className="absolute left-0 right-0 h-0.5 bg-rose-500" style={{ boxShadow: '0 0 20px 6px rgba(244,63,94,0.6)', animation: 'scanLine 2s linear infinite' }} /></div>
@@ -297,26 +322,18 @@ export default function BoostScanner() {
     </div>
   );
 
-  // ════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════
   return (
     <div className="w-full text-foreground relative">
       <div className="mx-auto flex w-full flex-col gap-4">
 
-        {/* ═══ DESKTOP: Initial upload (no photo yet) ═══ */}
+        {/* ═══ DESKTOP: Initial upload ═══ */}
         {!preview && (
           <div className="hidden md:grid md:grid-cols-2 gap-5 items-stretch">
             <div role="button" tabIndex={0} onClick={() => fileInputRef.current?.click()} onMouseEnter={() => setIsUploadHovered(true)} onMouseLeave={() => setIsUploadHovered(false)}
               className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] hover:border-rose-500/80 hover:bg-rose-500/[0.08] cursor-pointer transition-all duration-500 overflow-hidden min-h-[420px] flex flex-col items-center justify-center gap-6 px-8">
               <div className="absolute inset-0 rounded-2xl" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
-              <div className={`relative grid size-24 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-2xl shadow-rose-500/20 transition-all duration-500 ${isUploadHovered ? 'shadow-rose-500/40 scale-105 bg-rose-500/20' : ''}`}>
-                <Upload className={`size-10 transition-colors duration-300 ${isUploadHovered ? 'text-rose-300' : 'text-rose-400'}`} />
-              </div>
-              <div className="relative text-center space-y-2">
-                <div className="text-xl font-bold text-white">Drop your main profile photo</div>
-                <div className="text-base text-slate-400 group-hover:text-slate-300 transition-colors">or click to browse</div>
-              </div>
+              <div className={`relative grid size-24 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-2xl shadow-rose-500/20 transition-all duration-500 ${isUploadHovered ? 'shadow-rose-500/40 scale-105 bg-rose-500/20' : ''}`}><Upload className={`size-10 transition-colors duration-300 ${isUploadHovered ? 'text-rose-300' : 'text-rose-400'}`} /></div>
+              <div className="relative text-center space-y-2"><div className="text-xl font-bold text-white">Drop your main profile photo</div><div className="text-base text-slate-400 group-hover:text-slate-300 transition-colors">or click to browse</div></div>
               <div className="relative text-xs text-slate-500 mt-1">We enhance lighting, framing & color — your face stays 100% real</div>
               <div className="relative text-sm text-slate-600">JPG / PNG · Max 10 MB</div>
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
@@ -331,7 +348,6 @@ export default function BoostScanner() {
         {/* ═══ DESKTOP: After upload ═══ */}
         {preview && (
           <div className="hidden md:grid md:grid-cols-2 gap-5">
-            {/* LEFT */}
             <div onClick={showEnhanced ? selectOriginal : undefined}
               className={`rounded-2xl border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? 'cursor-pointer' : ''} ${showEnhanced ? isOriginalSelected ? 'border-rose-500/60 shadow-lg shadow-rose-500/10' : 'border-slate-800/40 opacity-60 hover:opacity-90' : 'border-slate-800/40'} bg-gradient-to-b from-slate-900/80 to-slate-950/90`}>
               {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${isOriginalSelected ? 'text-rose-400 bg-rose-500/10' : 'text-slate-600'}`}>ORIGINAL</div>}
@@ -353,7 +369,6 @@ export default function BoostScanner() {
                 )}
               </div>
             </div>
-            {/* RIGHT */}
             <div onClick={showEnhanced ? selectEnhanced : undefined}
               className={`rounded-2xl border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? !isOriginalSelected ? 'border-emerald-500/60 shadow-lg shadow-emerald-500/10 cursor-pointer' : 'border-slate-800/40 opacity-60 hover:opacity-90 cursor-pointer' : 'border-slate-800/20'} bg-gradient-to-b from-slate-900/80 to-slate-950/90`}>
               {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${!isOriginalSelected ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-600'}`}>AI ENHANCED</div>}
@@ -444,10 +459,10 @@ export default function BoostScanner() {
                 {isDownloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />} {downloadButtonText}
               </button>
             )}
-            {preview && visibleText && !isLoading && isLoggedIn && (
-              <Button type="button" variant="outline" className="w-full h-12 text-slate-400 gap-2 border-slate-700 hover:bg-slate-800/50 rounded-xl text-sm" onClick={handleTryAnother} disabled={isEnhancing}><RefreshCw className="w-4 h-4" /> Try Another Photo</Button>
+            {/* [FIX v7] removed isLoggedIn gate — all users can try another */}
+            {preview && visibleText && !isLoading && !isEnhancing && (
+              <Button type="button" variant="outline" className="w-full h-12 text-slate-400 gap-2 border-slate-700 hover:bg-slate-800/50 rounded-xl text-sm" onClick={handleTryAnother}><RefreshCw className="w-4 h-4" /> Try Another Photo</Button>
             )}
-            {/* Usage tips — ONLY after enhancement truly completes */}
             {isEnhancementComplete && (
               <UsageGuideCard analysisJSON={analysisJSON} />
             )}
@@ -457,7 +472,7 @@ export default function BoostScanner() {
           </div>
         )}
 
-        {/* ═══ CONTENT PANEL — switches based on selected image ═══ */}
+        {/* ═══ CONTENT PANEL ═══ */}
         {isLoading && displayText && (
           <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
             <div className="flex items-center gap-2 mb-2"><span className="text-rose-400 font-semibold text-sm flex items-center gap-2"><span className="grid size-5 place-items-center rounded bg-rose-500/10">🎯</span> Analyzing...</span></div>
@@ -468,21 +483,39 @@ export default function BoostScanner() {
           <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4"><div className="flex items-center gap-2 py-2"><div className="flex space-x-1"><div className="w-1.5 h-1.5 bg-rose-500/60 rounded-full animate-bounce" /><div className="w-1.5 h-1.5 bg-rose-500/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><div className="w-1.5 h-1.5 bg-rose-500/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></div></div></div>
         )}
         {visibleText && !isLoading && (
-          <div>
-            {isOriginalSelected ? (
-              <AnalysisResultCard analysisJSON={analysisJSON} visibleText={visibleText} onCopy={handleCopy} isCopied={isCopied} />
-            ) : (
-              /* Enhanced selected: show analysis too (usage tips already shown above with download) */
-              <AnalysisResultCard analysisJSON={analysisJSON} visibleText={visibleText} onCopy={handleCopy} isCopied={isCopied} />
-            )}
-          </div>
+          <AnalysisResultCard analysisJSON={analysisJSON} visibleText={visibleText} onCopy={handleCopy} isCopied={isCopied} />
         )}
 
-        {/* ═══ LIGHTBOX ═══ */}
-        {lightboxSrc && (
-          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxSrc(null)}>
-            <button className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 z-10" onClick={() => setLightboxSrc(null)}><X className="size-5" /></button>
-            <img src={lightboxSrc} alt="Full view" className="max-w-full max-h-full object-contain" style={{ touchAction: 'pinch-zoom' }} onClick={e => e.stopPropagation()} />
+        {/* ═══ LIGHTBOX (v7: dual-image with swipe + arrows) ═══ */}
+        {lightboxOpen && lightboxImages.length > 0 && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center" onClick={closeLightbox}>
+            <button className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 z-10" onClick={closeLightbox}><X className="size-5" /></button>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+              <span className={`text-sm font-bold px-3 py-1 rounded-full backdrop-blur-sm ${lightboxIndex === 0 ? 'text-rose-400 bg-rose-500/10 border border-rose-500/20' : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'}`}>
+                {lightboxImages[lightboxIndex]?.label}
+              </span>
+            </div>
+            <div className="flex-1 flex items-center justify-center w-full px-4"
+              onTouchStart={handleLightboxTouchStart} onTouchMove={handleLightboxTouchMove} onTouchEnd={handleLightboxTouchEnd}>
+              <img src={lightboxImages[lightboxIndex]?.src} alt={lightboxImages[lightboxIndex]?.label}
+                className="max-w-full max-h-full object-contain" style={{ touchAction: 'pinch-zoom' }} onClick={e => e.stopPropagation()} />
+            </div>
+            {lightboxImages.length > 1 && (
+              <>
+                <button className="absolute left-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
+                  onClick={e => { e.stopPropagation(); lightboxPrev(); }} disabled={lightboxIndex === 0}><ChevronLeft className="size-5" /></button>
+                <button className="absolute right-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
+                  onClick={e => { e.stopPropagation(); lightboxNext(); }} disabled={lightboxIndex === lightboxImages.length - 1}><ChevronRight className="size-5" /></button>
+              </>
+            )}
+            {lightboxImages.length > 1 && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+                {lightboxImages.map((_, i) => (
+                  <button key={i} onClick={e => { e.stopPropagation(); setLightboxIndex(i); }}
+                    className={`rounded-full transition-all duration-200 ${lightboxIndex === i ? 'w-5 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/60'}`} />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -492,7 +525,7 @@ export default function BoostScanner() {
         `}</style>
       </div>
 
-      {/* ═══ MODALS (全部原版保留) ═══ */}
+      {/* ═══ MODALS ═══ */}
       {activeModal === 'privacy_exit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20"><ShieldCheck className="size-8 text-emerald-500" /></div><h2 className="text-xl font-bold text-white mb-2">Your Privacy Matters</h2><p className="text-sm text-slate-400 mb-1 leading-relaxed">To protect your privacy, <span className="font-semibold text-slate-200">we never store any photos</span> on our servers.</p><p className="text-sm text-slate-400 mb-6 leading-relaxed">Once you leave this page, your current photo and results will be <span className="font-semibold text-slate-200">permanently deleted</span> and cannot be recovered.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-xl border-slate-700 text-slate-300 hover:bg-slate-800" onClick={pendingNavigationRef.current ? handlePrivacyExitConfirm : handleTryAnotherConfirm}>{pendingNavigationRef.current ? 'Leave Anyway' : 'Start Over'}</Button><button className="flex-1 h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm transition-all" onClick={handlePrivacyExitCancel}>Stay on Page</button></div></div></div>)}
       {activeModal === 'free_limit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20"><Wand2 className="size-8 text-amber-500" /></div><h2 className="text-xl font-bold text-white mb-2">All 3 Free Analyses Used</h2><p className="text-sm text-slate-400 mb-2 leading-relaxed">Looks like you&apos;re enjoying Matchfix! Create a free account to keep going — it only takes 10 seconds.</p><p className="text-xs text-slate-500 mb-6">Plus, your first AI-enhanced photo is <span className="font-bold text-emerald-400">completely free</span> after sign-up.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-xl border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => setActiveModal(null)}>Maybe Later</Button><button className="flex-1 h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('free_limit_signup_click'); openAuthModal('sign-up'); }}>Sign Up Free</button></div></div></div>)}
       {activeModal === 'enhance' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rose-500/10 mb-4 border border-rose-500/20"><Coins className="size-8 text-rose-500" /></div><h2 className="text-xl font-bold text-white mb-2">Credits Needed</h2><p className="text-sm text-slate-400 mb-2 leading-relaxed">AI photo enhancement costs <span className="font-bold text-slate-200">20 credits</span> for members or <span className="font-bold text-slate-200">25 credits</span> with a credit pack.</p><p className="text-xs text-slate-500 mb-6">Members save 5 credits per photo + get free watermark-free downloads.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-xl border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => setActiveModal(null)}>Cancel</Button><button className="flex-1 h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('upgrade_modal_click_refill'); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}>Get Credits</button></div></div></div>)}
@@ -503,7 +536,6 @@ export default function BoostScanner() {
   );
 }
 
-// ── Checkout Buttons (原版完整保留) ──────────────────────────
 function MembershipCheckoutButton({ onStart, returnPath }: { onStart: () => void; returnPath: string }) {
   const [loading, setLoading] = React.useState(false);
   const handleClick = async () => { setLoading(true); onStart(); try { const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) { window.location.href = '/sign-in'; return; } const res = await fetch('/api/creem/create-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PRO!, productType: 'subscription', userId: user.id, returnPath }) }); const { checkoutUrl } = await res.json(); if (checkoutUrl) window.location.href = checkoutUrl; } catch (e) { alert('Something went wrong. Please try again.'); } finally { setLoading(false); } };
