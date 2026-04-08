@@ -52,19 +52,43 @@ export default function SignUpForm() {
     }
   }, [countdown]);
 
-  // --- 新增：监听跨标签页登录状态 ---
+  // --- 新增：跨标签页登录状态监听 (兼容 Next.js Cookie 模式) ---
   useEffect(() => {
     const supabase = createClient();
+
+    // 核心动作：主动检查是否已经有 Session (查 Cookie)
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        closeAuthModal(); // 关弹窗
+        router.refresh(); // 刷新页面获取最新状态
+      }
+    };
+
+    // 1. 原生监听 (作为兜底)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // 监听到用户已登录（比如在另一个标签页点了邮件里的链接）
       if (event === 'SIGNED_IN' && session) {
-        closeAuthModal(); // 自动关闭弹窗
-        router.refresh(); // 刷新当前页面状态
+        closeAuthModal();
+        router.refresh();
       }
     });
 
+    // 2. 网页可见性监听：只要用户从其他标签页/APP切回这个页面，立刻查一次
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkSession();
+      }
+    };
+
+    // 3. 窗口焦点监听：鼠标点回这个窗口，立刻查一次
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', checkSession);
+
+    // 组件卸载时清理监听器
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', checkSession);
     };
   }, [closeAuthModal, router]);
   // ---------------------------------
