@@ -132,7 +132,14 @@ export default function BoostScanner() {
       });
     }
     const params = new URLSearchParams(window.location.search);
-    if (params.get('payment') === 'success') { params.delete('payment'); window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname); trackEvent('payment_return_success'); dispatchCreditsUpdate(); }
+    if (params.get('payment') === 'success') {
+      params.delete('payment');
+      window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname);
+      trackEvent('payment_return_success');
+      dispatchCreditsUpdate();
+      // [v9 fix] 支付回来后标记，下载时跳过弹窗直接下载
+      sessionStorage.setItem('mf_payment_just_completed', 'true');
+    }
     if (params.get('download_error') === 'insufficient_credits') { params.delete('download_error'); window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname); setActiveModal('download_unlock'); }
   }, []);
 
@@ -173,7 +180,7 @@ export default function BoostScanner() {
   const handleReset = useCallback(() => {
     setPreview(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setVisibleText(''); setAnalysisJSON(null); setSelectedPanel('original'); setLightboxOpen(false); setLightboxIndex(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree'].forEach(k => sessionStorage.removeItem(k));
+    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed'].forEach(k => sessionStorage.removeItem(k));
     ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => localStorage.removeItem(k));
     trackEvent('boost_image_reset');
     const hero = document.getElementById('scanner-hero');
@@ -254,7 +261,20 @@ export default function BoostScanner() {
   };
 
   // ── Download ───────────────────────────────────────────────
-  const handleDownload = () => { if (!enhancementId) return; trackEvent('enhance_download_click', { isDownloadFree, isFreeGeneration }); if (isFreeGeneration && !isDownloadFree) handleDownloadWithPrecheck(); else { window.location.href = `/api/download/${enhancementId}`; dispatchCreditsUpdate(); } };
+  const handleDownload = () => {
+    if (!enhancementId) return;
+    trackEvent('enhance_download_click', { isDownloadFree, isFreeGeneration });
+    // [v9 fix] 刚支付完回来，直接下载，不弹窗
+    const justPaid = sessionStorage.getItem('mf_payment_just_completed') === 'true';
+    if (justPaid) {
+      sessionStorage.removeItem('mf_payment_just_completed');
+      window.location.href = `/api/download/${enhancementId}`;
+      dispatchCreditsUpdate();
+      return;
+    }
+    if (isFreeGeneration && !isDownloadFree) handleDownloadWithPrecheck();
+    else { window.location.href = `/api/download/${enhancementId}`; dispatchCreditsUpdate(); }
+  };
   // [v9] insufficient credits → download_unlock instead of credits_shop
   const handleDownloadWithPrecheck = async () => {
     if (!enhancementId) return;
