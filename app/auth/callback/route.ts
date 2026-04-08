@@ -2,24 +2,26 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  // The `/auth/callback` route is required for the server-side auth flow implemented
-  // by the SSR package. It exchanges an auth code for the user's session.
-  // https://supabase.com/docs/guides/auth/server-side/nextjs
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const origin = requestUrl.origin;
-  const redirectTo = requestUrl.searchParams.get("redirect_to")?.toString();
+  const redirectTo = requestUrl.searchParams.get("redirect_to")?.toString() || "/";
 
   if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    
+    if (error) {
+      console.error("Auth Callback Error:", error.message);
+      // 核心拦截：如果验证码过期/被邮箱爬虫消耗，带着错误参数跳回首页
+      // 让前端知道发生了什么，而不是让用户面对一个未登录的白板
+      return NextResponse.redirect(`${origin}/?auth_error=expired_link`);
+    }
+  } else {
+    // 根本没有收到 code 的情况
+    return NextResponse.redirect(`${origin}/?auth_error=missing_code`);
   }
 
-  if (redirectTo) {
-    return NextResponse.redirect(`${origin}${redirectTo}`);
-  }
-
-  // URL to redirect to after sign up process completes
-  // 👇 核心修改：把默认跳转从 /dashboard 改成了 /
-  return NextResponse.redirect(`${origin}/`);
+  // 验证成功，Cookie 已写入，重定向
+  return NextResponse.redirect(`${origin}${redirectTo}`);
 }
