@@ -7,7 +7,7 @@ import {
   Loader2, Wand2, Download, Lock, ChevronLeft, ChevronRight,
   Image as ImageIcon, Upload, Copy, Check, Coins, Crown,
   ShieldCheck, RefreshCw, Sparkles, XCircle, X, ZoomIn,
-  AlertCircle,
+  AlertCircle, Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { parseAnalysisStream } from '@/utils/parseAnalysisStream';
@@ -17,13 +17,14 @@ import AnalysisResultCard from '@/components/AnalysisResultCard';
 import UsageGuideCard from '@/components/UsageGuideCard';
 
 // ═══════════════════════════════════════════════════════════════
-// components/BoostScanner.tsx — v8
+// components/BoostScanner.tsx — v9
 //
-// v8 changes vs v7:
-// 1. [FIX] enhance error: restore UI state (panel, slider) on failure
-// 2. [FIX] enhance_failed modal: dedicated modal with retry + purchase CTA
-// 3. [FIX] download flow: non-member insufficient credits → direct credits_shop
-// 4. All original logic preserved
+// v9 changes vs v8:
+// 1. [NEW] download_unlock modal — $1.99 micro pack as primary CTA
+// 2. [NEW] MicroPackCheckoutButton component
+// 3. [FIX] all checkout buttons: loading state stays in modal until redirect
+// 4. [FIX] credits insufficient → download_unlock instead of credits_shop
+// 5. All original v8 logic preserved
 // ═══════════════════════════════════════════════════════════════
 
 async function compressImage(file: File, options?: { maxSize?: number; quality?: number }): Promise<string> {
@@ -49,8 +50,8 @@ const dispatchCreditsUpdate = () => {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'));
 };
 
-// [FIX v8] added 'enhance_failed' modal type
-type ModalType = 'enhance' | 'download_choice' | 'membership' | 'credits_shop' | 'privacy_exit' | 'free_limit' | 'enhance_failed';
+// [v9] added 'download_unlock' modal type
+type ModalType = 'enhance' | 'download_choice' | 'download_unlock' | 'membership' | 'credits_shop' | 'privacy_exit' | 'free_limit' | 'enhance_failed';
 type SelectedPanel = 'original' | 'enhanced';
 
 export default function BoostScanner() {
@@ -132,7 +133,7 @@ export default function BoostScanner() {
     }
     const params = new URLSearchParams(window.location.search);
     if (params.get('payment') === 'success') { params.delete('payment'); window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname); trackEvent('payment_return_success'); dispatchCreditsUpdate(); }
-    if (params.get('download_error') === 'insufficient_credits') { params.delete('download_error'); window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname); setActiveModal('credits_shop'); }
+    if (params.get('download_error') === 'insufficient_credits') { params.delete('download_error'); window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname); setActiveModal('download_unlock'); }
   }, []);
 
   // ── Auth State ─────────────────────────────────────────────
@@ -197,11 +198,9 @@ export default function BoostScanner() {
         if (data.code === 'INSUFFICIENT_CREDITS') { setActiveModal('enhance'); return; }
         const msg = data.error || 'Unknown error';
         setEnhanceError(msg);
-        // [FIX v8] restore UI state on enhance failure
         setSliderIndex(0);
         setSelectedPanel('original');
         setIsGuestEnhanced(false);
-        // [FIX v8] show enhance_failed modal for non-credit errors
         setActiveModal('enhance_failed');
         trackEvent('enhance_failed', { reason: msg });
         return;
@@ -211,7 +210,6 @@ export default function BoostScanner() {
       setIsGuestEnhanced(false); setSliderIndex(1); setSelectedPanel('enhanced'); dispatchCreditsUpdate(); router.refresh(); trackEvent('enhance_complete', { status: 'success' });
     } catch {
       setEnhanceError('Network error. Please try again.');
-      // [FIX v8] restore UI state on network error too
       setSliderIndex(0);
       setSelectedPanel('original');
       setIsGuestEnhanced(false);
@@ -257,7 +255,7 @@ export default function BoostScanner() {
 
   // ── Download ───────────────────────────────────────────────
   const handleDownload = () => { if (!enhancementId) return; trackEvent('enhance_download_click', { isDownloadFree, isFreeGeneration }); if (isFreeGeneration && !isDownloadFree) handleDownloadWithPrecheck(); else { window.location.href = `/api/download/${enhancementId}`; dispatchCreditsUpdate(); } };
-  // [FIX v8] simplified: insufficient credits → direct credits_shop
+  // [v9] insufficient credits → download_unlock instead of credits_shop
   const handleDownloadWithPrecheck = async () => {
     if (!enhancementId) return;
     setIsDownloading(true);
@@ -268,22 +266,20 @@ export default function BoostScanner() {
         const s = createClient();
         const { data: { user } } = await s.auth.getUser();
         if (user && cd.isSubscribed) {
-          // subscriber → free download
           window.location.href = `/api/download/${enhancementId}`;
           trackEvent('enhance_download_precheck_ok');
           dispatchCreditsUpdate(); router.refresh();
           return;
         }
         if (user && cd.credits >= 5) {
-          // has enough credits → show download_choice to let them choose
           setActiveModal('download_choice');
           return;
         }
       }
-      // [FIX v8] not enough credits → direct to credits_shop (skip download_choice)
-      setActiveModal('credits_shop');
+      // [v9] not enough credits → download_unlock (was credits_shop)
+      setActiveModal('download_unlock');
     } catch {
-      setActiveModal('credits_shop');
+      setActiveModal('download_unlock');
     } finally {
       setIsDownloading(false);
     }
@@ -297,12 +293,12 @@ export default function BoostScanner() {
       if (cr.ok) {
         const cd = await cr.json();
         if (!cd.isSubscribed && cd.credits < 5) {
-          setActiveModal('credits_shop');
+          setActiveModal('download_unlock');
           setIsDownloading(false);
           return;
         }
       } else {
-        setActiveModal('credits_shop');
+        setActiveModal('download_unlock');
         setIsDownloading(false);
         return;
       }
@@ -312,7 +308,7 @@ export default function BoostScanner() {
       dispatchCreditsUpdate();
       router.refresh();
     } catch {
-      setActiveModal('credits_shop');
+      setActiveModal('download_unlock');
     } finally {
       setIsDownloading(false);
     }
@@ -354,7 +350,7 @@ export default function BoostScanner() {
       <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center">
         <div className="flex space-x-1.5"><div className="w-2 h-2 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} /><div className="w-2 h-2 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><div className="w-2 h-2 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></div>
         <p className="text-white font-semibold text-base animate-pulse">AI is analyzing your photo...</p>
-        <p className="text-white/50 text-sm">Usually done within 7 seconds</p>
+        <p className="text-white/50 text-sm">Usually done within 10 seconds</p>
       </div>
     </div>
   );
@@ -515,7 +511,6 @@ export default function BoostScanner() {
             {isEnhancementComplete && (
               <UsageGuideCard analysisJSON={analysisJSON} />
             )}
-            {/* [FIX v8] enhance error now handled by modal, keep inline as fallback */}
             {enhanceError && !activeModal && (
               <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-red-500/20 bg-red-500/5"><span className="text-red-400 text-sm">⚠️ Enhancement failed: {enhanceError}</span><Button size="sm" variant="outline" className="shrink-0 border-red-500/20 text-red-400 hover:bg-red-500/10 rounded-lg text-xs" onClick={() => handleEnhance()}>Retry</Button></div>
             )}
@@ -580,7 +575,7 @@ export default function BoostScanner() {
       {activeModal === 'free_limit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20"><Wand2 className="size-8 text-amber-500" /></div><h2 className="text-xl font-bold text-white mb-2">All 3 Free Analyses Used</h2><p className="text-sm text-slate-400 mb-2 leading-relaxed">Looks like you&apos;re enjoying Matchfix! Create a free account to keep going — it only takes 10 seconds.</p><p className="text-xs text-slate-500 mb-6">Plus, your first AI-enhanced photo is <span className="font-bold text-emerald-400">completely free</span> after sign-up.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-xl border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => setActiveModal(null)}>Maybe Later</Button><button className="flex-1 h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('free_limit_signup_click'); openAuthModal('sign-up'); }}>Sign Up Free</button></div></div></div>)}
       {activeModal === 'enhance' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rose-500/10 mb-4 border border-rose-500/20"><Coins className="size-8 text-rose-500" /></div><h2 className="text-xl font-bold text-white mb-2">Credits Needed</h2><p className="text-sm text-slate-400 mb-2 leading-relaxed">AI photo enhancement costs <span className="font-bold text-slate-200">20 credits</span> for members or <span className="font-bold text-slate-200">25 credits</span> with a credit pack.</p><p className="text-xs text-slate-500 mb-6">Members save 5 credits per photo + get free watermark-free downloads.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-xl border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => setActiveModal(null)}>Cancel</Button><button className="flex-1 h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('upgrade_modal_click_refill'); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}>Get Credits</button></div></div></div>)}
 
-      {/* [FIX v8] enhance_failed modal — friendly error with retry + upsell */}
+      {/* enhance_failed modal */}
       {activeModal === 'enhance_failed' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
@@ -621,23 +616,172 @@ export default function BoostScanner() {
         </div>
       )}
 
-      {activeModal === 'download_choice' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20"><Download className="size-8 text-emerald-500" /></div><h2 className="text-xl font-bold text-white mb-1">Save Your Enhanced Photo</h2><p className="text-sm text-slate-400 mb-1">Your photo looks amazing — don&apos;t lose it!</p><p className="text-xs text-red-400/70 mb-4 flex items-center gap-1 justify-center"><ShieldCheck className="size-3" /> We don&apos;t store photos. Leave this page and it&apos;s gone forever.</p><div className="flex flex-col w-full gap-2.5"><button onClick={() => setActiveModal('membership')} className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-amber-500/10 shrink-0"><Crown className="size-5 text-amber-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Become a Member</div><div className="text-xs text-slate-500">No watermark · Free downloads forever</div></div><span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST</span></button><button onClick={handleDownloadWithCredits} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-rose-500/10 shrink-0"><Coins className="size-5 text-rose-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Use 5 Credits</div><div className="text-xs text-slate-500">No watermark · One-time purchase</div></div><span className="text-xs font-bold text-rose-400 shrink-0">⚡ 5</span></button><button onClick={handleDownloadWatermarked} className="w-full flex items-center gap-3 p-4 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-slate-800 shrink-0"><Download className="size-5 text-slate-400" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Download with Watermark</div><div className="text-xs text-slate-500">Free · Includes Matchfix branding</div></div><span className="text-[10px] font-bold text-slate-500 shrink-0">FREE</span></button></div><button className="mt-4 w-full h-10 text-sm text-slate-500 hover:text-slate-300 transition-colors" onClick={() => setActiveModal(null)}>Cancel</button></div></div>)}
-      {activeModal === 'membership' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Crown className="size-4 text-amber-500" /><span className="text-sm font-bold text-white">Become a Member</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ MOST POPULAR ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Pro</div><div className="text-slate-400 text-xs mt-0.5">200 credits / month</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$19.99</div><div className="text-slate-500 text-xs">/month</div></div></div><ul className="space-y-2 mb-5">{['Enhance up to 10 photos per month', 'Unlimited watermark-free downloads', 'Save 5 credits/photo vs credit packs', 'AI photo analysis included free', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><MembershipCheckoutButton onStart={() => setActiveModal(null)} returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all plans →</button></div></div></div>)}
+      {/* ═══ [v9] download_unlock modal — $1.99 micro pack as primary CTA ═══ */}
+      {activeModal === 'download_unlock' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-4 text-emerald-400" />
+                <span className="text-sm font-bold text-white">Your photo is ready</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button>
+            </div>
+            <p className="px-5 text-xs text-slate-500 mb-4">Choose how to save your enhanced photo:</p>
 
-      {/* credits_shop modal */}
-      {activeModal === 'credits_shop' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Coins className="size-4 text-rose-500" /><span className="text-sm font-bold text-white">Get Credits</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ QUICKEST OPTION ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Starter Pack</div><div className="text-slate-400 text-xs mt-0.5">Try it out — enough for 3 full photo enhancements.</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$9.99</div><div className="text-slate-500 text-xs">one-time</div></div></div><ul className="space-y-2 mb-5">{['75 Credits', 'Enhance up to 3 photos', 'Watermark-free downloads included', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><CreditsCheckoutButton onStart={() => setActiveModal(null)} returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all credit packs →</button></div></div></div>)}
+            <div className="px-4 pb-4 flex flex-col gap-2.5">
+              {/* ── Option 1: $1.99 Micro Pack (Primary CTA) ── */}
+              <div className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/[0.04] overflow-hidden">
+                <div className="bg-emerald-500/15 text-emerald-400 text-[10px] font-bold text-center py-1 tracking-widest uppercase">New User Special · One-Time Only</div>
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="text-white font-bold text-base">Save This Photo</div>
+                      <div className="text-slate-400 text-xs mt-0.5">Watermark-free · Instant download</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-white font-extrabold text-xl">$1.99</div>
+                      <div className="text-slate-500 text-[10px]">one-time</div>
+                    </div>
+                  </div>
+                  <MicroPackCheckoutButton returnPath={pathname} />
+                </div>
+              </div>
+
+              {/* ── Option 2: Pro Membership ── */}
+              <button
+                onClick={() => setActiveModal('membership')}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"
+              >
+                <div className="grid size-9 place-items-center rounded-full bg-amber-500/10 shrink-0">
+                  <Crown className="size-4 text-amber-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-slate-200 text-sm">Go Pro — $19.99/mo</div>
+                  <div className="text-xs text-slate-500">All downloads free · 200 credits/mo</div>
+                </div>
+                <span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST VALUE</span>
+              </button>
+
+              {/* ── Option 3: Credits Pack ── */}
+              <button
+                onClick={() => { setActiveModal(null); trackEvent('download_unlock_credits_pack_click'); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-slate-700/40 bg-slate-800/20 hover:bg-slate-800/40 transition-colors text-left"
+              >
+                <div className="grid size-9 place-items-center rounded-full bg-slate-800 shrink-0">
+                  <Coins className="size-4 text-slate-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-slate-200 text-sm">Buy Credits Pack</div>
+                  <div className="text-xs text-slate-500">From $9.99 · Good for 3+ photos</div>
+                </div>
+              </button>
+
+              {/* ── Option 4: Watermark download (text link, ultra-subtle) ── */}
+              <button
+                onClick={handleDownloadWatermarked}
+                className="w-full text-center text-xs text-slate-600 hover:text-slate-400 transition-colors py-1.5 underline underline-offset-2 decoration-slate-700"
+              >
+                or download with watermark (free)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* download_choice modal (for users who already have 5+ credits) */}
+      {activeModal === 'download_choice' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20"><Download className="size-8 text-emerald-500" /></div><h2 className="text-xl font-bold text-white mb-1">Save Your Enhanced Photo</h2><p className="text-sm text-slate-400 mb-1">Your photo looks amazing — don&apos;t lose it!</p><p className="text-xs text-red-400/70 mb-4 flex items-center gap-1 justify-center"><ShieldCheck className="size-3" /> We don&apos;t store photos. Leave this page and it&apos;s gone forever.</p><div className="flex flex-col w-full gap-2.5"><button onClick={() => setActiveModal('membership')} className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-amber-500/10 shrink-0"><Crown className="size-5 text-amber-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Become a Member</div><div className="text-xs text-slate-500">No watermark · Free downloads forever</div></div><span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST</span></button><button onClick={handleDownloadWithCredits} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-rose-500/10 shrink-0"><Coins className="size-5 text-rose-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Use 5 Credits</div><div className="text-xs text-slate-500">No watermark · One-time purchase</div></div><span className="text-xs font-bold text-rose-400 shrink-0">⚡ 5</span></button><button onClick={handleDownloadWatermarked} className="w-full flex items-center gap-3 p-4 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-slate-800 shrink-0"><Download className="size-5 text-slate-400" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Download with Watermark</div><div className="text-xs text-slate-500">Free · Includes Matchfix branding</div></div><span className="text-[10px] font-bold text-slate-500 shrink-0">FREE</span></button></div><button className="mt-4 w-full h-10 text-sm text-slate-500 hover:text-slate-300 transition-colors" onClick={() => setActiveModal(null)}>Cancel</button></div></div>)}
+
+      {/* membership modal — [v9] checkout button now stays open with loading */}
+      {activeModal === 'membership' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Crown className="size-4 text-amber-500" /><span className="text-sm font-bold text-white">Become a Member</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ MOST POPULAR ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Pro</div><div className="text-slate-400 text-xs mt-0.5">200 credits / month</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$19.99</div><div className="text-slate-500 text-xs">/month</div></div></div><ul className="space-y-2 mb-5">{['Enhance up to 10 photos per month', 'Unlimited watermark-free downloads', 'Save 5 credits/photo vs credit packs', 'AI photo analysis included free', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><MembershipCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all plans →</button></div></div></div>)}
+
+      {/* credits_shop modal — [v9] kept as fallback, checkout button now stays open with loading */}
+      {activeModal === 'credits_shop' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Coins className="size-4 text-rose-500" /><span className="text-sm font-bold text-white">Get Credits</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ QUICKEST OPTION ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Starter Pack</div><div className="text-slate-400 text-xs mt-0.5">Try it out — enough for 3 full photo enhancements.</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$9.99</div><div className="text-slate-500 text-xs">one-time</div></div></div><ul className="space-y-2 mb-5">{['75 Credits', 'Enhance up to 3 photos', 'Watermark-free downloads included', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><CreditsCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all credit packs →</button></div></div></div>)}
     </div>
   );
 }
 
-function MembershipCheckoutButton({ onStart, returnPath }: { onStart: () => void; returnPath: string }) {
+// ═══════════════════════════════════════════════════════════════
+// [v9] Checkout Buttons — loading state stays in modal until redirect
+// ═══════════════════════════════════════════════════════════════
+
+function MembershipCheckoutButton({ returnPath }: { returnPath: string }) {
   const [loading, setLoading] = React.useState(false);
-  const handleClick = async () => { setLoading(true); onStart(); try { const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) { window.location.href = '/sign-in'; return; } const res = await fetch('/api/creem/create-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PRO!, productType: 'subscription', userId: user.id, returnPath }) }); const { checkoutUrl } = await res.json(); if (checkoutUrl) window.location.href = checkoutUrl; } catch (e) { alert('Something went wrong. Please try again.'); } finally { setLoading(false); } };
-  return (<button onClick={handleClick} disabled={loading} className="w-full h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60">{loading ? <Loader2 className="size-4 animate-spin" /> : <Crown className="size-4" />}{loading ? 'Redirecting...' : 'Get Pro — $19.99/mo'}</button>);
+  const [error, setError] = React.useState(false);
+  const handleClick = async () => {
+    setLoading(true); setError(false);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = '/sign-in'; return; }
+      const res = await fetch('/api/creem/create-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PRO!, productType: 'subscription', userId: user.id, returnPath }) });
+      const { checkoutUrl } = await res.json();
+      if (checkoutUrl) { window.location.href = checkoutUrl; }
+      else { setError(true); setLoading(false); }
+    } catch (e) { setError(true); setLoading(false); }
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <button onClick={handleClick} disabled={loading}
+        className="w-full h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70">
+        {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Crown className="size-4" /> Get Pro — $19.99/mo</>}
+      </button>
+      {error && <p className="text-red-400 text-xs text-center">Something went wrong. Please try again.</p>}
+    </div>
+  );
 }
 
-function CreditsCheckoutButton({ onStart, returnPath }: { onStart: () => void; returnPath: string }) {
+function CreditsCheckoutButton({ returnPath }: { returnPath: string }) {
   const [loading, setLoading] = React.useState(false);
-  const handleClick = async () => { setLoading(true); onStart(); try { const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) { window.location.href = '/sign-in'; return; } const res = await fetch('/api/creem/create-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_STARTER!, productType: 'credits', userId: user.id, credits: 75, returnPath }) }); const { checkoutUrl } = await res.json(); if (checkoutUrl) window.location.href = checkoutUrl; } catch (e) { alert('Something went wrong. Please try again.'); } finally { setLoading(false); } };
-  return (<button onClick={handleClick} disabled={loading} className="w-full h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60">{loading ? <Loader2 className="size-4 animate-spin" /> : <Coins className="size-4" />}{loading ? 'Redirecting...' : 'Buy 75 Credits — $9.99'}</button>);
+  const [error, setError] = React.useState(false);
+  const handleClick = async () => {
+    setLoading(true); setError(false);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = '/sign-in'; return; }
+      const res = await fetch('/api/creem/create-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_STARTER!, productType: 'credits', userId: user.id, credits: 75, returnPath }) });
+      const { checkoutUrl } = await res.json();
+      if (checkoutUrl) { window.location.href = checkoutUrl; }
+      else { setError(true); setLoading(false); }
+    } catch (e) { setError(true); setLoading(false); }
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <button onClick={handleClick} disabled={loading}
+        className="w-full h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70">
+        {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Coins className="size-4" /> Buy 75 Credits — $9.99</>}
+      </button>
+      {error && <p className="text-red-400 text-xs text-center">Something went wrong. Please try again.</p>}
+    </div>
+  );
+}
+
+// [v9] NEW: $1.99 Micro Pack checkout button
+function MicroPackCheckoutButton({ returnPath }: { returnPath: string }) {
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(false);
+  const handleClick = async () => {
+    setLoading(true); setError(false);
+    trackEvent('micro_pack_checkout_click');
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = '/sign-in'; return; }
+      const res = await fetch('/api/creem/create-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_MICRO!, productType: 'credits', userId: user.id, credits: 5, returnPath }) });
+      const { checkoutUrl } = await res.json();
+      if (checkoutUrl) { window.location.href = checkoutUrl; }
+      else { setError(true); setLoading(false); }
+    } catch (e) { setError(true); setLoading(false); }
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <button onClick={handleClick} disabled={loading}
+        className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-lg shadow-emerald-500/20">
+        {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Zap className="size-4" /> Get This Photo — $1.99</>}
+      </button>
+      {error && <p className="text-red-400 text-xs text-center">Something went wrong. Please try again.</p>}
+    </div>
+  );
 }

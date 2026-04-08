@@ -18,10 +18,11 @@ const CREDITS_MAP: Record<string, { type: "subscription" | "package"; amount: nu
   [process.env.NEXT_PUBLIC_PRODUCT_ID_STARTER!]: { type: "subscription", amount: 40 },
   [process.env.NEXT_PUBLIC_PRODUCT_ID_PRO!]:     { type: "subscription", amount: 200 },
   [process.env.NEXT_PUBLIC_PRODUCT_ID_ULTRA!]:   { type: "subscription", amount: 500 },
-  // 单次积分包（新定价：75 / 200 / 500）
+  // 单次积分包（新定价：5 / 75 / 200 / 500）
   [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_STARTER!]: { type: "package", amount: 75 },
   [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_VALUE!]:   { type: "package", amount: 200 },
   [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_PRO!]:     { type: "package", amount: 500 },
+  [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_MICRO!]: { type: "package", amount: 5 },
 };
 
 export async function POST(request: Request) {
