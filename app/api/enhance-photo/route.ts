@@ -96,6 +96,9 @@ async function callGeminiImageGeneration(
 SUPREME RULE — READ THIS FIRST:
 When in doubt, do less. An under-edited photo that looks real ALWAYS beats an over-edited photo that looks fake. If you are unsure whether an edit is needed, DO NOT make it.
 
+COLOR FIDELITY RULE — EQUAL PRIORITY TO SUPREME RULE:
+The output image MUST match the original photo's overall color temperature, white balance, and color palette by default. Do NOT shift colors warmer, cooler, more orange, or more yellow unless fix_plan.color_grade EXPLICITLY specifies a change. Preserve the original's exact color feel. Any unwanted color shift is a FAILURE equivalent to altering the subject's face.
+
 IDENTITY LOCK — HIGHEST PRIORITY:
 The following must be PIXEL-LEVEL FAITHFUL to the original:
 - Facial bone structure (jawline, cheekbones, forehead shape)
@@ -133,12 +136,12 @@ FIELD-BY-FIELD INSTRUCTIONS:
 - NEVER replace background unless fix_plan explicitly says "replace_*".
 
 【LIGHTING】
-- "no_change" → Do NOT adjust lighting, shadows, highlights, or add any light sources.
-- "brighten_face" → Gently lift shadows on the face only. Do NOT flatten the natural light/shadow interplay. Do NOT add warmth.
-- "add_rim_light" → Add a subtle edge light to separate subject from background. Must look like a natural light source, not a studio effect.
-- "warm_golden_hour" → Apply gentle warm directional light. Use RESTRAINT — the result should feel like late afternoon sun, not an orange filter.
-- "soften_shadows" → Reduce harsh shadow contrast on face. Preserve dimensionality.
-- "add_directional_light" → Add soft light from one side to create gentle depth. Must match the existing light direction in the scene.
+- "no_change" → Do NOT adjust lighting, shadows, highlights, or add any light sources. Do NOT warm up or cool down the existing light.
+- "brighten_face" → Gently lift shadows on the face only. Do NOT flatten the natural light/shadow interplay. Do NOT add warmth or change color temperature.
+- "add_rim_light" → Add a subtle edge light to separate subject from background. Must look like a natural light source, not a studio effect. Match the existing color temperature of the scene.
+- "warm_golden_hour" → Add VERY SUBTLE warm-tinted directional light. The color shift should be almost imperceptible — if a viewer would describe the image as "yellow" or "orange," you have FAILED. The result should look like late afternoon sun gently kissing the subject, not an orange filter. Compare your output colors to the input before returning.
+- "soften_shadows" → Reduce harsh shadow contrast on face. Preserve dimensionality. Do NOT change color temperature.
+- "add_directional_light" → Add soft light from one side to create gentle depth. Must match the existing light direction AND color temperature in the scene.
 
 【SKIN RETOUCH】
 - "none" → Do NOT touch skin at all. No smoothing, no evening, no blemish removal. Leave every pore, line, and mark.
@@ -150,8 +153,8 @@ FIELD-BY-FIELD INSTRUCTIONS:
 - "enhance_smile" / "soften_smile" / "add_slight_smile" → Make the MINIMUM adjustment needed. This is the highest-risk edit for breaking identity lock. If the result looks even slightly unnatural, revert to original expression.
 
 【COLOR GRADE】
-- "no_change" → Preserve the EXACT original color temperature, white balance, and color palette. Do NOT add warmth, coolness, or vibrance.
-- "warm_tone" → Add VERY subtle warmth. The shift should be barely noticeable in an A/B comparison. If someone would describe the result as "yellow" or "orange," you've gone too far.
+- "no_change" → Preserve the EXACT original color temperature, white balance, and color palette. Do NOT add ANY warmth, coolness, or vibrance. The output should be indistinguishable from the input in terms of overall color feel. This is the DEFAULT behavior.
+- "warm_tone" → Shift color temperature by no more than 300K warmer. The change should ONLY be noticeable in direct A/B comparison. Skin tones must NOT appear orange or yellow. If they do, you have gone too far.
 - "cool_tone" → Add very subtle cool shift. Same restraint applies.
 - "neutral_balance" → Correct obvious color cast to neutral. Do not over-correct.
 - "increase_vibrance" → Gently boost color saturation. Skin tones must remain natural.
@@ -179,12 +182,14 @@ ABSOLUTE PROHIBITIONS — VIOLATION OF ANY = FAILURE:
 8. Do NOT make skin look plastic, waxy, or artificially smooth
 9. Do NOT produce output at a different resolution than the input (unless framing change is specified)
 10. Do NOT add any text, watermark, or overlay to the image
+11. Do NOT shift the overall color temperature or white balance of the image unless fix_plan.color_grade EXPLICITLY requires it. Any unwanted warm/cool/yellow/orange shift is a FAILURE.
 
 OUTPUT QUALITY CHECK (apply before returning):
 - Would the subject's close friends immediately recognize this as them? If no → too much editing.
 - Does the photo look like it could have been taken by a skilled friend with a good phone? If no → too much editing.
 - Can you spot any element that wasn't in the original? If yes → remove it.
 - Does any area look "digitally painted" rather than "photographed"? If yes → pull back.
+- Compare the overall color temperature and white balance to the original. If the output is noticeably warmer, yellower, oranger, or cooler without fix_plan.color_grade requesting it → you MUST revert the color shift. This check is mandatory.
 
 Return only the enhanced image.`
         },
