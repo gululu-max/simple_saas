@@ -45,7 +45,7 @@ export function FeaturesGrid() {
                 alt={`${c.name} before`}
                 fill
                 sizes="(max-width: 768px) 45vw, 20vw"
-                className="object-cover grayscale opacity-70"
+                className="object-cover"
                 loading="lazy"
               />
               <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-md z-10">
