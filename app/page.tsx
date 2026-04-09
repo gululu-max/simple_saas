@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import { PhotoWallLazy } from "@/components/photo-wall-lazy";
 import { HeroButtons } from "@/components/hero-animations";
@@ -5,7 +6,7 @@ import { ScrollToTop } from "@/components/scroll-to-top";
 import { SocialProofBar } from "@/components/social-proof-bar";
 import { Shield, Trash2, Zap } from "lucide-react";
 
-// ✅ 折叠屏下方组件延迟加载，减少首屏 JS bundle
+// 折叠屏下方组件延迟加载
 const PhotoDiagnosis = dynamic(() =>
   import("@/components/photo-diagnosis").then((m) => ({
     default: m.PhotoDiagnosis,
@@ -18,6 +19,27 @@ const FeaturesGrid = dynamic(() =>
   }))
 );
 
+/**
+ * ✅ HeroButtons 的静态占位骨架
+ * 尺寸与真实按钮完全一致，避免 CLS
+ * 纯服务端 HTML，零 JS
+ */
+function HeroButtonsFallback() {
+  return (
+    <div className="mt-6 flex flex-col items-center gap-4">
+      {/* CTA 按钮骨架 — 同 h-14 rounded-full 渐变 */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+        <div className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-600 to-orange-500 px-8 h-14 w-[270px] opacity-90" />
+      </div>
+      {/* 信任标签骨架 */}
+      <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3">
+        <div className="h-5 w-[160px] rounded bg-slate-800/50" />
+        <div className="h-5 w-[170px] rounded bg-slate-800/50" />
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 selection:bg-red-500/30 pb-24 md:pb-0">
@@ -27,8 +49,8 @@ export default function Home() {
         <PhotoWallLazy />
         <div className="absolute inset-0 bg-slate-950/50 z-[1]" />
 
-        {/* ✅ h1 是服务端 HTML，直接 paint，不等 PhotoWall */}
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-end text-center px-4 md:px-6 pb-[2vh] md:pb-[4vh]">
+          {/* ✅ 纯文本区域，零 JS 依赖，服务端直出立即 paint → LCP 元素 */}
           <div className="flex flex-col items-center gap-3">
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter max-w-3xl leading-[1.1]">
               Your Photos Are
@@ -41,10 +63,14 @@ export default function Home() {
               Get 30+ matches in seconds with one AI fix.
             </p>
           </div>
-          <div className="mt-6 flex flex-col items-center gap-4">
-            <HeroButtons />
-            <SocialProofBar />
-          </div>
+
+          {/* ✅ Client 组件用 Suspense 隔离，不阻塞 h1 的 paint */}
+          <Suspense fallback={<HeroButtonsFallback />}>
+            <div className="mt-6 flex flex-col items-center gap-4">
+              <HeroButtons />
+              <SocialProofBar />
+            </div>
+          </Suspense>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent z-[1]" />
       </section>
