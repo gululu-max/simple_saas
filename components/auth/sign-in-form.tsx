@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { useAuthModal } from "./auth-modal-context";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -35,21 +35,33 @@ export default function SignInForm() {
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
+  // ✅ 用 ref 直接读取 DOM 值，解决浏览器自动填充不触发 onChange 的问题
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
   const router = useRouter();
   const pathname = usePathname();
 
   const handleSignIn = async (e?: React.FormEvent) => {
-    e?.preventDefault(); // ✅ 支持 form onSubmit
+    e?.preventDefault();
 
-    if (!email.trim()) {
+    // ✅ 核心修复：优先从 DOM 读取值（兜底浏览器自动填充场景）
+    const actualEmail = emailRef.current?.value || email;
+    const actualPassword = passwordRef.current?.value || password;
+
+    // 同步回 state（让 UI 和 state 一致）
+    setEmail(actualEmail);
+    setPassword(actualPassword);
+
+    if (!actualEmail.trim()) {
       setError("Please enter your email address.");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(actualEmail)) {
       setError("Please enter a valid email address.");
       return;
     }
-    if (!password) {
+    if (!actualPassword) {
       setError("Please enter your password.");
       return;
     }
@@ -59,8 +71,8 @@ export default function SignInForm() {
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: actualEmail,
+      password: actualPassword,
     });
 
     if (error) {
@@ -80,7 +92,6 @@ export default function SignInForm() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?redirect_to=${pathname}`,
-        // ✅ 改为 select_account — 回头用户不用重新授权，只需选账号
         queryParams: { prompt: "select_account" },
       },
     });
@@ -129,7 +140,6 @@ export default function SignInForm() {
           </div>
         </div>
 
-        {/* ✅ 用 form 标签包裹 — 让浏览器密码管理器正确识别和保存凭证 */}
         <form className="grid gap-4" onSubmit={handleSignIn} autoComplete="on">
           <div className="grid gap-1.5">
             <Label
@@ -139,6 +149,7 @@ export default function SignInForm() {
               Email
             </Label>
             <Input
+              ref={emailRef}
               id="modal-email"
               name="email"
               placeholder="name@example.com"
@@ -171,6 +182,7 @@ export default function SignInForm() {
             </div>
             <div className="relative">
               <Input
+                ref={passwordRef}
                 id="modal-password"
                 name="password"
                 type={showPassword ? "text" : "password"}
