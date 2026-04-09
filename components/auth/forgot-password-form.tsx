@@ -39,16 +39,27 @@ export default function ForgotPasswordForm() {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-6 px-4 text-gray-900">
         <div className="h-14 w-14 rounded-full bg-blue-100 flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-7 h-7 text-blue-600">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+            className="w-7 h-7 text-blue-600"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+            />
           </svg>
         </div>
         <div className="text-center space-y-2">
           <h3 className="text-lg font-bold text-gray-900">Check your email</h3>
           <p className="max-w-[260px] text-sm text-gray-500 leading-relaxed">
             We&apos;ve sent a reset link to{" "}
-            <span className="font-medium text-gray-700">{email}</span>.
-            Please check your inbox.
+            <span className="font-medium text-gray-700">{email}</span>. Please
+            check your inbox.
           </p>
         </div>
         <button
@@ -65,7 +76,6 @@ export default function ForgotPasswordForm() {
 
   return (
     <div className="text-gray-900">
-      {/* 标题 */}
       <div className="flex flex-col space-y-1 text-center mb-7">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">
           Reset password
@@ -78,11 +88,15 @@ export default function ForgotPasswordForm() {
       <div className="grid gap-5">
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-1.5">
-            <Label htmlFor="forgot-email" className="text-sm font-medium text-gray-700">
+            <Label
+              htmlFor="forgot-email"
+              className="text-sm font-medium text-gray-700"
+            >
               Email
             </Label>
             <Input
               id="forgot-email"
+              name="email"
               placeholder="name@example.com"
               type="email"
               value={email}

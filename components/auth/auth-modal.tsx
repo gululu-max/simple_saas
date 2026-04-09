@@ -3,23 +3,14 @@
 import { useAuthModal } from "./auth-modal-context";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useEffect, Suspense } from "react";
 
-// --- 核心修复：改回 dynamic 引入，并添加 loading 占位 ---
-const SignInForm = dynamic(() => import("./sign-in-form"), { 
-  ssr: false, 
-  loading: () => <div className="flex items-center justify-center min-h-[400px] text-sm text-gray-400">Loading form...</div>
-});
-const SignUpForm = dynamic(() => import("./sign-up-form"), { 
-  ssr: false,
-  loading: () => <div className="flex items-center justify-center min-h-[400px] text-sm text-gray-400">Loading form...</div>
-});
-const ForgotPasswordForm = dynamic(() => import("./forgot-password-form"), { 
-  ssr: false,
-  loading: () => <div className="flex items-center justify-center min-h-[300px] text-sm text-gray-400">Loading form...</div>
-});
+// ✅ 改回普通 import — modal 本身就是条件渲染，Next.js 已经会 code-split
+// dynamic 反而在用户点击后多一次 chunk 加载 + "Loading form..." 占位延迟
+import SignInForm from "./sign-in-form";
+import SignUpForm from "./sign-up-form";
+import ForgotPasswordForm from "./forgot-password-form";
 
 function AuthErrorListener() {
   const searchParams = useSearchParams();
@@ -28,8 +19,8 @@ function AuthErrorListener() {
   useEffect(() => {
     const authError = searchParams.get("auth_error");
     const hash = typeof window !== "undefined" ? window.location.hash : "";
-    const hasHashError = 
-      hash.includes("error_description=Email+link+is+invalid") || 
+    const hasHashError =
+      hash.includes("error_description=Email+link+is+invalid") ||
       hash.includes("error=unauthorized_client") ||
       hash.includes("error_description=Token+has+expired");
 
@@ -47,7 +38,7 @@ function AuthErrorListener() {
 export function AuthModal() {
   const { isOpen, view, closeAuthModal } = useAuthModal();
 
-  const titles = {
+  const titles: Record<string, string> = {
     "sign-in": "Sign in",
     "sign-up": "Sign up",
     "forgot-password": "Reset password",
@@ -60,8 +51,8 @@ export function AuthModal() {
       </Suspense>
 
       <Dialog open={isOpen} onOpenChange={(open) => !open && closeAuthModal()}>
-        <DialogContent 
-          onOpenAutoFocus={(e) => e.preventDefault()} 
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
           className="w-[calc(100%-32px)] sm:max-w-md bg-white border border-gray-200 shadow-2xl p-8 rounded-2xl [&>button]:text-gray-500 [&>button]:hover:text-gray-900 [&>button]:hover:bg-gray-100 [&>button]:outline-none"
         >
           <VisuallyHidden>
