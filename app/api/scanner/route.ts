@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
+import { streamText, generateText } from 'ai';
 import { ProxyAgent } from 'undici';
 import { createClient } from "@/utils/supabase/server";
 
@@ -215,71 +215,56 @@ IMPORTANT for usage_tips:
 
     // --- 替换原来的 streamText 调用部分 ---
 
-    const MODELS = [
-      'gemini-3-flash-preview',   // 首选
-      'gemini-3-flash-preview',   // 重试一次
-      'gemini-2.5-flash',         // 降级
-    ] as const;
+    const MODELS = ['gemini-3-flash-preview', 'gemini-2.5-flash'] as const;
 
-    let result: Awaited<ReturnType<typeof streamText>> | null = null;
-    let lastError: Error | null = null;
+    let chosenModel: string | null = null;
 
-    for (let i = 0; i < MODELS.length; i++) {
-      const modelName = MODELS[i];
+    for (const modelName of MODELS) {
       try {
-        result = await streamText({
+        // 极轻量探测：纯文本，1 token，确认模型可用
+        await generateText({
           model: googleCustom(modelName) as any,
-          maxRetries: 1,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: userPrompt },
-                { type: 'image', image: imageBase64, mimeType },
-              ],
-            },
-          ],
-          async onFinish({ finishReason }) {
-            if (!user) {
-              console.log('👤 Guest scan completed — no credits deducted');
-            } else {
-              console.log(`✅ Scan completed (User: ${user.id}, model: ${modelName}) — credits will be deducted in enhance step`);
-            }
-          },
+          maxTokens: 1,
+          messages: [{ role: 'user', content: 'hi' }],
         });
-        // streamText 本身不会抛错，需要尝试消费流来确认模型可用
-        // 但 toDataStreamResponse 是 lazy 的，所以我们直接 break
-        console.log(`🎯 Using model: ${modelName} (attempt ${i + 1})`);
+        chosenModel = modelName;
+        console.log(`🎯 Model available: ${modelName}`);
         break;
       } catch (err) {
-        lastError = err as Error;
-        const isOverload = lastError.message?.includes('high demand')
-          || lastError.message?.includes('overloaded')
-          || lastError.message?.includes('503')
-          || lastError.message?.includes('429');
-        console.warn(`⚠️ Model ${modelName} failed (attempt ${i + 1}): ${lastError.message}`);
-
-        if (!isOverload) {
-          // 非过载错误，直接抛出不重试
-          throw lastError;
-        }
-
-        if (i < MODELS.length - 1) {
-          // 重试前等一下，避免打得太快
-          await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-        }
+        console.warn(`⚠️ ${modelName} unavailable: ${(err as Error).message}`);
       }
     }
 
-    if (!result) {
+    if (!chosenModel) {
       return new Response(
         JSON.stringify({
           error: 'AI service is temporarily overloaded. Please try again in a moment.',
-          code: 'MODEL_OVERLOADED'
+          code: 'MODEL_OVERLOADED',
         }),
         { status: 503, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    const result = await streamText({
+      model: googleCustom(chosenModel) as any,
+      maxRetries: 1,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: userPrompt },
+            { type: 'image', image: imageBase64, mimeType },
+          ],
+        },
+      ],
+      async onFinish({ finishReason }) {
+        if (!user) {
+          console.log('👤 Guest scan completed — no credits deducted');
+        } else {
+          console.log(`✅ Scan completed (User: ${user.id}, model: ${chosenModel}) — credits will be deducted in enhance step`);
+        }
+      },
+    });
 
     return result.toDataStreamResponse();
   } catch (error) {

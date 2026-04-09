@@ -48,28 +48,10 @@ export default function RootLayout({
           onLoad 切回 media="all" 让字体生效
           这样 FCP 不再被字体 CSS 阻塞，省 200-400ms
         */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
         <link
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
           rel="stylesheet"
-          media="print"
-          // @ts-ignore — onLoad 在 link 上是合法 HTML，TS 类型定义不全
-          onLoad="this.media='all'"
         />
-        {/* 
-          ✅ 兜底：如果 JS 被禁用，仍然正常加载字体
-        */}
-        <noscript>
-          <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
-            rel="stylesheet"
-          />
-        </noscript>
 
         {/* ✅ 删除了 after-1.webp 的 preload — LCP 是 h1 不是图片，这个 preload 浪费带宽优先级 */}
 

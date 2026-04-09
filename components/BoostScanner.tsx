@@ -402,7 +402,7 @@ export default function BoostScanner() {
       <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center">
         <div className="flex space-x-1.5"><div className="w-2 h-2 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} /><div className="w-2 h-2 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><div className="w-2 h-2 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></div>
         <p className="text-white font-semibold text-base animate-pulse">AI is analyzing your photo...</p>
-        <p className="text-white/50 text-sm">Usually done within 10 seconds</p>
+        <p className="text-white/50 text-sm">Usually done within 15 seconds</p>
       </div>
     </div>
   );
