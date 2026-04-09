@@ -82,6 +82,7 @@ export default function SignInForm() {
     }
 
     closeAuthModal();
+    window.dispatchEvent(new Event("auth-changed"));  // ← 加这行
     router.refresh();
   };
 

@@ -83,6 +83,16 @@ export default function Header() {
     window.addEventListener('credits-updated', handleCreditsUpdate);
     return () => window.removeEventListener('credits-updated', handleCreditsUpdate);
   }, [fetchCredits]);
+  // ← 加在这里，紧跟上面那个 useEffect
+  // ─── Listen for auth changes (login/logout) ────────────────
+  useEffect(() => {
+    const handleAuthChanged = () => {
+      fetchCredits().then(() => setLoaded(true));
+    };
+
+    window.addEventListener('auth-changed', handleAuthChanged);
+    return () => window.removeEventListener('auth-changed', handleAuthChanged);
+  }, [fetchCredits]);
 
   const featureLinks = [
     {
