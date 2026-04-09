@@ -42,7 +42,10 @@ async function compressImage(file: File, options?: { maxSize?: number; quality?:
   URL.revokeObjectURL(url);
   return canvas.toDataURL('image/jpeg', quality);
 }
-
+const isFacebookWebView = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  return /FBAN|FBAV|FB_IAB|FBIOS|FBSS/i.test(navigator.userAgent || '');
+};
 const trackEvent = (eventName: string, params?: Record<string, any>) => {
   if (typeof window !== 'undefined' && window.gtag) window.gtag('event', eventName, params);
 };
@@ -111,9 +114,19 @@ export default function BoostScanner() {
     const savedText = sessionStorage.getItem('mf_visibleText') || localStorage.getItem('mf_visibleText');
     const savedJSON = sessionStorage.getItem('mf_analysisJSON') || localStorage.getItem('mf_analysisJSON');
     const guestFlag = localStorage.getItem('mf_guest_enhanced');
-    if (savedPreview) { setPreview(savedPreview); sessionStorage.setItem('mf_preview', savedPreview); }
-    if (savedText) { setVisibleText(savedText); sessionStorage.setItem('mf_visibleText', savedText); }
-    if (savedJSON) { setAnalysisJSON(savedJSON); sessionStorage.setItem('mf_analysisJSON', savedJSON); }
+    if (savedPreview) setPreview(savedPreview);
+    if (savedText) setVisibleText(savedText);
+    if (savedJSON) setAnalysisJSON(savedJSON);
+    // 批量写回 sessionStorage，避免阻塞渲染
+    requestIdleCallback?.(() => {
+      if (savedPreview) sessionStorage.setItem('mf_preview', savedPreview);
+      if (savedText) sessionStorage.setItem('mf_visibleText', savedText);
+      if (savedJSON) sessionStorage.setItem('mf_analysisJSON', savedJSON);
+    }) || setTimeout(() => {
+      if (savedPreview) sessionStorage.setItem('mf_preview', savedPreview);
+      if (savedText) sessionStorage.setItem('mf_visibleText', savedText);
+      if (savedJSON) sessionStorage.setItem('mf_analysisJSON', savedJSON);
+    }, 0);
     const savedWatermarked = sessionStorage.getItem('mf_watermarkedImage');
     const savedEnhancementId = sessionStorage.getItem('mf_enhancementId');
     const savedMimeType = sessionStorage.getItem('mf_enhancedMimeType');
@@ -165,9 +178,9 @@ export default function BoostScanner() {
   }, [preview, analysisJSON, visibleText]);
 
   // ── 三重拦截 ───────────────────────────────────────────────
-  useEffect(() => { if (!hasActiveResult) return; const h = (e: BeforeUnloadEvent) => { if (!skipExitWarningRef.current) { e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [hasActiveResult]);
-  useEffect(() => { if (!hasActiveResult) return; window.history.pushState({ matchfixGuard: true }, ''); const h = () => { if (!skipExitWarningRef.current) { window.history.pushState({ matchfixGuard: true }, ''); pendingNavigationRef.current = '__back__'; setActiveModal('privacy_exit'); } }; window.addEventListener('popstate', h); return () => window.removeEventListener('popstate', h); }, [hasActiveResult]);
-  useEffect(() => { if (!hasActiveResult) return; const h = (e: MouseEvent) => { if (skipExitWarningRef.current) return; const a = (e.target as HTMLElement).closest('a'); if (!a) return; const href = a.getAttribute('href'); if (!href) return; if (!(a.origin === window.location.origin || href.startsWith('/') || href.startsWith('#'))) return; if (href === pathname || href === '#') return; e.preventDefault(); e.stopPropagation(); pendingNavigationRef.current = href; setActiveModal('privacy_exit'); }; document.addEventListener('click', h, true); return () => document.removeEventListener('click', h, true); }, [hasActiveResult, pathname]);
+  useEffect(() => { if (!hasActiveResult || isFacebookWebView()) return; const h = (e: BeforeUnloadEvent) => { if (!skipExitWarningRef.current) { e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [hasActiveResult]);
+  useEffect(() => { if (!hasActiveResult || isFacebookWebView()) return; window.history.pushState({ matchfixGuard: true }, ''); const h = () => { if (!skipExitWarningRef.current) { window.history.pushState({ matchfixGuard: true }, ''); pendingNavigationRef.current = '__back__'; setActiveModal('privacy_exit'); } }; window.addEventListener('popstate', h); return () => window.removeEventListener('popstate', h); }, [hasActiveResult]);
+  useEffect(() => { if (!hasActiveResult || isFacebookWebView()) return; const h = (e: MouseEvent) => { if (skipExitWarningRef.current) return; const a = (e.target as HTMLElement).closest('a'); if (!a) return; const href = a.getAttribute('href'); if (!href) return; if (!(a.origin === window.location.origin || href.startsWith('/') || href.startsWith('#'))) return; if (href === pathname || href === '#') return; e.preventDefault(); e.stopPropagation(); pendingNavigationRef.current = href; setActiveModal('privacy_exit'); }; document.addEventListener('click', h, true); return () => document.removeEventListener('click', h, true); }, [hasActiveResult, pathname]);
 
   useEffect(() => {
     if (isCompact) {
@@ -233,7 +246,8 @@ export default function BoostScanner() {
       setVisibleText(text); setAnalysisJSON(json); sessionStorage.setItem('mf_visibleText', text); if (json) sessionStorage.setItem('mf_analysisJSON', json);
       trackEvent('boost_complete', { status: 'success' });
       fetch('/api/meta-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: `lead_${Date.now()}` }) }).catch(err => console.error('[Meta CAPI] Lead event failed:', err));
-      dispatchCreditsUpdate(); router.refresh(); handleEnhance(json, text);
+      dispatchCreditsUpdate(); router.refresh();
+      if (isFacebookWebView()) { setTimeout(() => handleEnhance(json, text), 1500); } else { handleEnhance(json, text); }
     },
     onError: (error) => { try { const d = JSON.parse(error.message); if (d.code === 'INSUFFICIENT_CREDITS' || (d.error && d.error.includes('Insufficient credits'))) { trackEvent('boost_failed', { reason: 'insufficient_credits' }); setActiveModal('enhance'); return; } alert('Oops: ' + (d.error || 'Something went wrong.')); } catch (e) { if (error.message.includes('402')) setActiveModal('enhance'); else alert('Oops, something went wrong: ' + error.message); } }
   });
@@ -245,11 +259,20 @@ export default function BoostScanner() {
     if (!file.type.startsWith('image/')) { alert('We only boost images. Upload a valid photo.'); return; }
     if (file.size > 10 * 1024 * 1024) { alert('File too large. (Max 10MB)'); return; }
     trackEvent('boost_image_selected', { file_size: Math.round(file.size / 1024) });
-    const compressed = await compressImage(file, { maxSize: 1024, quality: 0.75 });
-    setPreview(compressed); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setSelectedPanel('original');
-    sessionStorage.setItem('mf_preview', compressed); sessionStorage.removeItem('mf_visibleText'); sessionStorage.removeItem('mf_analysisJSON');
+    // 先用 blob URL 秒出预览
+    const quickPreview = URL.createObjectURL(file);
+    setPreview(quickPreview); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setSelectedPanel('original');
     const hero = document.getElementById('scanner-hero');
     if (hero) hero.style.display = '';
+    // 后台压缩，完成后替换预览并存 session
+    const compressed = await compressImage(file, { maxSize: 1024, quality: 0.75 });
+    URL.revokeObjectURL(quickPreview);
+    setPreview(compressed);
+    requestIdleCallback?.(() => {
+      sessionStorage.setItem('mf_preview', compressed); sessionStorage.removeItem('mf_visibleText'); sessionStorage.removeItem('mf_analysisJSON');
+    }) || setTimeout(() => {
+      sessionStorage.setItem('mf_preview', compressed); sessionStorage.removeItem('mf_visibleText'); sessionStorage.removeItem('mf_analysisJSON');
+    }, 0);
   };
 
   const handleSubmit = async () => {
@@ -383,8 +406,8 @@ export default function BoostScanner() {
   const GuestLockOverlay = () => (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center bg-black/50 backdrop-blur-[2px]">
       <div className="grid size-12 place-items-center rounded-full bg-white/10 border border-white/20 backdrop-blur-sm"><Lock className="size-5 text-white" /></div>
-      <div><p className="text-white font-bold text-base">Sign in to view full preview</p><p className="text-white/50 text-xs mt-1">Your enhanced photo is ready</p></div>
-      <Button size="sm" className="bg-white text-slate-900 hover:bg-white/90 font-bold gap-2 px-6 rounded-xl shadow-lg" onClick={() => openAuthModal('sign-up')}>Sign in</Button>
+      <div><p className="text-white font-bold text-base">Your photo looks great</p><p className="text-white/50 text-xs mt-1">Sign in to see the full result — takes 10 seconds</p></div>
+      <Button size="lg" className="bg-white text-slate-900 hover:bg-white/90 font-bold gap-2 px-8 py-3 rounded-xl shadow-lg text-base min-w-[200px]" onClick={() => openAuthModal('sign-up')}>View My Photo</Button>
     </div>
   );
 
@@ -395,15 +418,15 @@ export default function BoostScanner() {
         {/* ═══ DESKTOP: Initial upload ═══ */}
         {!preview && (
           <div className="hidden md:grid md:grid-cols-2 gap-5 items-stretch">
-            <div role="button" tabIndex={0} onClick={() => fileInputRef.current?.click()} onMouseEnter={() => setIsUploadHovered(true)} onMouseLeave={() => setIsUploadHovered(false)}
+            <label onMouseEnter={() => setIsUploadHovered(true)} onMouseLeave={() => setIsUploadHovered(false)}
               className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] hover:border-rose-500/80 hover:bg-rose-500/[0.08] cursor-pointer transition-all duration-500 overflow-hidden min-h-[420px] flex flex-col items-center justify-center gap-6 px-8">
-              <div className="absolute inset-0 rounded-2xl" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
-              <div className={`relative grid size-24 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-2xl shadow-rose-500/20 transition-all duration-500 ${isUploadHovered ? 'shadow-rose-500/40 scale-105 bg-rose-500/20' : ''}`}><Upload className={`size-10 transition-colors duration-300 ${isUploadHovered ? 'text-rose-300' : 'text-rose-400'}`} /></div>
-              <div className="relative text-center space-y-2"><div className="text-xl font-bold text-white">Drop your main profile photo</div><div className="text-base text-slate-400 group-hover:text-slate-300 transition-colors">or click to browse</div></div>
-              <div className="relative text-xs text-slate-500 mt-1">We enhance lighting, framing & color — your face stays 100% real</div>
-              <div className="relative text-sm text-slate-600">JPG / PNG · Max 10 MB</div>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-            </div>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+              <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
+              <div className={`relative pointer-events-none grid size-24 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-2xl shadow-rose-500/20 transition-all duration-500 ${isUploadHovered ? 'shadow-rose-500/40 scale-105 bg-rose-500/20' : ''}`}><Upload className={`size-10 transition-colors duration-300 ${isUploadHovered ? 'text-rose-300' : 'text-rose-400'}`} /></div>
+              <div className="relative pointer-events-none text-center space-y-2"><div className="text-xl font-bold text-white">Drop your main profile photo</div><div className="text-base text-slate-400 group-hover:text-slate-300 transition-colors">or click to browse</div></div>
+              <div className="relative pointer-events-none text-xs text-slate-500 mt-1">We enhance lighting, framing & color — your face stays 100% real</div>
+              <div className="relative pointer-events-none text-sm text-slate-600">JPG / PNG · Max 10 MB</div>
+            </label>
             <div className="rounded-2xl border border-slate-800/30 bg-slate-900/30 min-h-[420px] flex flex-col items-center justify-center gap-4 px-8 opacity-30">
               <div className="grid size-16 place-items-center rounded-2xl bg-slate-800/40 border border-slate-700/30"><Sparkles className="size-7 text-slate-600" /></div>
               <div className="text-center"><div className="text-base text-slate-500 font-medium">Your enhanced photo will appear here</div></div>
@@ -430,7 +453,10 @@ export default function BoostScanner() {
                       <Wand2 className="w-5 h-5" /> Enhance Photo
                       <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span>
                     </button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full h-10 rounded-xl text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 flex items-center justify-center gap-2"><RefreshCw className="w-3.5 h-3.5" /> Change photo</button>
+                    <label className="w-full h-10 rounded-xl text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 flex items-center justify-center gap-2 cursor-pointer">
+                      <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                      <RefreshCw className="w-3.5 h-3.5" /> Change photo
+                    </label>
                   </div>
                 )}
               </div>
@@ -442,7 +468,7 @@ export default function BoostScanner() {
                 <div className={`relative w-full overflow-hidden rounded-xl border border-slate-800/50 bg-slate-900/40 flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
                   {showEnhanced ? (
                     <div className="relative h-full w-full">
-                      <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isGuestEnhanced ? '' : 'cursor-pointer'} ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'h-full'}`} style={isGuestEnhanced ? { filter: 'blur(14px)', transform: 'scale(1.04)' } : {}} onClick={() => enhancedSrc && openLightbox(enhancedSrc)} />
+                      <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isGuestEnhanced ? '' : 'cursor-pointer'} ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'h-full'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}}onClick={() => enhancedSrc && openLightbox(enhancedSrc)} />
                       <div className="absolute top-3 left-3 bg-emerald-500/80 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-400/20 flex items-center gap-1"><Sparkles className="size-3" /> AI Enhanced</div>
                       {isCompact && !isGuestEnhanced && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                       {isGuestEnhanced && <GuestLockOverlay />}
@@ -458,17 +484,15 @@ export default function BoostScanner() {
           </div>
         )}
 
-        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-
         {/* ═══ MOBILE ═══ */}
         <div className="md:hidden">
           {!preview ? (
-            <div role="button" tabIndex={0} onClick={() => fileInputRef.current?.click()}
-              className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] active:bg-rose-500/[0.08] cursor-pointer min-h-[340px] flex flex-col items-center justify-center gap-5 px-6 overflow-hidden">
-              <div className="absolute inset-0 rounded-2xl" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
-              <div className="relative grid size-20 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-xl shadow-rose-500/20"><Upload className="size-8 text-rose-400" /></div>
-              <div className="relative text-center space-y-1.5"><div className="text-lg font-bold text-white">Tap to upload your profile photo</div><div className="text-xs text-slate-500">Your face stays 100% real — we just fix the lighting</div><div className="text-sm text-slate-600 mt-2">JPG / PNG · Max 10 MB</div></div>
-            </div>
+            <label className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] active:bg-rose-500/[0.08] cursor-pointer min-h-[340px] flex flex-col items-center justify-center gap-5 px-6 overflow-hidden">
+              <input type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+              <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
+              <div className="relative pointer-events-none grid size-20 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-xl shadow-rose-500/20"><Upload className="size-8 text-rose-400" /></div>
+              <div className="relative pointer-events-none text-center space-y-1.5"><div className="text-lg font-bold text-white">Tap to upload your profile photo</div><div className="text-xs text-slate-500">Your face stays 100% real — we just fix the lighting</div><div className="text-sm text-slate-600 mt-2">JPG / PNG · Max 10 MB</div></div>
+            </label>
           ) : (
             <div className="rounded-2xl border border-slate-800/60 bg-gradient-to-b from-slate-900/80 to-slate-950/90 overflow-hidden">
               {showEnhanced && (
@@ -488,7 +512,7 @@ export default function BoostScanner() {
                   {showEnhanced && (
                     <div style={{ display: sliderIndex === 1 ? 'block' : 'none' }}>
                       <div className="relative h-full w-full">
-                        <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : ''}`} style={isGuestEnhanced ? { filter: 'blur(14px)', transform: 'scale(1.04)' } : {}} onClick={() => enhancedSrc && !isGuestEnhanced && openLightbox(enhancedSrc)} />
+                        <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : ''}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}}onClick={() => enhancedSrc && !isGuestEnhanced && openLightbox(enhancedSrc)} />
                         <div className="absolute top-3 left-3 bg-emerald-500/80 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-400/20 flex items-center gap-1"><Sparkles className="size-3" /> AI Enhanced</div>
                         {!isGuestEnhanced && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                         {isGuestEnhanced && <GuestLockOverlay />}
@@ -508,7 +532,10 @@ export default function BoostScanner() {
                   <div className="flex flex-col gap-2 mt-3">
                     <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
                       className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 disabled:opacity-40"><Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span></button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full h-9 rounded-xl text-xs text-slate-500 hover:text-slate-300 flex items-center justify-center gap-1.5"><RefreshCw className="w-3 h-3" /> Change photo</button>
+                    <label className="w-full h-9 rounded-xl text-xs text-slate-500 hover:text-slate-300 flex items-center justify-center gap-1.5 cursor-pointer">
+                      <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                      <RefreshCw className="w-3 h-3" /> Change photo
+                    </label>
                   </div>
                 )}
               </div>
@@ -626,7 +653,7 @@ export default function BoostScanner() {
                   setActiveModal(null);
                   setEnhanceError(null);
                   handleReset();
-                  setTimeout(() => fileInputRef.current?.click(), 100);
+                  // 不再用 setTimeout + .click()，改为设一个标记让 reset 后自动打开选择器
                 }}
               >
                 Upload New Photo
