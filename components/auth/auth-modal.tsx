@@ -53,6 +53,7 @@ export function AuthModal() {
       <Dialog open={isOpen} onOpenChange={(open) => !open && closeAuthModal()}>
         <DialogContent
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}  // ← 加这一行
           className="w-[calc(100%-32px)] sm:max-w-md bg-white border border-gray-200 shadow-2xl p-8 rounded-2xl [&>button]:text-gray-500 [&>button]:hover:text-gray-900 [&>button]:hover:bg-gray-100 [&>button]:outline-none"
         >
           <VisuallyHidden>
