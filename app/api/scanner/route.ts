@@ -213,27 +213,73 @@ IMPORTANT for usage_tips:
 - If route is "needs_real_photo", set to ["Upload a real photo first", "We need the unedited version", "Then we'll build your strategy"]
 `;
 
-    const result = await streamText({
-      // [v8] model upgraded from gemini-2.5-flash to gemini-3-flash-preview
-      model: googleCustom('gemini-3-flash-preview') as any,
-      maxRetries: 1,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: userPrompt },
-            { type: 'image', image: imageBase64, mimeType },
+    // --- 替换原来的 streamText 调用部分 ---
+
+    const MODELS = [
+      'gemini-3-flash-preview',   // 首选
+      'gemini-3-flash-preview',   // 重试一次
+      'gemini-2.5-flash',         // 降级
+    ] as const;
+
+    let result: Awaited<ReturnType<typeof streamText>> | null = null;
+    let lastError: Error | null = null;
+
+    for (let i = 0; i < MODELS.length; i++) {
+      const modelName = MODELS[i];
+      try {
+        result = await streamText({
+          model: googleCustom(modelName) as any,
+          maxRetries: 1,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: userPrompt },
+                { type: 'image', image: imageBase64, mimeType },
+              ],
+            },
           ],
-        },
-      ],
-      async onFinish({ finishReason }) {
-        if (!user) {
-          console.log('👤 Guest scan completed — no credits deducted');
-        } else {
-          console.log(`✅ Scan completed (User: ${user.id}) — credits will be deducted in enhance step`);
+          async onFinish({ finishReason }) {
+            if (!user) {
+              console.log('👤 Guest scan completed — no credits deducted');
+            } else {
+              console.log(`✅ Scan completed (User: ${user.id}, model: ${modelName}) — credits will be deducted in enhance step`);
+            }
+          },
+        });
+        // streamText 本身不会抛错，需要尝试消费流来确认模型可用
+        // 但 toDataStreamResponse 是 lazy 的，所以我们直接 break
+        console.log(`🎯 Using model: ${modelName} (attempt ${i + 1})`);
+        break;
+      } catch (err) {
+        lastError = err as Error;
+        const isOverload = lastError.message?.includes('high demand')
+          || lastError.message?.includes('overloaded')
+          || lastError.message?.includes('503')
+          || lastError.message?.includes('429');
+        console.warn(`⚠️ Model ${modelName} failed (attempt ${i + 1}): ${lastError.message}`);
+
+        if (!isOverload) {
+          // 非过载错误，直接抛出不重试
+          throw lastError;
         }
-      },
-    });
+
+        if (i < MODELS.length - 1) {
+          // 重试前等一下，避免打得太快
+          await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+        }
+      }
+    }
+
+    if (!result) {
+      return new Response(
+        JSON.stringify({
+          error: 'AI service is temporarily overloaded. Please try again in a moment.',
+          code: 'MODEL_OVERLOADED'
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     return result.toDataStreamResponse();
   } catch (error) {
