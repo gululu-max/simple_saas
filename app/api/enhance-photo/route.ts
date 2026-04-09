@@ -231,6 +231,84 @@ Return only the enhanced image.`
   return response.json();
 }
 
+// ─── 【新增函数】放在 addWatermarkServer 函数之前 ──────────────
+
+/**
+ * 判断 fix_plan 是否包含主动色温变更指令
+ * 如果用户的 fix_plan 里有明确的色温调整，就不做校色，信任模型输出
+ */
+function shouldCorrectColor(fixPlan: FixPlan | null): boolean {
+  if (!fixPlan) return true; // 没有 fix_plan，保守校色
+
+  // 这些值表示"主动要求色温变化"，此时跳过校色
+  const activeColorGrades = ['warm_tone', 'cool_tone'];
+  const activeLightingChanges = ['warm_golden_hour'];
+
+  if (activeColorGrades.includes(fixPlan.color_grade)) return false;
+  if (activeLightingChanges.includes(fixPlan.lighting)) return false;
+
+  return true;
+}
+
+/**
+ * 后处理色温校正：将生成图的 RGB 通道均值拉回原图水平
+ * 
+ * 原理：
+ * 1. 分别计算原图和生成图的 R/G/B 通道均值
+ * 2. 算出每个通道的缩放比例 (原图均值 / 生成图均值)
+ * 3. 用 sharp.recomb() 做线性变换，一次性校正
+ * 
+ * 性能：50-150ms，对用户无感
+ * 画质：单次矩阵乘法，PNG 输出无损
+ */
+async function correctColorTemperature(
+  originalBase64: string,
+  generatedBuffer: Buffer,
+): Promise<Buffer> {
+  // 获取原图的 RGB 通道统计
+  const originalBuffer = Buffer.from(originalBase64, 'base64');
+  const originalStats = await sharp(originalBuffer).stats();
+  const generatedStats = await sharp(generatedBuffer).stats();
+
+  // 提取各通道均值
+  const origR = originalStats.channels[0].mean;
+  const origG = originalStats.channels[1].mean;
+  const origB = originalStats.channels[2].mean;
+
+  const genR = generatedStats.channels[0].mean;
+  const genG = generatedStats.channels[1].mean;
+  const genB = generatedStats.channels[2].mean;
+
+  // 计算缩放比例，加 clamp 防止极端值
+  const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+  const scaleR = clamp(origR / (genR || 1), 0.8, 1.2);
+  const scaleG = clamp(origG / (genG || 1), 0.8, 1.2);
+  const scaleB = clamp(origB / (genB || 1), 0.8, 1.2);
+
+  // 偏移量太小（<2%）就不校了，避免无意义处理
+  const maxDrift = Math.max(
+    Math.abs(scaleR - 1),
+    Math.abs(scaleG - 1),
+    Math.abs(scaleB - 1),
+  );
+  if (maxDrift < 0.02) {
+    console.log('🎨 色温偏移 <2%，跳过校色');
+    return generatedBuffer;
+  }
+
+  console.log(`🎨 色温校正: R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)}`);
+
+  // recomb 矩阵：对角线放缩放系数，非对角线为 0
+  // 这是一个 3x3 的颜色变换矩阵
+  const corrected = await sharp(generatedBuffer)
+    .recomb([
+      [scaleR, 0, 0],
+      [0, scaleG, 0],
+      [0, 0, scaleB],
+    ])
+    .toBuffer();
+  return Buffer.from(corrected as any);
+}
 // ─── 后端加水印（预制PNG瓦片平铺，不依赖系统字体）──────────────
 async function addWatermarkServer(imageBuffer: Buffer): Promise<Buffer> {
   const meta = await sharp(imageBuffer).metadata();
@@ -246,13 +324,14 @@ async function addWatermarkServer(imageBuffer: Buffer): Promise<Buffer> {
     }
   }
 
-  return sharp(imageBuffer)
+  const wmResult = await sharp(imageBuffer)
     .composite(composites)
     .png()
     .toBuffer();
+  return Buffer.from(wmResult as any);
 }
 
-// ─── 主 Handler ──────────────────────────────────────────────
+// ─── 主 Handler ──────────────────────────────────────────────/*  */
 export async function POST(req: Request) {
   try {
     const { imageBase64, mimeType = "image/jpeg", analysisResult } = await req.json();
@@ -435,13 +514,31 @@ export async function POST(req: Request) {
     const rawBase64: string = imagePart.inlineData.data;
     const rawBuffer = Buffer.from(rawBase64, 'base64');
 
+    // ── 后处理色温校正（防止 Gemini 加黄）──
+    const fixPlan = extractFixPlan(analysisResult);
+    let correctedBuffer = rawBuffer;
+
+    if (shouldCorrectColor(fixPlan)) {
+      try {
+        correctedBuffer = Buffer.from(await correctColorTemperature(imageBase64, rawBuffer) as any);
+        console.log('🎨 色温校正完成');
+      } catch (colorErr) {
+        console.error('🎨 色温校正失败，使用原始生成图:', colorErr);
+        // 校色失败不影响主流程，降级使用未校正的图
+        correctedBuffer = rawBuffer;
+      }
+    } else {
+      console.log('🎨 fix_plan 含主动色温调整，跳过校色');
+    }
+
+    const correctedBase64 = correctedBuffer.toString('base64');
     // ── 后端加水印（仅首次免费试用才加水印）──
     // 付费用户已前置付费，直接给无水印图
     let watermarkedBuffer: Buffer | null = null;
     let watermarkedBase64: string | null = null;
 
     if (isFreeTrial) {
-      watermarkedBuffer = await addWatermarkServer(rawBuffer);
+      watermarkedBuffer = await addWatermarkServer(correctedBuffer);
       watermarkedBase64 = watermarkedBuffer.toString('base64');
     }
 
@@ -449,7 +546,7 @@ export async function POST(req: Request) {
     const storageKey = `${user.id}/${Date.now()}.png`;
     const { error: uploadError } = await supabaseAdmin.storage
       .from(BUCKET)
-      .upload(storageKey, rawBuffer, {
+      .upload(storageKey, correctedBuffer, {
         contentType: cleanMime,
         upsert: false,
       });
@@ -494,7 +591,7 @@ export async function POST(req: Request) {
         success: true,
         enhancementId: enhRecord.id,
         // 首次免费返回水印图，付费用户返回无水印原图
-        watermarkedImage: isFreeTrial ? watermarkedBase64 : rawBase64,
+        watermarkedImage: isFreeTrial ? watermarkedBase64 : correctedBase64,
         mimeType: 'image/png',
         creditsRemaining,
         isFreeTrial,
