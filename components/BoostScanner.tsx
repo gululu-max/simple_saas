@@ -497,7 +497,7 @@ export default function BoostScanner() {
         <div className="md:hidden">
           {!preview ? (
             <label className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] active:bg-rose-500/[0.08] cursor-pointer min-h-[340px] flex flex-col items-center justify-center gap-5 px-6 overflow-hidden">
-              <input type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+              <input type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ WebkitTapHighlightColor: 'transparent', fontSize: '0', border: 'none', outline: 'none' }} />
               <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
               <div className="relative pointer-events-none grid size-20 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-xl shadow-rose-500/20"><Upload className="size-8 text-rose-400" /></div>
               <div className="relative pointer-events-none text-center space-y-1.5"><div className="text-lg font-bold text-white">Tap to upload your profile photo</div><div className="text-xs text-slate-500">Your face stays 100% real — we just fix the lighting</div><div className="text-sm text-slate-600 mt-2">JPG / PNG · Max 10 MB</div></div>
