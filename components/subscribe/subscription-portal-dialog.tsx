@@ -1,39 +1,23 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
 
-export function SubscriptionPortalDialog() {
+interface SubscriptionPortalDialogProps {
+  creemCustomerId?: string | null;
+}
+
+export function SubscriptionPortalDialog({
+  creemCustomerId,
+}: SubscriptionPortalDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasCustomer, setHasCustomer] = useState(false);
-  const supabase = createClient();
 
-  useEffect(() => {
-    const checkCustomer = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: customer } = await supabase
-          .from("customers")
-          .select("creem_customer_id")
-          .eq("user_id", user.id)
-          .single();
-
-        setHasCustomer(!!customer?.creem_customer_id?.startsWith("cust_"));
-      } catch (err) {
-        console.error("Error checking customer:", err);
-        setHasCustomer(false);
-      }
-    };
-
-    checkCustomer();
-  }, []);
+  // 没有有效的 Creem 客户 ID → 不渲染
+  if (!creemCustomerId || !creemCustomerId.startsWith("cust_")) {
+    return null;
+  }
 
   const handleManageSubscription = async () => {
     try {
@@ -64,10 +48,6 @@ export function SubscriptionPortalDialog() {
       setIsLoading(false);
     }
   };
-
-  if (!hasCustomer) {
-    return null;
-  }
 
   return (
     <div>

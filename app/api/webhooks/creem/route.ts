@@ -12,18 +12,35 @@ import crypto from "crypto";
 const CREEM_WEBHOOK_SECRET = process.env.CREEM_WEBHOOK_SECRET!;
 
 // ─── 从环境变量读取 Product IDs，构建积分映射表 ─────────────
-// 这样切测试/生产环境只需要改 .env，不用动代码
-const CREDITS_MAP: Record<string, { type: "subscription" | "package"; amount: number }> = {
-  // 订阅套餐（每月发放积分数）
-  [process.env.NEXT_PUBLIC_PRODUCT_ID_STARTER!]: { type: "subscription", amount: 40 },
-  [process.env.NEXT_PUBLIC_PRODUCT_ID_PRO!]:     { type: "subscription", amount: 200 },
-  [process.env.NEXT_PUBLIC_PRODUCT_ID_ULTRA!]:   { type: "subscription", amount: 500 },
-  // 单次积分包（新定价：5 / 75 / 200 / 500）
-  [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_STARTER!]: { type: "package", amount: 75 },
-  [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_VALUE!]:   { type: "package", amount: 200 },
-  [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_PRO!]:     { type: "package", amount: 500 },
-  [process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_MICRO!]: { type: "package", amount: 5 },
-};
+const CREDITS_MAP: Record<string, { type: "subscription" | "package"; amount: number }> = {};
+
+// 安全地注册映射：跳过未配置的环境变量，避免 undefined key
+function registerProduct(envKey: string, type: "subscription" | "package", amount: number) {
+  const productId = process.env[envKey];
+  if (productId) {
+    CREDITS_MAP[productId] = { type, amount };
+  } else {
+    console.warn(`⚠️ 环境变量 ${envKey} 未配置，对应积分映射跳过`);
+  }
+}
+
+// 订阅套餐
+registerProduct("NEXT_PUBLIC_PRODUCT_ID_STARTER", "subscription", 40);
+registerProduct("NEXT_PUBLIC_PRODUCT_ID_PRO", "subscription", 200);
+registerProduct("NEXT_PUBLIC_PRODUCT_ID_ULTRA", "subscription", 500);
+// 单次积分包
+registerProduct("NEXT_PUBLIC_PRODUCT_ID_PACK_MICRO", "package", 5);
+registerProduct("NEXT_PUBLIC_PRODUCT_ID_PACK_STARTER", "package", 75);
+registerProduct("NEXT_PUBLIC_PRODUCT_ID_PACK_VALUE", "package", 200);
+registerProduct("NEXT_PUBLIC_PRODUCT_ID_PACK_PRO", "package", 500);
+
+// ─── 安全提取 customer 对象 ─────────────
+// Creem 有时返回完整 customer 对象，有时只返回 string ID
+function resolveCustomer(raw: any): any {
+  if (!raw) return raw;
+  if (typeof raw === "string") return { id: raw };
+  return raw;
+}
 
 export async function POST(request: Request) {
   try {
@@ -90,7 +107,7 @@ async function handleCheckoutCompleted(event: CreemWebhookEvent) {
   }
 
   const customerId = await createOrUpdateCustomer(
-    checkout.customer,
+    resolveCustomer(checkout.customer),
     checkout.metadata.user_id
   );
 
@@ -138,7 +155,7 @@ async function handleCheckoutCompleted(event: CreemWebhookEvent) {
 async function handleSubscriptionActive(event: CreemWebhookEvent) {
   const subscription = event.object;
   const customerId = await createOrUpdateCustomer(
-    subscription.customer as any,
+    resolveCustomer(subscription.customer),
     subscription.metadata?.user_id
   );
   await createOrUpdateSubscription(subscription, customerId);
@@ -152,7 +169,7 @@ async function handleSubscriptionPaid(event: CreemWebhookEvent) {
   const subscription = event.object as any;
 
   const customerId = await createOrUpdateCustomer(
-    subscription.customer as any,
+    resolveCustomer(subscription.customer),
     subscription.metadata?.user_id
   );
   await createOrUpdateSubscription(subscription, customerId);
@@ -197,7 +214,7 @@ async function handleSubscriptionPaid(event: CreemWebhookEvent) {
 async function handleSubscriptionCanceled(event: CreemWebhookEvent) {
   const subscription = event.object;
   const customerId = await createOrUpdateCustomer(
-    subscription.customer as any,
+    resolveCustomer(subscription.customer),
     subscription.metadata?.user_id
   );
   await createOrUpdateSubscription(subscription, customerId);
@@ -207,7 +224,7 @@ async function handleSubscriptionCanceled(event: CreemWebhookEvent) {
 async function handleSubscriptionExpired(event: CreemWebhookEvent) {
   const subscription = event.object;
   const customerId = await createOrUpdateCustomer(
-    subscription.customer as any,
+    resolveCustomer(subscription.customer),
     subscription.metadata?.user_id
   );
   await createOrUpdateSubscription(subscription, customerId);
@@ -217,7 +234,7 @@ async function handleSubscriptionExpired(event: CreemWebhookEvent) {
 async function handleSubscriptionTrialing(event: CreemWebhookEvent) {
   const subscription = event.object;
   const customerId = await createOrUpdateCustomer(
-    subscription.customer as any,
+    resolveCustomer(subscription.customer),
     subscription.metadata?.user_id
   );
   await createOrUpdateSubscription(subscription, customerId);

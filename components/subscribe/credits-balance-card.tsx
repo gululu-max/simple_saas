@@ -13,7 +13,6 @@ export function CreditsBalanceCard({
   recentHistory,
 }: CreditsBalanceCardProps) {
   return (
-    // 在这里去掉了 border 类，现在它只保留了圆角和背景色
     <div className="rounded-xl bg-card p-6">
       <div className="flex items-center gap-4">
         <div className="p-2 bg-primary/10 rounded-lg">
@@ -40,7 +39,6 @@ export function CreditsBalanceCard({
                 {history.type === "add" ? "+" : "-"}
                 {history.amount}
               </span>
-              {/* 核心修复：在这里加上 suppressHydrationWarning 属性 */}
               <span className="text-muted-foreground" suppressHydrationWarning>
                 {new Date(history.created_at).toLocaleDateString()}
               </span>

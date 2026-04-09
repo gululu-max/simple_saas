@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { CreditCard, Zap, CalendarClock, ChevronDown, Crown } from "lucide-react";
+import { Zap, CalendarClock, ChevronDown, Crown } from "lucide-react";
 import { CreditsBalanceCard } from "@/components/subscribe/credits-balance-card";
 import { SubscriptionStatusCard } from "@/components/subscribe/subscription-status-card";
 import { CreditTransaction } from "@/types/creem";
@@ -15,6 +15,7 @@ interface SubscriptionStatusBarProps {
   credits: number;
   recentHistory: CreditTransaction[];
   hasActiveAccess: boolean;
+  creemCustomerId?: string | null;
 }
 
 export function SubscriptionStatusBar({
@@ -22,6 +23,7 @@ export function SubscriptionStatusBar({
   credits,
   recentHistory,
   hasActiveAccess,
+  creemCustomerId,
 }: SubscriptionStatusBarProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -56,7 +58,6 @@ export function SubscriptionStatusBar({
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar flex-1 min-w-0">
 
           {hasActiveAccess ? (
-            /* ── 会员：展示会员状态 ── */
             <>
               <div className="flex items-center gap-1.5 shrink-0">
                 <Crown className="h-4 w-4 text-amber-400" />
@@ -77,7 +78,6 @@ export function SubscriptionStatusBar({
               )}
             </>
           ) : (
-            /* ── 普通登录用户：展示积分数 ── */
             <div className="flex items-center gap-1.5 shrink-0">
               <Zap className="h-4 w-4 text-amber-500" />
               <span className="text-muted-foreground hidden sm:inline">Credits</span>
@@ -94,7 +94,7 @@ export function SubscriptionStatusBar({
         />
       </button>
 
-      {/* ── Dropdown Panel：会员和普通用户都展示会员+积分卡片 ── */}
+      {/* ── Dropdown Panel ── */}
       {open && (
         <div className="absolute left-0 right-0 top-full mt-2 z-50 rounded-xl border border-border/60 bg-background shadow-xl p-3 animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col gap-3">
           {subscription?.current_period_end && (
@@ -103,6 +103,7 @@ export function SubscriptionStatusBar({
                 status: subscription.status,
                 current_period_end: subscription.current_period_end,
               }}
+              creemCustomerId={creemCustomerId}
             />
           )}
           <CreditsBalanceCard credits={credits} recentHistory={recentHistory} />

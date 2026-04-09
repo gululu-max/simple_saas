@@ -1,7 +1,6 @@
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
-import { consumeCredits } from "@/lib/credits";
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
@@ -14,15 +13,27 @@ const supabaseAdmin = createAdminClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ─── 预加载水印瓦片（启动时读一次，常驻内存）──────────────────
-let watermarkTileBuffer: Buffer | null = null;
+// ↓ 加这个
+interface DeductCreditsResult {
+  success: boolean;
+  remaining: number;
+  customer_id: string;
+}
 
-function getWatermarkTile(): Buffer {
+// ─── 预加载水印瓦片（启动时读一次，常驻内存 + 缓存尺寸）──────
+let watermarkTileBuffer: Buffer | null = null;
+let watermarkTileW = 600;
+let watermarkTileH = 600;
+
+async function getWatermarkTile(): Promise<{ buffer: Buffer; w: number; h: number }> {
   if (!watermarkTileBuffer) {
     const tilePath = path.join(process.cwd(), 'public', 'watermark-tile.png');
     watermarkTileBuffer = fs.readFileSync(tilePath);
+    const tileMeta = await sharp(watermarkTileBuffer).metadata();
+    watermarkTileW = tileMeta.width ?? 600;
+    watermarkTileH = tileMeta.height ?? 600;
   }
-  return watermarkTileBuffer;
+  return { buffer: watermarkTileBuffer, w: watermarkTileW, h: watermarkTileH };
 }
 
 // ─── 从 analysisResult 中提取 fix_plan ──────────────────────
@@ -226,10 +237,7 @@ async function addWatermarkServer(imageBuffer: Buffer): Promise<Buffer> {
   const w = meta.width ?? 800;
   const h = meta.height ?? 800;
 
-  const tile = getWatermarkTile();
-  const tileMeta = await sharp(tile).metadata();
-  const tileW = tileMeta.width ?? 600;
-  const tileH = tileMeta.height ?? 600;
+  const { buffer: tile, w: tileW, h: tileH } = await getWatermarkTile();
 
   const composites: sharp.OverlayOptions[] = [];
   for (let y = 0; y < h; y += tileH) {
@@ -263,10 +271,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── 读用户信息 ──
-    const { data: customer, error: customerError } = await supabase
+    // ── 读用户信息 + 会员状态（合并为单次查询，省一次 DB round trip）──
+    const { data: customer, error: customerError } = await supabaseAdmin
       .from("customers")
-      .select("id, credits, free_enhance_used")
+      .select(`
+        id, credits, free_enhance_used,
+        subscriptions (status, current_period_end)
+      `)
       .eq("user_id", user.id)
       .single();
 
@@ -277,24 +288,20 @@ export async function POST(req: Request) {
 
     const isFreeTrial = !customer.free_enhance_used;
 
-    // ── 查会员状态（含 canceled 但仍在有效期内的情况）──
+    // ── 判断会员状态（含 canceled 但仍在有效期内的情况）──
     const now = new Date().toISOString();
+    const subs = (customer as any).subscriptions as any[] | null;
+    const subData = subs?.find((s: any) =>
+      s.status === 'active' ||
+      (s.status === 'canceled' && s.current_period_end && s.current_period_end > now)
+    ) ?? null;
 
-    const { data: subData } = await supabaseAdmin
-      .from("subscriptions")
-      .select("status, current_period_end")
-      .eq("customer_id", customer.id)
-      .in("status", ["active", "canceled"])
-      .maybeSingle();
-
-    const isSubscribed: boolean = !!subData && (
-      subData.status === "active" ||
-      (subData.status === "canceled" && !!subData.current_period_end && subData.current_period_end > now)
-    );
+    const isSubscribed = !!subData;
     console.log('🔍 user.id:', user.id);
     console.log('🔍 customer.id:', customer.id);
     console.log('🔍 subData:', JSON.stringify(subData));
     console.log('🔍 isSubscribed:', isSubscribed);
+
     // ── 前置收费（非首次免费才收费）──
     // 会员扣 20 credits，非会员扣 25 credits（含无水印下载）
     let creditsRemaining = customer.credits;
@@ -304,6 +311,7 @@ export async function POST(req: Request) {
       const costNeeded = isSubscribed ? 20 : 25;
       console.log('🔍 actionType:', actionType, '| costNeeded:', costNeeded);
 
+      // 快速失败：前端友好提示
       if (customer.credits < costNeeded) {
         return new Response(
           JSON.stringify({
@@ -317,16 +325,43 @@ export async function POST(req: Request) {
         );
       }
 
-      // 先扣费再生图，避免生图成功但扣费失败
-      const deduction = await consumeCredits(user.id, actionType);
-      if (!deduction.success) {
-        console.error(`扣费失败 (User: ${user.id}):`, deduction.message);
+      // ── 原子扣积分（RPC，防止并发超扣）──
+      const { data: rpcResult, error: rpcError } = await supabaseAdmin
+        .rpc('deduct_credits', {
+          p_user_id: user.id,
+          p_amount: costNeeded,
+          p_description: actionType,
+          p_metadata: {
+            source: 'system_deduction',
+            action: actionType,
+          },
+        })
+        .returns<DeductCreditsResult[]>()  // ← 加这行
+        .single();
+
+      if (rpcError) {
+        console.error(`扣费RPC失败 (User: ${user.id}):`, rpcError);
         return new Response(
           JSON.stringify({ error: "Failed to deduct credits" }),
           { status: 500 }
         );
       }
-      creditsRemaining = deduction.remaining ?? creditsRemaining;
+
+      if (!rpcResult.success) {
+        // 并发场景：前面检查时够，RPC 执行时已被别的请求扣完
+        return new Response(
+          JSON.stringify({
+            error: "Insufficient credits",
+            code: "INSUFFICIENT_CREDITS",
+            needed: costNeeded,
+            current: 0,
+            isSubscribed,
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      creditsRemaining = rpcResult.remaining;
     }
 
     // ── 调 Gemini 生图 ──
@@ -337,9 +372,24 @@ export async function POST(req: Request) {
       // 生图失败时，如果已扣费，需要退回积分（非免费试用时）
       if (!isFreeTrial) {
         const refundAmount = isSubscribed ? 20 : 25;
-        const { addCreditsToCustomer } = await import('@/lib/credits');
         try {
-          await addCreditsToCustomer(user.id, refundAmount, 'refund_generation_failed', 'Refund: AI generation failed');
+          // 退款：直接加回积分 + 写流水
+          await supabaseAdmin
+            .from('customers')
+            .update({ credits: creditsRemaining + refundAmount })
+            .eq('user_id', user.id);
+
+          await supabaseAdmin.from('credits_history').insert({
+            customer_id: customer.id,
+            amount: refundAmount,
+            type: 'add',
+            description: 'Refund: AI generation failed',
+            metadata: {
+              source: 'system_refund',
+              action: 'refund_generation_failed',
+            },
+          });
+
           creditsRemaining += refundAmount;
           console.log(`退款成功: ${refundAmount} credits refunded to user ${user.id}`);
         } catch (refundErr) {
@@ -356,9 +406,23 @@ export async function POST(req: Request) {
       // 同样退款
       if (!isFreeTrial) {
         const refundAmount = isSubscribed ? 20 : 25;
-        const { addCreditsToCustomer } = await import('@/lib/credits');
         try {
-          await addCreditsToCustomer(user.id, refundAmount, 'refund_no_image', 'Refund: No image returned');
+          await supabaseAdmin
+            .from('customers')
+            .update({ credits: creditsRemaining + refundAmount })
+            .eq('user_id', user.id);
+
+          await supabaseAdmin.from('credits_history').insert({
+            customer_id: customer.id,
+            amount: refundAmount,
+            type: 'add',
+            description: 'Refund: No image returned',
+            metadata: {
+              source: 'system_refund',
+              action: 'refund_no_image',
+            },
+          });
+
           creditsRemaining += refundAmount;
         } catch (refundErr) {
           console.error(`退款失败 (User: ${user.id}):`, refundErr);

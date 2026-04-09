@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   try {
-    // Get the user from the session
     const supabase = await createClient();
     const {
       data: { user },
@@ -15,10 +14,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Use service role client for database operations
     const serviceClient = createServiceRoleClient();
 
-    // Get the customer record for this user
     const { data: customer, error: customerError } = await serviceClient
       .from("customers")
       .select("creem_customer_id")
@@ -29,12 +26,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No subscription found" }, { status: 404 });
     }
 
-    // Check if the customer ID is a valid Creem ID
     if (!customer.creem_customer_id || !customer.creem_customer_id.startsWith('cust_')) {
       return NextResponse.json({ error: "Not a paid customer yet" }, { status: 404 });
     }
 
-    // Call Creem API to get the customer portal link
     const response = await fetch(
       `${process.env.CREEM_API_URL}/customers/billing`,
       {

@@ -59,6 +59,9 @@ export default async function SubscribePage() {
   const credits = customerData?.credits || 0;
   const recentCreditsHistory = (customerData?.credits_history?.slice(0, 2) || []) as CreditTransaction[];
 
+  // 把 creem_customer_id 传下去，省掉 SubscriptionPortalDialog 的客户端查询
+  const creemCustomerId = customerData?.creem_customer_id || null;
+
   const hasActiveAccess = (() => {
     if (!subscription) return false;
     const { status, current_period_end } = subscription;
@@ -76,6 +79,7 @@ export default async function SubscribePage() {
           credits={credits}
           recentHistory={recentCreditsHistory}
           hasActiveAccess={hasActiveAccess}
+          creemCustomerId={creemCustomerId}
         />
       </div>
 

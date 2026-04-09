@@ -3,15 +3,6 @@
 import BoostScanner from "@/components/BoostScanner";
 import { ShieldCheck, Zap, Users } from "lucide-react";
 
-// ═══════════════════════════════════════════════════════════════
-// app/subscribe/scanner/page.tsx — 直接覆盖
-//
-// 文案改动：
-// - 主标题从痛点打击改成降低摩擦（用户已被首页说服）
-// - 强调AI不可察觉、大家都在用
-// - trust signals强调真实性+社会证明
-// ═══════════════════════════════════════════════════════════════
-
 export default function ScannerPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">

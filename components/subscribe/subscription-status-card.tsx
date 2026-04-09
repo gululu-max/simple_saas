@@ -105,10 +105,12 @@ type SubscriptionStatusCardProps = {
     status: string;
     current_period_end: string;
   } | null;
+  creemCustomerId?: string | null;
 };
 
 export function SubscriptionStatusCard({
   subscription,
+  creemCustomerId,
 }: SubscriptionStatusCardProps) {
   return (
     <div className="rounded-xl bg-card p-6">
@@ -157,7 +159,7 @@ export function SubscriptionStatusCard({
         </div>
       )}
       <div className="mt-4">
-        <SubscriptionPortalDialog />
+        <SubscriptionPortalDialog creemCustomerId={creemCustomerId} />
       </div>
     </div>
   );

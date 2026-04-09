@@ -18,7 +18,6 @@ export async function POST(request: Request) {
     // 支付成功后跳回来源页，默认跳首页
     const origin = request.headers.get('origin') || '';
     const successPath = returnPath || '/';
-    // 拼接 payment=success 参数
     const separator = successPath.includes('?') ? '&' : '?';
     const successUrl = `${origin}${successPath}${separator}payment=success`;
 
@@ -33,11 +32,10 @@ export async function POST(request: Request) {
         user_id: user.id,
         product_type: productType,
         credits: credits || 0,
-      }
+      },
     });
 
     return NextResponse.json({ checkoutUrl: checkout.checkoutUrl });
-
   } catch (error) {
     console.error('Checkout error:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
