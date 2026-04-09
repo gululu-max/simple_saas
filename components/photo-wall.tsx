@@ -29,7 +29,8 @@ const ROW3 = [
 
 // 根据屏幕宽度计算需要重复几次才能铺满
 function useRepeatCount(cardWidth: number, gap: number, baseCount: number) {
-  const [repeat, setRepeat] = useState(3); // SSR 默认3次
+  // ✅ 初始值从 3 降到 2，减少首次渲染的 DOM 节点数
+  const [repeat, setRepeat] = useState(2);
 
   useEffect(() => {
     function calc() {
@@ -56,7 +57,6 @@ function PhotoRow({
   direction: "left" | "right";
   speed: number;
 }) {
-  // 桌面端卡片宽170px + gap 8px
   const repeat = useRepeatCount(170, 8, images.length);
   const repeated: string[] = [];
   for (let r = 0; r < repeat; r++) {
@@ -73,6 +73,8 @@ function PhotoRow({
         }
         style={{
           animationDuration: `${speed}s`,
+          // ✅ 提示浏览器走 GPU 合成层，动画不占主线程，降低 TBT
+          willChange: "transform",
         }}
       >
         {repeated.map((src, i) => (
@@ -84,8 +86,9 @@ function PhotoRow({
               src={src}
               alt=""
               fill
-              sizes="170px"
+              sizes="(max-width: 768px) 130px, 170px"
               className="object-cover"
+              // ✅ 每行只有前 5 张 eager（首屏可见），其余全部 lazy
               loading={i < images.length ? "eager" : "lazy"}
             />
           </div>
