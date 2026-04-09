@@ -17,15 +17,30 @@ import AnalysisResultCard from '@/components/AnalysisResultCard';
 import UsageGuideCard from '@/components/UsageGuideCard';
 
 // ═══════════════════════════════════════════════════════════════
-// components/BoostScanner.tsx — v9
+// components/BoostScanner.tsx — v9.1
 //
-// v9 changes vs v8:
-// 1. [NEW] download_unlock modal — $1.99 micro pack as primary CTA
-// 2. [NEW] MicroPackCheckoutButton component
-// 3. [FIX] all checkout buttons: loading state stays in modal until redirect
-// 4. [FIX] credits insufficient → download_unlock instead of credits_shop
-// 5. All original v8 logic preserved
+// v9.1 fixes vs v9:
+// 1. [FIX] iOS Safari crash — all storage ops wrapped in try-catch
+// 2. [FIX] requestIdleCallback polyfill for Safari (not supported)
+// 3. All v9 logic preserved
 // ═══════════════════════════════════════════════════════════════
+
+// ── Safe Storage Helpers (iOS Safari Private Mode throws on setItem) ──
+function safeGetItem(storage: Storage, key: string): string | null {
+  try { return storage.getItem(key); } catch { return null; }
+}
+function safeSetItem(storage: Storage, key: string, value: string): void {
+  try { storage.setItem(key, value); } catch { /* quota exceeded or private mode */ }
+}
+function safeRemoveItem(storage: Storage, key: string): void {
+  try { storage.removeItem(key); } catch { /* ignore */ }
+}
+
+// ── requestIdleCallback polyfill (Safari doesn't support it) ──
+const scheduleIdle: (cb: () => void) => void =
+  (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function')
+    ? (cb) => window.requestIdleCallback(cb)
+    : (cb) => setTimeout(cb, 0);
 
 async function compressImage(file: File, options?: { maxSize?: number; quality?: number }): Promise<string> {
   const { maxSize = 1024, quality = 0.75 } = options || {};
@@ -110,28 +125,24 @@ export default function BoostScanner() {
 
   // ── Session Restore ────────────────────────────────────────
   useEffect(() => {
-    const savedPreview = sessionStorage.getItem('mf_preview') || localStorage.getItem('mf_preview');
-    const savedText = sessionStorage.getItem('mf_visibleText') || localStorage.getItem('mf_visibleText');
-    const savedJSON = sessionStorage.getItem('mf_analysisJSON') || localStorage.getItem('mf_analysisJSON');
-    const guestFlag = localStorage.getItem('mf_guest_enhanced');
+    const savedPreview = safeGetItem(sessionStorage, 'mf_preview') || safeGetItem(localStorage, 'mf_preview');
+    const savedText = safeGetItem(sessionStorage, 'mf_visibleText') || safeGetItem(localStorage, 'mf_visibleText');
+    const savedJSON = safeGetItem(sessionStorage, 'mf_analysisJSON') || safeGetItem(localStorage, 'mf_analysisJSON');
+    const guestFlag = safeGetItem(localStorage, 'mf_guest_enhanced');
     if (savedPreview) setPreview(savedPreview);
     if (savedText) setVisibleText(savedText);
     if (savedJSON) setAnalysisJSON(savedJSON);
     // 批量写回 sessionStorage，避免阻塞渲染
-    requestIdleCallback?.(() => {
-      if (savedPreview) sessionStorage.setItem('mf_preview', savedPreview);
-      if (savedText) sessionStorage.setItem('mf_visibleText', savedText);
-      if (savedJSON) sessionStorage.setItem('mf_analysisJSON', savedJSON);
-    }) || setTimeout(() => {
-      if (savedPreview) sessionStorage.setItem('mf_preview', savedPreview);
-      if (savedText) sessionStorage.setItem('mf_visibleText', savedText);
-      if (savedJSON) sessionStorage.setItem('mf_analysisJSON', savedJSON);
-    }, 0);
-    const savedWatermarked = sessionStorage.getItem('mf_watermarkedImage');
-    const savedEnhancementId = sessionStorage.getItem('mf_enhancementId');
-    const savedMimeType = sessionStorage.getItem('mf_enhancedMimeType');
-    const savedFreeTrial = sessionStorage.getItem('mf_isFreeGeneration');
-    const savedDownloadFree = sessionStorage.getItem('mf_isDownloadFree');
+    scheduleIdle(() => {
+      if (savedPreview) safeSetItem(sessionStorage, 'mf_preview', savedPreview);
+      if (savedText) safeSetItem(sessionStorage, 'mf_visibleText', savedText);
+      if (savedJSON) safeSetItem(sessionStorage, 'mf_analysisJSON', savedJSON);
+    });
+    const savedWatermarked = safeGetItem(sessionStorage, 'mf_watermarkedImage');
+    const savedEnhancementId = safeGetItem(sessionStorage, 'mf_enhancementId');
+    const savedMimeType = safeGetItem(sessionStorage, 'mf_enhancedMimeType');
+    const savedFreeTrial = safeGetItem(sessionStorage, 'mf_isFreeGeneration');
+    const savedDownloadFree = safeGetItem(sessionStorage, 'mf_isDownloadFree');
     if (savedWatermarked && savedEnhancementId) {
       setWatermarkedImage(savedWatermarked); setEnhancementId(savedEnhancementId);
       if (savedMimeType) setEnhancedMimeType(savedMimeType);
@@ -141,7 +152,7 @@ export default function BoostScanner() {
     if (guestFlag === 'true' && savedPreview) {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session) { setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); sessionStorage.setItem('mf_pending_enhance', 'true'); }
+        if (!session) { setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); safeSetItem(sessionStorage, 'mf_pending_enhance', 'true'); }
       });
     }
     const params = new URLSearchParams(window.location.search);
@@ -151,7 +162,7 @@ export default function BoostScanner() {
       trackEvent('payment_return_success');
       dispatchCreditsUpdate();
       // [v9 fix] 支付回来后标记，下载时跳过弹窗直接下载
-      sessionStorage.setItem('mf_payment_just_completed', 'true');
+      safeSetItem(sessionStorage, 'mf_payment_just_completed', 'true');
     }
     if (params.get('download_error') === 'insufficient_credits') { params.delete('download_error'); window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname); setActiveModal('download_unlock'); }
   }, []);
@@ -167,9 +178,9 @@ export default function BoostScanner() {
       setIsLoggedIn(!!session);
       if (event === 'SIGNED_IN' && session) {
         setIsGuestEnhanced(false); trackEvent('guest_signin_after_enhance');
-        const hasPending = sessionStorage.getItem('mf_pending_enhance') === 'true' || localStorage.getItem('mf_pending_enhance') === 'true';
-        localStorage.removeItem('mf_pending_enhance'); localStorage.removeItem('mf_guest_enhanced'); localStorage.removeItem('mf_preview'); localStorage.removeItem('mf_analysisJSON'); localStorage.removeItem('mf_visibleText');
-        if (hasPending) { sessionStorage.removeItem('mf_pending_enhance'); handleEnhance(sessionStorage.getItem('mf_analysisJSON') || analysisJSON, (sessionStorage.getItem('mf_visibleText') || visibleText) ?? undefined); }
+        const hasPending = safeGetItem(sessionStorage, 'mf_pending_enhance') === 'true' || safeGetItem(localStorage, 'mf_pending_enhance') === 'true';
+        safeRemoveItem(localStorage, 'mf_pending_enhance'); safeRemoveItem(localStorage, 'mf_guest_enhanced'); safeRemoveItem(localStorage, 'mf_preview'); safeRemoveItem(localStorage, 'mf_analysisJSON'); safeRemoveItem(localStorage, 'mf_visibleText');
+        if (hasPending) { safeRemoveItem(sessionStorage, 'mf_pending_enhance'); handleEnhance(safeGetItem(sessionStorage, 'mf_analysisJSON') || analysisJSON, (safeGetItem(sessionStorage, 'mf_visibleText') || visibleText) ?? undefined); }
         dispatchCreditsUpdate();
       }
     });
@@ -193,8 +204,8 @@ export default function BoostScanner() {
   const handleReset = useCallback(() => {
     setPreview(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setVisibleText(''); setAnalysisJSON(null); setSelectedPanel('original'); setLightboxOpen(false); setLightboxIndex(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed'].forEach(k => sessionStorage.removeItem(k));
-    ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => localStorage.removeItem(k));
+    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed'].forEach(k => safeRemoveItem(sessionStorage, k));
+    ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => safeRemoveItem(localStorage, k));
     trackEvent('boost_image_reset');
     const hero = document.getElementById('scanner-hero');
     if (hero) hero.style.display = '';
@@ -209,7 +220,7 @@ export default function BoostScanner() {
   const handleEnhance = async (jsonFromFinish?: string | null, textFromFinish?: string) => {
     if (!preview) return;
     const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); sessionStorage.setItem('mf_pending_enhance', 'true'); localStorage.setItem('mf_pending_enhance', 'true'); localStorage.setItem('mf_guest_enhanced', 'true'); if (preview) localStorage.setItem('mf_preview', preview); if (analysisJSON) localStorage.setItem('mf_analysisJSON', analysisJSON); if (visibleText) localStorage.setItem('mf_visibleText', visibleText); return; }
+    if (!user) { setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); safeSetItem(sessionStorage, 'mf_pending_enhance', 'true'); safeSetItem(localStorage, 'mf_pending_enhance', 'true'); safeSetItem(localStorage, 'mf_guest_enhanced', 'true'); if (preview) safeSetItem(localStorage, 'mf_preview', preview); if (analysisJSON) safeSetItem(localStorage, 'mf_analysisJSON', analysisJSON); if (visibleText) safeSetItem(localStorage, 'mf_visibleText', visibleText); return; }
     setIsEnhancing(true); setEnhanceError(null); trackEvent('enhance_start_click');
     try {
       const res = await fetch('/api/enhance-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: preview.split(',')[1], mimeType: 'image/jpeg', analysisResult: jsonFromFinish ?? analysisJSON ?? textFromFinish ?? visibleText ?? '' }) });
@@ -226,7 +237,7 @@ export default function BoostScanner() {
         return;
       }
       setWatermarkedImage(data.watermarkedImage); setEnhancementId(data.enhancementId); setEnhancedMimeType(data.mimeType ?? 'image/png'); setIsFreeGeneration(data.isFreeTrial); setIsDownloadFree(data.downloadFree ?? false);
-      sessionStorage.setItem('mf_watermarkedImage', data.watermarkedImage); sessionStorage.setItem('mf_enhancementId', data.enhancementId); sessionStorage.setItem('mf_enhancedMimeType', data.mimeType ?? 'image/png'); sessionStorage.setItem('mf_isFreeGeneration', String(data.isFreeTrial)); sessionStorage.setItem('mf_isDownloadFree', String(data.downloadFree ?? false));
+      safeSetItem(sessionStorage, 'mf_watermarkedImage', data.watermarkedImage); safeSetItem(sessionStorage, 'mf_enhancementId', data.enhancementId); safeSetItem(sessionStorage, 'mf_enhancedMimeType', data.mimeType ?? 'image/png'); safeSetItem(sessionStorage, 'mf_isFreeGeneration', String(data.isFreeTrial)); safeSetItem(sessionStorage, 'mf_isDownloadFree', String(data.downloadFree ?? false));
       setIsGuestEnhanced(false); setSliderIndex(1); setSelectedPanel('enhanced'); dispatchCreditsUpdate(); router.refresh(); trackEvent('enhance_complete', { status: 'success' });
     } catch {
       setEnhanceError('Network error. Please try again.');
@@ -243,7 +254,7 @@ export default function BoostScanner() {
     api: '/api/scanner',
     onFinish: (_prompt, fullCompletion) => {
       const { visibleText: text, analysisJSON: json } = parseAnalysisStream(fullCompletion);
-      setVisibleText(text); setAnalysisJSON(json); sessionStorage.setItem('mf_visibleText', text); if (json) sessionStorage.setItem('mf_analysisJSON', json);
+      setVisibleText(text); setAnalysisJSON(json); safeSetItem(sessionStorage, 'mf_visibleText', text); if (json) safeSetItem(sessionStorage, 'mf_analysisJSON', json);
       trackEvent('boost_complete', { status: 'success' });
       fetch('/api/meta-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: `lead_${Date.now()}` }) }).catch(err => console.error('[Meta CAPI] Lead event failed:', err));
       dispatchCreditsUpdate(); router.refresh();
@@ -268,18 +279,16 @@ export default function BoostScanner() {
     const compressed = await compressImage(file, { maxSize: 1024, quality: 0.75 });
     URL.revokeObjectURL(quickPreview);
     setPreview(compressed);
-    requestIdleCallback?.(() => {
-      sessionStorage.setItem('mf_preview', compressed); sessionStorage.removeItem('mf_visibleText'); sessionStorage.removeItem('mf_analysisJSON');
-    }) || setTimeout(() => {
-      sessionStorage.setItem('mf_preview', compressed); sessionStorage.removeItem('mf_visibleText'); sessionStorage.removeItem('mf_analysisJSON');
-    }, 0);
+    scheduleIdle(() => {
+      safeSetItem(sessionStorage, 'mf_preview', compressed); safeRemoveItem(sessionStorage, 'mf_visibleText'); safeRemoveItem(sessionStorage, 'mf_analysisJSON');
+    });
   };
 
   const handleSubmit = async () => {
     if (!preview || isLoading) return;
-    if (!isLoggedIn) { const FREE_LIMIT = 3; const used = parseInt(localStorage.getItem('mf_free_analyses') || '0', 10); if (used >= FREE_LIMIT) { trackEvent('free_limit_reached', { used }); setActiveModal('free_limit'); return; } localStorage.setItem('mf_free_analyses', String(used + 1)); }
+    if (!isLoggedIn) { const FREE_LIMIT = 3; const used = parseInt(safeGetItem(localStorage, 'mf_free_analyses') || '0', 10); if (used >= FREE_LIMIT) { trackEvent('free_limit_reached', { used }); setActiveModal('free_limit'); return; } safeSetItem(localStorage, 'mf_free_analyses', String(used + 1)); }
     setActiveModal(null); setVisibleText(''); setAnalysisJSON(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setSelectedPanel('original');
-    sessionStorage.removeItem('mf_visibleText'); sessionStorage.removeItem('mf_analysisJSON'); trackEvent('boost_start_click');
+    safeRemoveItem(sessionStorage, 'mf_visibleText'); safeRemoveItem(sessionStorage, 'mf_analysisJSON'); trackEvent('boost_start_click');
     await complete('', { body: { imageBase64: preview.split(',')[1], mimeType: 'image/jpeg' } });
   };
 
@@ -288,9 +297,9 @@ export default function BoostScanner() {
     if (!enhancementId) return;
     trackEvent('enhance_download_click', { isDownloadFree, isFreeGeneration });
     // [v9 fix] 刚支付完回来，直接下载，不弹窗
-    const justPaid = sessionStorage.getItem('mf_payment_just_completed') === 'true';
+    const justPaid = safeGetItem(sessionStorage, 'mf_payment_just_completed') === 'true';
     if (justPaid) {
-      sessionStorage.removeItem('mf_payment_just_completed');
+      safeRemoveItem(sessionStorage, 'mf_payment_just_completed');
       window.location.href = `/api/download/${enhancementId}`;
       dispatchCreditsUpdate();
       return;
@@ -653,7 +662,6 @@ export default function BoostScanner() {
                   setActiveModal(null);
                   setEnhanceError(null);
                   handleReset();
-                  // 不再用 setTimeout + .click()，改为设一个标记让 reset 后自动打开选择器
                 }}
               >
                 Upload New Photo
