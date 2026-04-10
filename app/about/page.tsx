@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, ShieldAlert, Crosshair, BrainCircuit, HeartCrack, Flame } from "lucide-react";
+import { ArrowLeft, Sun, Crop, Palette, ShieldCheck, Zap, Heart, Camera } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -35,7 +35,7 @@ export default function AboutPage() {
             <div>
               <h1 className="text-xl font-bold">About Matchfix</h1>
               <p className="text-sm text-muted-foreground">
-                The story behind the ultimate BS detector
+                AI photo enhancement that keeps you real
               </p>
             </div>
           </div>
@@ -48,46 +48,31 @@ export default function AboutPage() {
           {/* Hero Section */}
           <div className="text-center space-y-6">
             <div className="inline-flex items-center rounded-full px-3 py-1 text-sm bg-primary/10 text-primary mb-4">
-              <span className="mr-2">🚩</span>
-              Saving You From Dating Disasters
+              <span className="mr-2">📸</span>
+              Real Photos. Real You. Better Results.
             </div>
             <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-              Modern Dating is a Minefield.
+              Your Face Stays 100% Real.
               <br />
-              <span className="text-primary">We Are the Minesweeper.</span>
+              <span className="text-primary">We Just Fix Everything Around It.</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              We built Matchfix because we got tired of friends swiping right on walking red flags. 
-              It&apos;s time to bring brutally honest AI analysis to the chaotic world of online dating.
+              Most AI dating photo tools generate fake images of you. Matchfix takes a different approach — we enhance your actual photos with better lighting, framing, and color so you look like you on your best day.
             </p>
           </div>
 
-          {/* Mission Section */}
+          {/* What We Do Section */}
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             <Card className="border-2 hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center mb-4">
-                  <ShieldAlert className="h-6 w-6 text-red-600" />
+                <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center mb-4">
+                  <Sun className="h-6 w-6 text-amber-600" />
                 </div>
-                <CardTitle>Detect Red Flags</CardTitle>
+                <CardTitle>Lighting Enhancement</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  &ldquo;I&apos;m fluent in sarcasm&rdquo; usually just means &ldquo;I&apos;m mean.&rdquo; We decode the clichés so you don&apos;t have to waste your Friday night.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center mb-4">
-                  <Crosshair className="h-6 w-6 text-orange-600" />
-                </div>
-                <CardTitle>Brutal Honesty</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Your friends might lie to spare your feelings, but our AI won&apos;t. Expect a boost that hits close to home.
+                  Bad lighting ruins great faces. Our AI corrects shadows, exposure, and white balance to make you look naturally well-lit — like a golden hour photo, not a bathroom selfie.
                 </p>
               </CardContent>
             </Card>
@@ -95,13 +80,27 @@ export default function AboutPage() {
             <Card className="border-2 hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
-                  <BrainCircuit className="h-6 w-6 text-blue-600" />
+                  <Crop className="h-6 w-6 text-blue-600" />
                 </div>
-                <CardTitle>AI-Powered Insights</CardTitle>
+                <CardTitle>Smart Framing</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  Powered by advanced vision and text models, we analyze the subtext behind the gym selfies and generic bios.
+                  Professional photographers know that cropping and composition make or break a photo. Our AI applies the same framing principles that get attention on dating apps.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center mb-4">
+                  <Palette className="h-6 w-6 text-purple-600" />
+                </div>
+                <CardTitle>Color Correction</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Washed-out colors and weird tints make you look lifeless. We bring out natural skin tones and vibrant backgrounds without over-filtering or making things look fake.
                 </p>
               </CardContent>
             </Card>
@@ -111,18 +110,21 @@ export default function AboutPage() {
           <div className="prose prose-lg max-w-none">
             <div className="bg-muted/30 rounded-2xl p-8 md:p-12">
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                <Flame className="h-6 w-6 text-primary" />
-                Our Story: Why We Built This
+                <Camera className="h-6 w-6 text-primary" />
+                Why We Built Matchfix
               </h3>
               <div className="space-y-6 text-muted-foreground">
                 <p>
-                  Matchfix was born out of pure frustration. After sitting through countless brunches listening to friends complain about matches who looked great on paper but were total disasters in real life, we realized something: <strong>people are terrible at reading dating profiles objectively.</strong>
+                  We noticed something frustrating about the AI dating photo space: <strong>every tool was generating completely fake images.</strong> AI-generated photos where you&apos;re standing on a yacht you&apos;ve never been on, wearing clothes you don&apos;t own, with a jawline that isn&apos;t yours.
                 </p>
                 <p>
-                  When you&apos;re looking for love (or just a fun weekend), you tend to wear rose-colored glasses. You ignore the fact that their only personality trait is &ldquo;liking dogs&rdquo; or that all 6 photos are group shots where you can&apos;t tell who they are.
+                  Sure, those photos might get you matches — but what happens when you show up to the date looking nothing like your profile? The match feels catfished, you feel embarrassed, and everyone&apos;s time is wasted.
                 </p>
                 <p>
-                  We decided to train an AI to be the ultimate wingman—the kind that slaps the phone out of your hand when you&apos;re about to make a bad decision. By combining image recognition with natural language processing, Matchfix rips apart the carefully curated facade of dating profiles to give you the harsh truth, wrapped in a healthy layer of comedy.
+                  We built Matchfix to solve this the right way. Instead of generating a fake version of you, we take your real photos and apply the same techniques a professional photographer would use in post-production: <strong>better lighting, tighter framing, corrected color.</strong> The result looks like you hired a great photographer — because the technology behind it works the same way.
+                </p>
+                <p>
+                  Your face, your body, your real self — just presented in the best possible light. No catfishing. No awkward first-date surprises. Just more matches with people who actually want to meet <em>you</em>.
                 </p>
               </div>
             </div>
@@ -131,9 +133,9 @@ export default function AboutPage() {
           {/* Values Section */}
           <div className="space-y-8">
             <div className="text-center">
-              <h3 className="text-3xl font-bold mb-4">Our Core Tenets</h3>
+              <h3 className="text-3xl font-bold mb-4">What Makes Us Different</h3>
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                What drives our merciless AI engine
+                In a market full of AI face generators, we chose authenticity
               </p>
             </div>
             
@@ -143,9 +145,9 @@ export default function AboutPage() {
                   <span className="text-primary font-bold">1</span>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">No Sugarcoating</h4>
+                  <h4 className="font-semibold mb-2">Enhancement, Not Generation</h4>
                   <p className="text-muted-foreground">
-                    We deliver the truth straight up. If a profile screams &ldquo;narcissist with commitment issues,&rdquo; our AI will say exactly that.
+                    We never replace your face or body. We enhance what&apos;s already there — lighting, composition, and color — the same things a $500 photographer would fix.
                   </p>
                 </div>
               </div>
@@ -155,9 +157,9 @@ export default function AboutPage() {
                   <span className="text-primary font-bold">2</span>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">Humor is Coping</h4>
+                  <h4 className="font-semibold mb-2">No Catfishing</h4>
                   <p className="text-muted-foreground">
-                    Dating is hard enough. If we&apos;re going to point out red flags, we&apos;re going to make you laugh while doing it.
+                    Your enhanced photo looks like you on a great day — not like someone else entirely. Show up to dates with confidence, not anxiety.
                   </p>
                 </div>
               </div>
@@ -169,7 +171,7 @@ export default function AboutPage() {
                 <div>
                   <h4 className="font-semibold mb-2">Privacy First</h4>
                   <p className="text-muted-foreground">
-                    We process the screenshots to give you the boost, but we don&apos;t save or share the identities of your potential matches.
+                    Your photos are auto-deleted after processing. We never store, share, or use your images for AI training. Your face is yours alone.
                   </p>
                 </div>
               </div>
@@ -179,9 +181,9 @@ export default function AboutPage() {
                   <span className="text-primary font-bold">4</span>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">Save Time &amp; Energy</h4>
+                  <h4 className="font-semibold mb-2">30 Seconds, Not 30 Minutes</h4>
                   <p className="text-muted-foreground">
-                    Every minute spent texting a walking red flag is a minute wasted. We help you filter the noise fast.
+                    Upload one photo, get it back enhanced in seconds. No sign-up required, no complicated settings. First enhancement is free.
                   </p>
                 </div>
               </div>
@@ -190,14 +192,14 @@ export default function AboutPage() {
 
           {/* CTA Section */}
           <div className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-2xl p-8 md:p-12">
-            <HeartCrack className="h-12 w-12 text-primary mx-auto mb-6" />
-            <h3 className="text-2xl font-bold mb-4">Stop guessing. Get a date tonight.</h3>
+            <Heart className="h-12 w-12 text-primary mx-auto mb-6" />
+            <h3 className="text-2xl font-bold mb-4">See the difference for yourself.</h3>
             <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-              Got a screenshot of someone you just matched with? Let our AI tear their profile apart before you commit to that coffee date.
+              Upload your dating profile photo and get an AI-enhanced version in 30 seconds. Your face stays real — we just make the photo work harder for you.
             </p>
             <Button asChild size="lg" className="font-medium">
-              <Link href="/">
-                boost a Profile Now
+              <Link href="/subscribe/scanner">
+                Enhance Your Photo Free
               </Link>
             </Button>
           </div>
