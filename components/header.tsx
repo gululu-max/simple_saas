@@ -162,6 +162,10 @@ export default function Header() {
           <Link href="/subscribe#pricing" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
             Pricing
           </Link>
+
+          <Link href="/blog" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
+            Blog
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2">
@@ -225,6 +229,7 @@ export default function Header() {
               { label: "Home", href: "/" },
               { label: "✨ AI Photo Enhancer", href: "/subscribe/scanner" },
               { label: "Pricing", href: "/subscribe#pricing" },
+              { label: "Blog", href: "/blog" },
             ]}
             user={isLoggedIn ? user : null}
             isDashboard={isSubscribe ?? false}

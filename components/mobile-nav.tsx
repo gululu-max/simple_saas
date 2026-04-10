@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, Home, Wand2, DollarSign, LogOut, X } from "lucide-react";
+import { Menu, Home, Wand2, DollarSign, LogOut, X, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { signOutAction } from "@/app/actions";
 import type { LucideIcon } from "lucide-react";
@@ -23,6 +23,7 @@ function getIcon(label: string): LucideIcon {
   if (label.toLowerCase().includes("home")) return Home;
   if (label.toLowerCase().includes("photo") || label.toLowerCase().includes("enhancer")) return Wand2;
   if (label.toLowerCase().includes("pricing")) return DollarSign;
+  if (label.toLowerCase().includes("blog")) return BookOpen;
   return Home;
 }
 
