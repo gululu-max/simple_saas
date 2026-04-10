@@ -69,7 +69,7 @@ const dispatchCreditsUpdate = () => {
 };
 
 // [v9] added 'download_unlock' modal type
-type ModalType = 'enhance' | 'download_choice' | 'download_unlock' | 'membership' | 'credits_shop' | 'privacy_exit' | 'free_limit' | 'enhance_failed';
+type ModalType = 'enhance' | 'download_choice' | 'download_unlock' | 'membership' | 'credits_shop' | 'privacy_exit' | 'free_limit' | 'enhance_failed' | 'ai_busy';
 type SelectedPanel = 'original' | 'enhanced';
 
 export default function BoostScanner() {
@@ -95,6 +95,9 @@ export default function BoostScanner() {
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
   const [isUploadHovered, setIsUploadHovered] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -211,6 +214,47 @@ export default function BoostScanner() {
     if (hero) hero.style.display = '';
   }, []);
 
+// ── Retry helpers (用 ref 避免闭包陷阱) ─────────────────────
+const handleSubmitRef = useRef<() => void>(() => {});
+
+const handleRetryCancelAndReset = useCallback(() => {
+  setActiveModal(null);
+  setRetryCountdown(0);
+  setRetryAttempt(0);
+  if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
+}, []);
+
+const handleRetrySubmit = useCallback(() => {
+  setActiveModal(null);
+  setRetryCountdown(0);
+  if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
+  setTimeout(() => handleSubmitRef.current(), 0);
+}, []);
+
+const startRetryCountdown = useCallback((seconds: number) => {
+  if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+  setRetryCountdown(seconds);
+
+  retryTimerRef.current = setInterval(() => {
+    setRetryCountdown(prev => {
+      if (prev <= 1) {
+        if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+        retryTimerRef.current = null;
+        setTimeout(() => handleSubmitRef.current(), 0);
+        return 0;
+      }
+      return prev - 1;
+    });
+  }, 1000);
+}, []);
+
+// 清理计时器
+useEffect(() => {
+  return () => {
+    if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+  };
+}, []);
+
   const handlePrivacyExitConfirm = useCallback(() => { const t = pendingNavigationRef.current; skipExitWarningRef.current = true; setActiveModal(null); handleReset(); if (t === '__back__') window.history.back(); else if (t) router.push(t); setTimeout(() => { skipExitWarningRef.current = false; pendingNavigationRef.current = null; }, 200); }, [handleReset, router]);
   const handlePrivacyExitCancel = useCallback(() => { setActiveModal(null); pendingNavigationRef.current = null; }, []);
   const handleTryAnother = useCallback(() => { pendingNavigationRef.current = null; setActiveModal('privacy_exit'); }, []);
@@ -260,7 +304,41 @@ export default function BoostScanner() {
       dispatchCreditsUpdate(); router.refresh();
       if (isFacebookWebView()) { setTimeout(() => handleEnhance(json, text), 1500); } else { handleEnhance(json, text); }
     },
-    onError: (error) => { try { const d = JSON.parse(error.message); if (d.code === 'INSUFFICIENT_CREDITS' || (d.error && d.error.includes('Insufficient credits'))) { trackEvent('boost_failed', { reason: 'insufficient_credits' }); setActiveModal('enhance'); return; } alert('Oops: ' + (d.error || 'Something went wrong.')); } catch (e) { if (error.message.includes('402')) setActiveModal('enhance'); else alert('Oops, something went wrong: ' + error.message); } }
+    onError: (error) => {
+      try {
+        const d = JSON.parse(error.message);
+
+        // Credits 不足 → 走原来的逻辑
+        if (d.code === 'INSUFFICIENT_CREDITS' || (d.error && d.error.includes('Insufficient credits'))) {
+          trackEvent('boost_failed', { reason: 'insufficient_credits' });
+          setActiveModal('enhance');
+          return;
+        }
+
+        // AI 过载 / 可重试 → 显示友好弹窗并自动倒计时
+        if (d.code === 'MODEL_OVERLOADED' || d.retryable) {
+          trackEvent('boost_failed', { reason: 'ai_overloaded', attempt: retryAttempt });
+          setRetryAttempt(prev => prev + 1);
+          setActiveModal('ai_busy');
+          startRetryCountdown(10); // 10 秒倒计时
+          return;
+        }
+
+        // 其他错误也用友好弹窗
+        trackEvent('boost_failed', { reason: d.error || 'unknown' });
+        setActiveModal('ai_busy');
+        startRetryCountdown(5);
+      } catch {
+        // JSON 解析失败
+        if (error.message.includes('402')) {
+          setActiveModal('enhance');
+        } else {
+          trackEvent('boost_failed', { reason: 'parse_error' });
+          setActiveModal('ai_busy');
+          startRetryCountdown(5);
+        }
+      }
+    },
   });
   const displayText = isLoading ? parseAnalysisStream(completion).visibleText : visibleText;
   const handleCopy = () => { if (!visibleText) return; navigator.clipboard.writeText(visibleText); setIsCopied(true); trackEvent('boost_copy_result'); setTimeout(() => setIsCopied(false), 2000); };
@@ -291,6 +369,7 @@ export default function BoostScanner() {
     safeRemoveItem(sessionStorage, 'mf_visibleText'); safeRemoveItem(sessionStorage, 'mf_analysisJSON'); trackEvent('boost_start_click');
     await complete('', { body: { imageBase64: preview.split(',')[1], mimeType: 'image/jpeg' } });
   };
+  handleSubmitRef.current = handleSubmit;  // ← 加这一行
 
   // ── Download ───────────────────────────────────────────────
   const handleDownload = () => {
@@ -477,7 +556,7 @@ export default function BoostScanner() {
                 <div className={`relative w-full overflow-hidden rounded-xl border border-slate-800/50 bg-slate-900/40 flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
                   {showEnhanced ? (
                     <div className="relative h-full w-full">
-                      <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isGuestEnhanced ? '' : 'cursor-pointer'} ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'h-full'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}}onClick={() => enhancedSrc && openLightbox(enhancedSrc)} />
+                      <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isGuestEnhanced ? '' : 'cursor-pointer'} ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'h-full'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && openLightbox(enhancedSrc)} />
                       <div className="absolute top-3 left-3 bg-emerald-500/80 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-400/20 flex items-center gap-1"><Sparkles className="size-3" /> AI Enhanced</div>
                       {isCompact && !isGuestEnhanced && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                       {isGuestEnhanced && <GuestLockOverlay />}
@@ -521,7 +600,7 @@ export default function BoostScanner() {
                   {showEnhanced && (
                     <div style={{ display: sliderIndex === 1 ? 'block' : 'none' }}>
                       <div className="relative h-full w-full">
-                        <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : ''}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}}onClick={() => enhancedSrc && !isGuestEnhanced && openLightbox(enhancedSrc)} />
+                        <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : ''}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && !isGuestEnhanced && openLightbox(enhancedSrc)} />
                         <div className="absolute top-3 left-3 bg-emerald-500/80 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-400/20 flex items-center gap-1"><Sparkles className="size-3" /> AI Enhanced</div>
                         {!isGuestEnhanced && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                         {isGuestEnhanced && <GuestLockOverlay />}
@@ -753,6 +832,59 @@ export default function BoostScanner() {
 
       {/* credits_shop modal — [v9] kept as fallback, checkout button now stays open with loading */}
       {activeModal === 'credits_shop' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Coins className="size-4 text-rose-500" /><span className="text-sm font-bold text-white">Get Credits</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ QUICKEST OPTION ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Starter Pack</div><div className="text-slate-400 text-xs mt-0.5">Try it out — enough for 3 full photo enhancements.</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$9.99</div><div className="text-slate-500 text-xs">one-time</div></div></div><ul className="space-y-2 mb-5">{['75 Credits', 'Enhance up to 3 photos', 'Watermark-free downloads included', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><CreditsCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all credit packs →</button></div></div></div>)}
+      {activeModal === 'ai_busy' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20">
+              <Loader2 className="size-8 text-amber-500 animate-spin" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">
+              High Demand Right Now
+            </h2>
+            <p className="text-sm text-slate-400 mb-1 leading-relaxed">
+              Lots of people are enhancing photos at the moment!
+              This usually resolves within seconds.
+            </p>
+            <p className="text-sm text-slate-400 mb-4 leading-relaxed">
+              We&apos;ll automatically retry for you — no need to refresh.
+            </p>
+
+            {retryCountdown > 0 && (
+              <div className="mb-4 flex flex-col items-center gap-2">
+                <div className="relative size-16">
+                  <svg className="size-16 -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" className="text-slate-800" strokeWidth="4" />
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" className="text-amber-500"
+                      strokeWidth="4" strokeLinecap="round"
+                      strokeDasharray={`${(retryCountdown / 10) * 175.9} 175.9`}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-lg">
+                    {retryCountdown}
+                  </span>
+                </div>
+                <span className="text-xs text-slate-500">Retrying automatically...</span>
+              </div>
+            )}
+
+            <div className="flex w-full gap-3">
+              <button
+                className="flex-1 h-11 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm font-medium transition-colors"
+                onClick={handleRetryCancelAndReset}
+              >
+                Cancel
+              </button>
+              <button
+                className="flex-1 h-11 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
+                onClick={handleRetrySubmit}
+              >
+                <RefreshCw className="size-4" />
+                Retry Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

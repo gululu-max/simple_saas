@@ -1,13 +1,38 @@
 // ═══════════════════════════════════════════════════════════════
-// app/api/scanner/route.ts — 直接覆盖
+// app/api/scanner/route.ts — v9
 //
-// v8 change: model gemini-2.5-flash → gemini-3-flash-preview
+// v9 changes:
+// 1. [FIX] streamText retry with delay (up to 2 retries, 2s apart)
+// 2. [FIX] Return specific error codes for frontend to show friendly UI
+// 3. Model probe kept as-is (gemini-3-flash → gemini-2.5-flash fallback)
 // ═══════════════════════════════════════════════════════════════
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText, generateText } from 'ai';
 import { ProxyAgent } from 'undici';
 import { createClient } from "@/utils/supabase/server";
+
+// ── Retry helper ──
+async function streamTextWithRetry(
+  params: Parameters<typeof streamText>[0],
+  maxRetries = 2,
+  delayMs = 2000,
+) {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await streamText(params);
+      return result;
+    } catch (err) {
+      lastError = err as Error;
+      console.warn(`⚠️ streamText attempt ${attempt + 1} failed: ${lastError.message}`);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+  }
+  throw lastError;
+}
 
 export async function POST(req: Request) {
   try {
@@ -213,7 +238,7 @@ IMPORTANT for usage_tips:
 - If route is "needs_real_photo", set to ["Upload a real photo first", "We need the unedited version", "Then we'll build your strategy"]
 `;
 
-    // --- 替换原来的 streamText 调用部分 ---
+    // --- Model selection with probe ---
 
     const MODELS = ['gemini-3-flash-preview', 'gemini-2.5-flash'] as const;
 
@@ -221,7 +246,6 @@ IMPORTANT for usage_tips:
 
     for (const modelName of MODELS) {
       try {
-        // 极轻量探测：纯文本，1 token，确认模型可用
         await generateText({
           model: googleCustom(modelName) as any,
           maxTokens: 1,
@@ -238,44 +262,61 @@ IMPORTANT for usage_tips:
     if (!chosenModel) {
       return new Response(
         JSON.stringify({
-          error: 'AI service is temporarily overloaded. Please try again in a moment.',
+          error: 'Our AI is experiencing high demand right now. Please try again in a few seconds.',
           code: 'MODEL_OVERLOADED',
         }),
         { status: 503, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    const result = await streamText({
-      model: googleCustom(chosenModel) as any,
-      maxRetries: 1,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: userPrompt },
-            { type: 'image', image: imageBase64, mimeType },
-          ],
+    // --- streamText with retry (up to 2 retries, 2s delay) ---
+
+    const result = await streamTextWithRetry(
+      {
+        model: googleCustom(chosenModel) as any,
+        maxRetries: 1,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: userPrompt },
+              { type: 'image', image: imageBase64, mimeType },
+            ],
+          },
+        ],
+        async onFinish({ finishReason }) {
+          if (!user) {
+            console.log('👤 Guest scan completed — no credits deducted');
+          } else {
+            console.log(`✅ Scan completed (User: ${user.id}, model: ${chosenModel}) — credits will be deducted in enhance step`);
+          }
         },
-      ],
-      async onFinish({ finishReason }) {
-        if (!user) {
-          console.log('👤 Guest scan completed — no credits deducted');
-        } else {
-          console.log(`✅ Scan completed (User: ${user.id}, model: ${chosenModel}) — credits will be deducted in enhance step`);
-        }
       },
-    });
+      2,    // maxRetries
+      2000, // delayMs
+    );
 
     return result.toDataStreamResponse();
   } catch (error) {
     console.error('Error in Scanner API:', error);
     const err = error as Error;
+    const msg = err.message || '';
+
+    // Detect overload / rate-limit / 503 errors and return friendly code
+    const isOverload = /overloaded|503|rate.?limit|quota|capacity|resource.*exhausted/i.test(msg);
+
     return new Response(
       JSON.stringify({
-        error: err.message || 'Internal Server Error',
-        details: 'Check Vercel logs for more info',
+        error: isOverload
+          ? 'Our AI is experiencing high demand right now. Please try again in a few seconds.'
+          : (msg || 'Internal Server Error'),
+        code: isOverload ? 'MODEL_OVERLOADED' : 'INTERNAL_ERROR',
+        retryable: isOverload,
       }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      {
+        status: isOverload ? 503 : 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
     );
   }
 }
