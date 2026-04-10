@@ -2,6 +2,16 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Shield, Eye, Database, Lock, UserCheck, Globe, Mail } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description:
+    "How Matchfix protects your data. Photos are auto-deleted after processing, never shared or sold. Read our full privacy policy.",
+  alternates: {
+    canonical: "https://www.matchfix.site/privacy",
+  },
+};
 
 export default function PrivacyPage() {
   return (

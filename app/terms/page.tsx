@@ -2,6 +2,16 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Scale, AlertTriangle, FileText, Gavel, CreditCard, Mail, CheckCircle, XCircle } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description:
+    "Terms and conditions for using Matchfix AI dating photo enhancement service. Acceptable use, payments, and refund policy.",
+  alternates: {
+    canonical: "https://www.matchfix.site/terms",
+  },
+};
 
 export default function TermsPage() {
   return (

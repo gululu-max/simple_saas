@@ -86,9 +86,9 @@ export const metadata: Metadata = {
     "facebook-domain-verification": "b34j96cqsebufe4eay7t75a61fmkf6",
   },
   // ↓ 注册 Google Search Console 后把验证码填这里
-  // verification: {
-  //   google: "YOUR_GOOGLE_SEARCH_CONSOLE_VERIFICATION_CODE",
-  // },
+  verification: {
+    google: "XkfoTJck0mX-T9ABiDMVA_Ukeg1dLDNSpQPSY-dcziU",
+  },
 };
 
 // ============================================================

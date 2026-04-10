@@ -2,6 +2,22 @@ import { createClient } from "@/utils/supabase/server";
 import { PricingSection } from "@/components/pricing-section";
 import { SubscriptionStatusBar } from "@/components/subscribe/subscription-status-bar";
 import { CreditTransaction } from "@/types/creem";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Pricing — AI Dating Photo Enhancement Plans",
+  description:
+    "Choose a Matchfix plan to enhance all your dating profile photos with AI. Affordable plans starting with a free first photo. Better lighting, framing & color for Tinder, Bumble & Hinge profiles.",
+  alternates: {
+    canonical: "https://www.matchfix.site/subscribe",
+  },
+  openGraph: {
+    title: "Matchfix Pricing — AI Dating Photo Enhancement Plans",
+    description:
+      "Affordable AI photo enhancement for your dating profile. Start with one free photo.",
+    url: "https://www.matchfix.site/subscribe",
+  },
+};
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

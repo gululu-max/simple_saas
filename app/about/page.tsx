@@ -2,6 +2,22 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, ShieldAlert, Crosshair, BrainCircuit, HeartCrack, Flame } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "About — Why We Enhance Real Photos, Not Generate Fake Ones",
+  description:
+    "Matchfix enhances your real dating photos with AI — no fake faces, no AI-generated images. Learn why authenticity gets you better matches and how our technology works.",
+  alternates: {
+    canonical: "https://www.matchfix.site/about",
+  },
+  openGraph: {
+    title: "About Matchfix — Real Photo Enhancement, Not AI Face Generation",
+    description:
+      "We fix lighting, framing & color on your real photos. No fake AI faces.",
+    url: "https://www.matchfix.site/about",
+  },
+};
 
 export default function AboutPage() {
   return (
