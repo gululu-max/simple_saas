@@ -17,12 +17,13 @@ import AnalysisResultCard from '@/components/AnalysisResultCard';
 import UsageGuideCard from '@/components/UsageGuideCard';
 
 // ═══════════════════════════════════════════════════════════════
-// components/BoostScanner.tsx — v9.1
+// components/BoostScanner.tsx — v9.2
 //
-// v9.1 fixes vs v9:
-// 1. [FIX] iOS Safari crash — all storage ops wrapped in try-catch
-// 2. [FIX] requestIdleCallback polyfill for Safari (not supported)
-// 3. All v9 logic preserved
+// v9.2 changes vs v9.1:
+// 1. [FIX] Preview area capped height — buttons always visible
+// 2. [NEW] Auto-start after upload for free users; credit confirm bar for paid
+// 3. [PERF] compressImage maxSize 800, canvas memory release
+// 4. All v9.1 logic preserved
 // ═══════════════════════════════════════════════════════════════
 
 // ── Safe Storage Helpers (iOS Safari Private Mode throws on setItem) ──
@@ -43,7 +44,8 @@ const scheduleIdle: (cb: () => void) => void =
     : (cb) => setTimeout(cb, 0);
 
 async function compressImage(file: File, options?: { maxSize?: number; quality?: number }): Promise<string> {
-  const { maxSize = 1024, quality = 0.75 } = options || {};
+  // [v9.2] maxSize 800 (was 1024) — reduces canvas memory ~40% for WebView stability
+  const { maxSize = 800, quality = 0.75 } = options || {};
   const img = new Image();
   const url = URL.createObjectURL(file);
   img.src = url;
@@ -55,7 +57,10 @@ async function compressImage(file: File, options?: { maxSize?: number; quality?:
   canvas.width = width; canvas.height = height;
   canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
   URL.revokeObjectURL(url);
-  return canvas.toDataURL('image/jpeg', quality);
+  const dataUrl = canvas.toDataURL('image/jpeg', quality);
+  // [v9.2] Release canvas memory immediately — critical for low-memory WebViews
+  canvas.width = 0; canvas.height = 0;
+  return dataUrl;
 }
 const isFacebookWebView = (): boolean => {
   if (typeof navigator === 'undefined') return false;
@@ -98,6 +103,11 @@ export default function BoostScanner() {
   const [retryCountdown, setRetryCountdown] = useState(0);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // [v9.2] Auto-start & credit confirm states
+  const [autoStartChecking, setAutoStartChecking] = useState(false);
+  const [showCreditConfirm, setShowCreditConfirm] = useState(false);
+  const [requiredCredits, setRequiredCredits] = useState(25);
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -206,6 +216,8 @@ export default function BoostScanner() {
   // ── Reset ──────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     setPreview(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setVisibleText(''); setAnalysisJSON(null); setSelectedPanel('original'); setLightboxOpen(false); setLightboxIndex(0);
+    // [v9.2] clear auto-start states
+    setAutoStartChecking(false); setShowCreditConfirm(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
     ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed'].forEach(k => safeRemoveItem(sessionStorage, k));
     ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => safeRemoveItem(localStorage, k));
@@ -214,46 +226,46 @@ export default function BoostScanner() {
     if (hero) hero.style.display = '';
   }, []);
 
-// ── Retry helpers (用 ref 避免闭包陷阱) ─────────────────────
-const handleSubmitRef = useRef<() => void>(() => {});
+  // ── Retry helpers (用 ref 避免闭包陷阱) ─────────────────────
+  const handleSubmitRef = useRef<() => void>(() => { });
 
-const handleRetryCancelAndReset = useCallback(() => {
-  setActiveModal(null);
-  setRetryCountdown(0);
-  setRetryAttempt(0);
-  if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
-}, []);
+  const handleRetryCancelAndReset = useCallback(() => {
+    setActiveModal(null);
+    setRetryCountdown(0);
+    setRetryAttempt(0);
+    if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
+  }, []);
 
-const handleRetrySubmit = useCallback(() => {
-  setActiveModal(null);
-  setRetryCountdown(0);
-  if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
-  setTimeout(() => handleSubmitRef.current(), 0);
-}, []);
+  const handleRetrySubmit = useCallback(() => {
+    setActiveModal(null);
+    setRetryCountdown(0);
+    if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
+    setTimeout(() => handleSubmitRef.current(), 0);
+  }, []);
 
-const startRetryCountdown = useCallback((seconds: number) => {
-  if (retryTimerRef.current) clearInterval(retryTimerRef.current);
-  setRetryCountdown(seconds);
-
-  retryTimerRef.current = setInterval(() => {
-    setRetryCountdown(prev => {
-      if (prev <= 1) {
-        if (retryTimerRef.current) clearInterval(retryTimerRef.current);
-        retryTimerRef.current = null;
-        setTimeout(() => handleSubmitRef.current(), 0);
-        return 0;
-      }
-      return prev - 1;
-    });
-  }, 1000);
-}, []);
-
-// 清理计时器
-useEffect(() => {
-  return () => {
+  const startRetryCountdown = useCallback((seconds: number) => {
     if (retryTimerRef.current) clearInterval(retryTimerRef.current);
-  };
-}, []);
+    setRetryCountdown(seconds);
+
+    retryTimerRef.current = setInterval(() => {
+      setRetryCountdown(prev => {
+        if (prev <= 1) {
+          if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+          retryTimerRef.current = null;
+          setTimeout(() => handleSubmitRef.current(), 0);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  // 清理计时器
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+    };
+  }, []);
 
   const handlePrivacyExitConfirm = useCallback(() => { const t = pendingNavigationRef.current; skipExitWarningRef.current = true; setActiveModal(null); handleReset(); if (t === '__back__') window.history.back(); else if (t) router.push(t); setTimeout(() => { skipExitWarningRef.current = false; pendingNavigationRef.current = null; }, 200); }, [handleReset, router]);
   const handlePrivacyExitCancel = useCallback(() => { setActiveModal(null); pendingNavigationRef.current = null; }, []);
@@ -351,20 +363,88 @@ useEffect(() => {
     // 先用 blob URL 秒出预览
     const quickPreview = URL.createObjectURL(file);
     setPreview(quickPreview); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setSelectedPanel('original');
+    // [v9.2] reset auto-start states
+    setShowCreditConfirm(false); setAutoStartChecking(true);
     const hero = document.getElementById('scanner-hero');
     if (hero) hero.style.display = '';
     // 后台压缩，完成后替换预览并存 session
-    const compressed = await compressImage(file, { maxSize: 1024, quality: 0.75 });
+    const compressed = await compressImage(file, { maxSize: 800, quality: 0.75 });
     URL.revokeObjectURL(quickPreview);
     setPreview(compressed);
     scheduleIdle(() => {
       safeSetItem(sessionStorage, 'mf_preview', compressed); safeRemoveItem(sessionStorage, 'mf_visibleText'); safeRemoveItem(sessionStorage, 'mf_analysisJSON');
     });
+
+    // [v9.2] Auto-start logic — check user eligibility after compression
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        // Guest: check local free limit
+        const FREE_LIMIT = 3;
+        const used = parseInt(safeGetItem(localStorage, 'mf_free_analyses') || '0', 10);
+        if (used >= FREE_LIMIT) {
+          // Path D: free limit reached → show modal
+          setAutoStartChecking(false);
+          trackEvent('free_limit_reached', { used });
+          setActiveModal('free_limit');
+          return;
+        }
+        // Path A: guest with free uses left → auto start
+        setAutoStartChecking(false);
+        // Use setTimeout to let state settle before calling handleSubmit
+        setTimeout(() => handleSubmitRef.current(), 0);
+        return;
+      }
+
+      // Logged in — check credits
+      const cr = await fetch('/api/credits');
+      if (cr.ok) {
+        const cd = await cr.json();
+        const isSub = cd.isSubscribed === true;
+        const credits = cd.credits?.remaining_credits ?? 0;
+        const needed = isSub ? 20 : 25;
+        setRequiredCredits(needed);
+        setIsSubscribed(isSub);
+
+        // Check if user has free generation (first time)
+        if (cd.hasFreeTrial) {
+          // Path A: free trial available → auto start
+          setAutoStartChecking(false);
+          setTimeout(() => handleSubmitRef.current(), 0);
+          return;
+        }
+
+        // Path B/C: paid user — check credits
+        if (credits >= needed) {
+          // Path B: has enough credits → show credit confirm bar
+          setAutoStartChecking(false);
+          setShowCreditConfirm(true);
+          trackEvent('credit_confirm_shown', { credits, needed });
+          return;
+        }
+
+        // Path C: not enough credits → show enhance modal
+        setAutoStartChecking(false);
+        setActiveModal('enhance');
+        return;
+      }
+
+      // API call failed — fall back to showing button
+      setAutoStartChecking(false);
+      setShowCreditConfirm(true);
+    } catch {
+      // Network error — fall back to showing button
+      setAutoStartChecking(false);
+    }
   };
 
   const handleSubmit = async () => {
     if (!preview || isLoading) return;
     if (!isLoggedIn) { const FREE_LIMIT = 3; const used = parseInt(safeGetItem(localStorage, 'mf_free_analyses') || '0', 10); if (used >= FREE_LIMIT) { trackEvent('free_limit_reached', { used }); setActiveModal('free_limit'); return; } safeSetItem(localStorage, 'mf_free_analyses', String(used + 1)); }
+    // [v9.2] clear credit confirm bar
+    setShowCreditConfirm(false); setAutoStartChecking(false);
     setActiveModal(null); setVisibleText(''); setAnalysisJSON(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setSelectedPanel('original');
     safeRemoveItem(sessionStorage, 'mf_visibleText'); safeRemoveItem(sessionStorage, 'mf_analysisJSON'); trackEvent('boost_start_click');
     await complete('', { body: { imageBase64: preview.split(',')[1], mimeType: 'image/jpeg' } });
@@ -453,7 +533,11 @@ useEffect(() => {
 
   const isOriginalSelected = selectedPanel === 'original';
   const downloadButtonText = isDownloadFree ? 'Download Enhanced Photo' : isFreeGeneration ? 'Download Photo' : 'Download Enhanced Photo';
-  const imgHeightClass = isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'min-h-[300px] md:min-h-[360px]';
+  // [v9.2] Preview area: always capped height. Before analysis: max-h to keep buttons visible.
+  // After analysis (isCompact): smaller max-h. During initial display without results: also capped.
+  const imgHeightClass = isCompact
+    ? 'max-h-[240px] md:max-h-[280px]'
+    : 'max-h-[300px] md:max-h-[360px]';
 
   // ── Lightbox ───────────────────────────────────────────────
   const openLightbox = (src: string) => {
@@ -530,17 +614,32 @@ useEffect(() => {
               {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${isOriginalSelected ? 'text-rose-400 bg-rose-500/10' : 'text-slate-600'}`}>ORIGINAL</div>}
               <div className="px-4 pb-4">
                 <div className={`relative w-full overflow-hidden rounded-xl border border-slate-800/50 bg-slate-900/60 flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
-                  <img src={preview} alt="Original" className={`w-full object-contain p-2 cursor-pointer ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'h-full'}`} onClick={() => openLightbox(preview!)} />
+                  <img src={preview} alt="Original" className={`w-full object-contain p-2 cursor-pointer ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'max-h-[300px] md:max-h-[360px]'}`} onClick={() => openLightbox(preview!)} />
                   {isCompact && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                   {isLoading && <ScanningOverlay />}
                 </div>
                 {!isLoading && !isEnhancing && !showEnhanced && (
                   <div className="flex flex-col gap-3 mt-4">
-                    <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
-                      className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 disabled:opacity-40 hover:scale-[1.01] active:scale-[0.99]">
-                      <Wand2 className="w-5 h-5" /> Enhance Photo
-                      <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span>
-                    </button>
+                    {/* [v9.2] autoStartChecking = loading state while checking eligibility */}
+                    {autoStartChecking ? (
+                      <button type="button" disabled
+                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 opacity-70">
+                        <Loader2 className="w-5 h-5 animate-spin" /> Preparing...
+                      </button>
+                    ) : showCreditConfirm ? (
+                      /* [v9.2] Credit confirm bar — shows cost before starting */
+                      <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
+                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 disabled:opacity-40 hover:scale-[1.01] active:scale-[0.99]">
+                        <Wand2 className="w-5 h-5" /> Enhance Photo
+                        <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">⚡ {requiredCredits}</span>
+                      </button>
+                    ) : (
+                      <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
+                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 disabled:opacity-40 hover:scale-[1.01] active:scale-[0.99]">
+                        <Wand2 className="w-5 h-5" /> Enhance Photo
+                        <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span>
+                      </button>
+                    )}
                     <label className="w-full h-10 rounded-xl text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 flex items-center justify-center gap-2 cursor-pointer">
                       <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                       <RefreshCw className="w-3.5 h-3.5" /> Change photo
@@ -556,7 +655,7 @@ useEffect(() => {
                 <div className={`relative w-full overflow-hidden rounded-xl border border-slate-800/50 bg-slate-900/40 flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
                   {showEnhanced ? (
                     <div className="relative h-full w-full">
-                      <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isGuestEnhanced ? '' : 'cursor-pointer'} ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'h-full'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && openLightbox(enhancedSrc)} />
+                      <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isGuestEnhanced ? '' : 'cursor-pointer'} ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'max-h-[300px] md:max-h-[360px]'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && openLightbox(enhancedSrc)} />
                       <div className="absolute top-3 left-3 bg-emerald-500/80 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-400/20 flex items-center gap-1"><Sparkles className="size-3" /> AI Enhanced</div>
                       {isCompact && !isGuestEnhanced && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                       {isGuestEnhanced && <GuestLockOverlay />}
@@ -590,17 +689,18 @@ useEffect(() => {
                 </div>
               )}
               <div className="px-4 pb-4 pt-3">
-                <div className={`relative w-full overflow-hidden rounded-xl border border-slate-800/50 bg-slate-900/60 transition-all duration-500 ${isCompact ? 'max-h-[220px]' : 'min-h-[300px]'}`}
+                {/* [v9.2] Mobile preview: max-h-[280px] before analysis to keep buttons visible */}
+                <div className={`relative w-full overflow-hidden rounded-xl border border-slate-800/50 bg-slate-900/60 transition-all duration-500 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`}
                   onTouchStart={showEnhanced ? handleTouchStart : undefined} onTouchMove={showEnhanced ? handleTouchMove : undefined} onTouchEnd={showEnhanced ? handleTouchEnd : undefined}>
                   <div style={{ display: sliderIndex === 0 ? 'block' : 'none' }} className="relative h-full w-full">
-                    <img src={preview} alt="Original" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : ''}`} onClick={() => openLightbox(preview!)} />
+                    <img src={preview} alt="Original" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`} onClick={() => openLightbox(preview!)} />
                     {showEnhanced && <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-white/10">Original</div>}
                     <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>
                   </div>
                   {showEnhanced && (
                     <div style={{ display: sliderIndex === 1 ? 'block' : 'none' }}>
                       <div className="relative h-full w-full">
-                        <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : ''}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && !isGuestEnhanced && openLightbox(enhancedSrc)} />
+                        <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && !isGuestEnhanced && openLightbox(enhancedSrc)} />
                         <div className="absolute top-3 left-3 bg-emerald-500/80 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-400/20 flex items-center gap-1"><Sparkles className="size-3" /> AI Enhanced</div>
                         {!isGuestEnhanced && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                         {isGuestEnhanced && <GuestLockOverlay />}
@@ -618,8 +718,23 @@ useEffect(() => {
                 )}
                 {!visibleText && !isLoading && !showEnhanced && (
                   <div className="flex flex-col gap-2 mt-3">
-                    <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
-                      className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 disabled:opacity-40"><Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span></button>
+                    {/* [v9.2] Mobile: same auto-start logic as desktop */}
+                    {autoStartChecking ? (
+                      <button type="button" disabled
+                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 opacity-70">
+                        <Loader2 className="w-5 h-5 animate-spin" /> Preparing...
+                      </button>
+                    ) : showCreditConfirm ? (
+                      <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
+                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 disabled:opacity-40">
+                        <Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">⚡ {requiredCredits}</span>
+                      </button>
+                    ) : (
+                      <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
+                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 disabled:opacity-40">
+                        <Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span>
+                      </button>
+                    )}
                     <label className="w-full h-9 rounded-xl text-xs text-slate-500 hover:text-slate-300 flex items-center justify-center gap-1.5 cursor-pointer">
                       <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                       <RefreshCw className="w-3 h-3" /> Change photo
@@ -971,4 +1086,4 @@ function MicroPackCheckoutButton({ returnPath }: { returnPath: string }) {
       {error && <p className="text-red-400 text-xs text-center">Something went wrong. Please try again.</p>}
     </div>
   );
-}
+} 

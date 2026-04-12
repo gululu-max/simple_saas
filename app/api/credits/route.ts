@@ -66,6 +66,7 @@ export async function GET() {
         updated_at: customer.updated_at,
       },
       isSubscribed,
+      hasFreeTrial: !customer.free_enhance_used,
     });
   } catch (error) {
     console.error('Credits API error:', error);
