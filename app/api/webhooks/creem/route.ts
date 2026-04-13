@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { CreemWebhookEvent } from "@/types/creem";
 import { sendPurchaseEvent } from "@/lib/meta-capi";
+import { sendGooglePurchaseEvent } from "@/lib/google-ads-conversion";
 import {
   createOrUpdateCustomer,
   createOrUpdateSubscription,
@@ -139,6 +140,13 @@ async function handleCheckoutCompleted(event: CreemWebhookEvent) {
       contentIds: [productId!],
       eventId: `purchase_${orderId}`,
     });
+    await sendGooglePurchaseEvent({
+      clientId: checkout.metadata?.ga_client_id || checkout.metadata.user_id,
+      transactionId: orderId,
+      value: checkout.order?.amount ? checkout.order.amount / 100 : 0,
+      currency: checkout.currency ?? "USD",
+      items: [{ item_id: productId!, item_name: "credits_pack", price: checkout.order?.amount ? checkout.order.amount / 100 : 0 }],
+    });
   } else if (checkout.subscription) {
     await createOrUpdateSubscription(checkout.subscription, customerId);
     console.log(`✅ 订阅创建完成，积分将由 subscription.paid 事件发放`);
@@ -202,6 +210,13 @@ async function handleSubscriptionPaid(event: CreemWebhookEvent) {
       currency: subscription.currency ?? "USD",
       contentIds: [productId!],
       eventId: `purchase_${transactionId}`,
+    });
+    await sendGooglePurchaseEvent({
+      clientId: subscription.metadata?.ga_client_id || subscription.metadata?.user_id || "unknown",
+      transactionId: transactionId,
+      value: subscription.last_transaction?.amount ? subscription.last_transaction.amount / 100 : 0,
+      currency: subscription.currency ?? "USD",
+      items: [{ item_id: productId!, item_name: "subscription_renewal", price: subscription.last_transaction?.amount ? subscription.last_transaction.amount / 100 : 0 }],
     });
   } else {
     console.warn(`⚠️ subscription.paid: 未识别商品 ID: ${productId}`);

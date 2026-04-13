@@ -166,15 +166,17 @@ export default function RootLayout({
         </AuthModalProvider>
 
         <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-0SVH6XDETV"
-          strategy="lazyOnload"
+          src="https://www.googletagmanager.com/gtag/js?id=GT-K4LBDZPB"
+          strategy="afterInteractive"
         />
-        <Script id="ga-init" strategy="lazyOnload">
+        <Script id="gtag-init" strategy="afterInteractive">
           {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
+            gtag('config', 'GT-K4LBDZPB');
             gtag('config', 'G-0SVH6XDETV');
+            gtag('config', 'AW-18061068375');
           `}
         </Script>
       </body>
