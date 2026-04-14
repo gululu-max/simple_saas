@@ -17,13 +17,12 @@ import AnalysisResultCard from '@/components/AnalysisResultCard';
 import UsageGuideCard from '@/components/UsageGuideCard';
 
 // ═══════════════════════════════════════════════════════════════
-// components/BoostScanner.tsx — v9.2
+// components/BoostScanner.tsx — v9.3
 //
-// v9.2 changes vs v9.1:
-// 1. [FIX] Preview area capped height — buttons always visible
-// 2. [NEW] Auto-start after upload for free users; credit confirm bar for paid
-// 3. [PERF] compressImage maxSize 800, canvas memory release
-// 4. All v9.1 logic preserved
+// v9.3 changes vs v9.2:
+// 1. [NEW] Result Showcase Modal — auto-pops after enhance completes
+//    with before/after swipe, shimmer download CTA, urgency copy
+// 2. All v9.2 logic preserved — zero changes to existing flows
 // ═══════════════════════════════════════════════════════════════
 
 // ── Safe Storage Helpers (iOS Safari Private Mode throws on setItem) ──
@@ -108,6 +107,12 @@ export default function BoostScanner() {
   const [autoStartChecking, setAutoStartChecking] = useState(false);
   const [showCreditConfirm, setShowCreditConfirm] = useState(false);
   const [requiredCredits, setRequiredCredits] = useState(25);
+
+  // [v9.3] Result Showcase Modal state
+  const [showResultShowcase, setShowResultShowcase] = useState(false);
+  const [showcaseSlideIndex, setShowcaseSlideIndex] = useState(1); // default to enhanced
+  const showcaseTouchStartX = useRef<number | null>(null);
+  const showcaseTouchEndX = useRef<number | null>(null);
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -218,6 +223,8 @@ export default function BoostScanner() {
     setPreview(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setVisibleText(''); setAnalysisJSON(null); setSelectedPanel('original'); setLightboxOpen(false); setLightboxIndex(0);
     // [v9.2] clear auto-start states
     setAutoStartChecking(false); setShowCreditConfirm(false);
+    // [v9.3] clear showcase state
+    setShowResultShowcase(false); setShowcaseSlideIndex(1);
     if (fileInputRef.current) fileInputRef.current.value = '';
     ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed'].forEach(k => safeRemoveItem(sessionStorage, k));
     ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => safeRemoveItem(localStorage, k));
@@ -295,6 +302,10 @@ export default function BoostScanner() {
       setWatermarkedImage(data.watermarkedImage); setEnhancementId(data.enhancementId); setEnhancedMimeType(data.mimeType ?? 'image/png'); setIsFreeGeneration(data.isFreeTrial); setIsDownloadFree(data.downloadFree ?? false);
       safeSetItem(sessionStorage, 'mf_watermarkedImage', data.watermarkedImage); safeSetItem(sessionStorage, 'mf_enhancementId', data.enhancementId); safeSetItem(sessionStorage, 'mf_enhancedMimeType', data.mimeType ?? 'image/png'); safeSetItem(sessionStorage, 'mf_isFreeGeneration', String(data.isFreeTrial)); safeSetItem(sessionStorage, 'mf_isDownloadFree', String(data.downloadFree ?? false));
       setIsGuestEnhanced(false); setSliderIndex(1); setSelectedPanel('enhanced'); dispatchCreditsUpdate(); router.refresh(); trackEvent('enhance_complete', { status: 'success' });
+      // [v9.3] Auto-pop Result Showcase Modal
+      setShowcaseSlideIndex(1);
+      setShowResultShowcase(true);
+      trackEvent('result_showcase_shown');
     } catch {
       setEnhanceError('Network error. Please try again.');
       setSliderIndex(0);
@@ -525,6 +536,14 @@ export default function BoostScanner() {
     }
   };
 
+  // [v9.3] Showcase download — close showcase then trigger normal download
+  const handleShowcaseDownload = () => {
+    setShowResultShowcase(false);
+    trackEvent('result_showcase_download_click');
+    // Small delay to let modal close, then trigger normal download flow
+    setTimeout(() => handleDownload(), 100);
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => { touchEndX.current = e.touches[0].clientX; };
   const handleTouchEnd = () => { if (touchStartX.current === null || touchEndX.current === null) return; const diff = touchStartX.current - touchEndX.current; if (Math.abs(diff) > 40) { if (diff > 0 && sliderIndex < 1) { setSliderIndex(1); setSelectedPanel('enhanced'); } if (diff < 0 && sliderIndex > 0) { setSliderIndex(0); setSelectedPanel('original'); } } touchStartX.current = null; touchEndX.current = null; };
@@ -556,6 +575,19 @@ export default function BoostScanner() {
     const diff = lightboxTouchStartX.current - lightboxTouchEndX.current;
     if (Math.abs(diff) > 40) { if (diff > 0) lightboxNext(); else lightboxPrev(); }
     lightboxTouchStartX.current = null; lightboxTouchEndX.current = null;
+  };
+
+  // [v9.3] Showcase touch handlers
+  const handleShowcaseTouchStart = (e: React.TouchEvent) => { showcaseTouchStartX.current = e.touches[0].clientX; };
+  const handleShowcaseTouchMove = (e: React.TouchEvent) => { showcaseTouchEndX.current = e.touches[0].clientX; };
+  const handleShowcaseTouchEnd = () => {
+    if (showcaseTouchStartX.current === null || showcaseTouchEndX.current === null) return;
+    const diff = showcaseTouchStartX.current - showcaseTouchEndX.current;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0 && showcaseSlideIndex < 1) setShowcaseSlideIndex(1);
+      if (diff < 0 && showcaseSlideIndex > 0) setShowcaseSlideIndex(0);
+    }
+    showcaseTouchStartX.current = null; showcaseTouchEndX.current = null;
   };
 
   // Overlays
@@ -814,9 +846,119 @@ export default function BoostScanner() {
           </div>
         )}
 
+        {/* ═══ [v9.3] RESULT SHOWCASE MODAL ═══ */}
+        {showResultShowcase && enhancedSrc && preview && !isGuestEnhanced && (
+          <div className="fixed inset-0 z-50 bg-black/95 flex flex-col animate-in fade-in duration-300">
+            {/* Close button */}
+            <button
+              className="absolute top-4 right-4 z-20 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors border border-white/10"
+              onClick={() => setShowResultShowcase(false)}
+            >
+              <X className="size-5" />
+            </button>
+
+            {/* Top badge */}
+            <div className="flex justify-center pt-4 pb-2">
+              <span className={`text-sm font-bold px-4 py-1.5 rounded-full backdrop-blur-sm transition-all duration-300 ${
+                showcaseSlideIndex === 0
+                  ? 'text-slate-400 bg-white/5 border border-white/10'
+                  : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+              }`}>
+                {showcaseSlideIndex === 0 ? 'Original' : '✨ AI Enhanced'}
+              </span>
+            </div>
+
+            {/* Image area — fills available space */}
+            <div
+              className="flex-1 flex items-center justify-center px-4 min-h-0 relative"
+              onTouchStart={handleShowcaseTouchStart}
+              onTouchMove={handleShowcaseTouchMove}
+              onTouchEnd={handleShowcaseTouchEnd}
+            >
+              <img
+                src={showcaseSlideIndex === 0 ? preview : enhancedSrc}
+                alt={showcaseSlideIndex === 0 ? 'Original' : 'AI Enhanced'}
+                className="max-w-full max-h-full object-contain rounded-xl transition-opacity duration-300"
+                style={{ touchAction: 'pinch-zoom' }}
+              />
+              {/* Left/Right arrows */}
+              <button
+                className="absolute left-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10 transition-all"
+                onClick={() => setShowcaseSlideIndex(0)}
+                disabled={showcaseSlideIndex === 0}
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10 transition-all"
+                onClick={() => setShowcaseSlideIndex(1)}
+                disabled={showcaseSlideIndex === 1}
+              >
+                <ChevronRight className="size-5" />
+              </button>
+            </div>
+
+            {/* Bottom CTA area */}
+            <div className="shrink-0 px-5 pb-6 pt-3 flex flex-col items-center gap-3">
+              {/* Dots */}
+              <div className="flex gap-2 mb-1">
+                {[0, 1].map(i => (
+                  <button
+                    key={i}
+                    onClick={() => setShowcaseSlideIndex(i)}
+                    className={`rounded-full transition-all duration-200 ${
+                      showcaseSlideIndex === i ? 'w-6 h-2 bg-emerald-400' : 'w-2 h-2 bg-white/30 hover:bg-white/50'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Urgency text */}
+              <p className="text-xs text-slate-500 text-center flex items-center gap-1.5">
+                <ShieldCheck className="size-3 text-slate-600 shrink-0" />
+                We don&apos;t store photos — save it now or lose it forever
+              </p>
+
+              {/* Shimmer download button */}
+              <button
+                onClick={handleShowcaseDownload}
+                className="showcase-download-btn w-full max-w-sm h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-white shadow-xl transition-all active:scale-[0.98] relative overflow-hidden"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #0d9488 100%)',
+                  boxShadow: '0 8px 32px rgba(16,185,129,0.35), 0 2px 8px rgba(0,0,0,0.3)',
+                }}
+              >
+                {/* Shimmer overlay */}
+                <span
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.25) 55%, transparent 65%)',
+                    animation: 'showcaseShimmer 2.5s ease-in-out infinite',
+                  }}
+                />
+                <Download className="size-5 relative z-10" />
+                <span className="relative z-10">Save Enhanced Photo</span>
+              </button>
+
+              {/* Secondary: try another */}
+              <button
+                onClick={() => { setShowResultShowcase(false); handleTryAnother(); }}
+                className="text-sm text-slate-600 hover:text-slate-400 transition-colors py-1"
+              >
+                Try another photo
+              </button>
+            </div>
+          </div>
+        )}
+
         <style>{`
           @keyframes scanLine { 0% { top: 0%; } 100% { top: 100%; } }
           @keyframes uploadPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+          @keyframes showcaseShimmer {
+            0% { transform: translateX(-120%); }
+            60% { transform: translateX(120%); }
+            100% { transform: translateX(120%); }
+          }
         `}</style>
       </div>
 
@@ -1086,4 +1228,4 @@ function MicroPackCheckoutButton({ returnPath }: { returnPath: string }) {
       {error && <p className="text-red-400 text-xs text-center">Something went wrong. Please try again.</p>}
     </div>
   );
-} 
+}
