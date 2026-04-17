@@ -1,67 +1,97 @@
 // ═══════════════════════════════════════════════════════════════
-// utils/parseAnalysisStream.ts
+// utils/parseAnalysisStream.ts — v3
 // 直接覆盖现有文件
+//
+// 新 prompt 是纯 JSON 输出（不再有 <analysis_json> 标签和自然段混排）。
+// 本函数职责：
+//   - 完整响应：解析 JSON，从 copy 字段拼出 visibleText 给前端展示
+//   - 流式中途：尽量从未完成的 JSON 里提取已经闭合的 copy 字段
 // ═══════════════════════════════════════════════════════════════
 
+interface CopyFields {
+  headline?: string;
+  one_liner_positive?: string | null;
+  one_liner_issue?: string | null;
+  first_impression?: string | null;
+  cta?: string;
+}
+
 /**
- * parseAnalysisStream
- *
- * scanner API 的流式输出末尾会附带一个隐藏的 <analysis_json> 块。
- * 本函数将完整响应文本拆分为：
- *   - visibleText：展示给用户的分析内容
- *   - analysisJSON：结构化数据字符串，传给 enhance 接口
- *
- * 修复：流式过程中 JSON 标签的开头会被当成可见文本显示，
- * 现在会检测并截掉 <analysis_json 的部分片段。
+ * 从已解析的 JSON 对象的 copy 字段拼出自然段文本
  */
+function buildVisibleTextFromCopy(copy: CopyFields | undefined | null): string {
+  if (!copy) return '';
+  const parts = [
+    copy.headline,
+    copy.one_liner_positive,
+    copy.one_liner_issue,
+    copy.first_impression,
+    copy.cta,
+  ].filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  return parts.join('\n\n');
+}
+
+/**
+ * 流式中途，用正则提取已经闭合的字符串字段
+ * 只匹配 "field": "...完整闭合的字符串..."
+ */
+function extractPartialCopy(raw: string): string {
+  const fields = [
+    'headline',
+    'one_liner_positive',
+    'one_liner_issue',
+    'first_impression',
+    'cta',
+  ];
+  const parts: string[] = [];
+  for (const f of fields) {
+    // 匹配已闭合的字符串（处理转义引号）
+    const re = new RegExp(`"${f}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
+    const m = raw.match(re);
+    if (m && m[1]) {
+      // 还原常见转义
+      const unescaped = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      parts.push(unescaped);
+    }
+  }
+  return parts.join('\n\n');
+}
+
+/**
+ * 剥除可能的 markdown 代码围栏（防御性 — prompt 明确禁止但模型偶尔会出）
+ */
+function stripMarkdownFences(s: string): string {
+  let cleaned = s.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/, '');
+  }
+  return cleaned.trim();
+}
+
 export function parseAnalysisStream(raw: string): {
   visibleText: string;
   analysisJSON: string | null;
 } {
-  // 完整匹配：流式结束后的正常路径
-  const match = raw.match(/<analysis_json>([\s\S]*?)<\/analysis_json>/);
-
-  if (match) {
-    const jsonString = match[1].trim();
-    const visibleText = raw.replace(match[0], '').trim();
-
-    try {
-      JSON.parse(jsonString);
-      return { visibleText, analysisJSON: jsonString };
-    } catch {
-      console.warn('analysis_json parse failed, falling back to null');
-      return { visibleText, analysisJSON: null };
-    }
+  if (!raw || !raw.trim()) {
+    return { visibleText: '', analysisJSON: null };
   }
 
-  // 流式过程中：检测不完整的 <analysis_json 标签片段并截掉
-  // 这防止了用户在流式过程中看到 "<analysis_json" 或 "<analysis_js" 等碎片
-  const partialTagPattern = /<a(?:n(?:a(?:l(?:y(?:s(?:i(?:s(?:_(?:j(?:s(?:o(?:n)?)?)?)?)?)?)?)?)?)?)?)?$/i;
-  let cleaned = raw;
+  const cleaned = stripMarkdownFences(raw);
 
-  // 也处理已经有 <analysis_json> 开头但还没闭合的情况
-  const openTagIndex = raw.indexOf('<analysis_json>');
-  if (openTagIndex !== -1) {
-    // 有开标签但没闭合标签，说明还在流式传输JSON内容
-    cleaned = raw.substring(0, openTagIndex);
-  } else {
-    // 检查部分标签片段
-    const partialMatch = cleaned.match(partialTagPattern);
-    if (partialMatch) {
-      cleaned = cleaned.substring(0, partialMatch.index);
-    }
-
-    // 也检查 "---" 分隔符后面的内容（prompt里JSON前有 "---"）
-    // 如果最后一行只有 "---" 或者 "---\n<ana..."，截掉
-    const lastDashIndex = cleaned.lastIndexOf('\n---');
-    if (lastDashIndex !== -1) {
-      const afterDash = cleaned.substring(lastDashIndex + 4).trim();
-      // 如果 "---" 后面没有有意义的文字（空或只有标签碎片），截掉
-      if (afterDash.length === 0 || afterDash.startsWith('<')) {
-        cleaned = cleaned.substring(0, lastDashIndex);
-      }
-    }
+  // 尝试解析完整 JSON
+  try {
+    const parsed = JSON.parse(cleaned);
+    const visibleText = buildVisibleTextFromCopy(parsed?.copy);
+    return {
+      visibleText,
+      analysisJSON: JSON.stringify(parsed),
+    };
+  } catch {
+    // 流式中途：JSON 还没收完，尽量提取已闭合的 copy 字段
+    const partialText = extractPartialCopy(cleaned);
+    return {
+      visibleText: partialText,
+      analysisJSON: null,
+    };
   }
-
-  return { visibleText: cleaned.trim(), analysisJSON: null };
 }

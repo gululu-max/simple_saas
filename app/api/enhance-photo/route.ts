@@ -13,7 +13,6 @@ const supabaseAdmin = createAdminClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ↓ 加这个
 interface DeductCreditsResult {
   success: boolean;
   remaining: number;
@@ -85,6 +84,25 @@ const DEFAULT_FIX_PLAN: FixPlan = {
   visual_outcome: "Minimal touch-up preserving the natural look of the original photo.",
 };
 
+// ─── [v2] fix_plan 净化：把高风险枚举值降级为安全值 ─────────────
+// 分析 prompt 仍然可能输出 add_rim_light / warm_golden_hour，
+// 但这两个值是光晕和假暖色的主要来源，所以在生图前做一层净化。
+// 等观察稳定后可以把分析 prompt 里的这两个枚举也删掉。
+function sanitizeFixPlan(plan: FixPlan): FixPlan {
+  const sanitized = { ...plan };
+
+  if (sanitized.lighting === 'add_rim_light') {
+    console.log('🛡️  sanitize: add_rim_light → no_change (光晕风险降级)');
+    sanitized.lighting = 'no_change';
+  }
+  if (sanitized.lighting === 'warm_golden_hour') {
+    console.log('🛡️  sanitize: warm_golden_hour → brighten_face (去掉加暖色副作用)');
+    sanitized.lighting = 'brighten_face';
+  }
+
+  return sanitized;
+}
+
 // ─── 调 Gemini 生图 ──────────────────────────────────────────
 async function callGeminiImageGeneration(
   imageBase64: string,
@@ -95,7 +113,9 @@ async function callGeminiImageGeneration(
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
 
   // 从分析结果中提取 fix_plan，失败则用保守默认值
-  const fixPlan = extractFixPlan(analysisResult) ?? DEFAULT_FIX_PLAN;
+  const rawFixPlan = extractFixPlan(analysisResult) ?? DEFAULT_FIX_PLAN;
+  // [v2] 净化高风险枚举值
+  const fixPlan = sanitizeFixPlan(rawFixPlan);
 
   const body = {
     contents: [{
@@ -104,13 +124,30 @@ async function callGeminiImageGeneration(
         {
           text: `You are an elite portrait retoucher. Your work should be invisible — viewers should think "great photo," never "edited photo."
 
-SUPREME RULE — READ THIS FIRST:
-When in doubt, do less. An under-edited photo that looks real ALWAYS beats an over-edited photo that looks fake. If you are unsure whether an edit is needed, DO NOT make it.
+══════════════════════════════════════════════
+THREE SUPREME RULES — READ BEFORE EVERYTHING ELSE
+══════════════════════════════════════════════
 
-COLOR FIDELITY RULE — EQUAL PRIORITY TO SUPREME RULE:
-The output image MUST match the original photo's overall color temperature, white balance, and color palette by default. Do NOT shift colors warmer, cooler, more orange, or more yellow unless fix_plan.color_grade EXPLICITLY specifies a change. Preserve the original's exact color feel. Any unwanted color shift is a FAILURE equivalent to altering the subject's face.
+RULE 1 — DO LESS WHEN IN DOUBT:
+An under-edited photo that looks real ALWAYS beats an over-edited photo that looks fake. If you are unsure whether an edit is needed, DO NOT make it.
 
-IDENTITY LOCK — HIGHEST PRIORITY:
+RULE 2 — NO ADDED LIGHT, NO ADDED EFFECTS:
+Do NOT add ANY visual element that is not present in the original photo. This specifically includes:
+- NO lens flare, light rays, or sun glints
+- NO bokeh orbs, light balls, or sparkle particles
+- NO rim lighting halos or edge glows around the subject
+- NO film grain, light leaks, or dreamy haze
+- NO vignettes or post-processing overlays
+- NO catchlights added to eyes
+If the original photo doesn't have it, the output must not have it. Adding light effects is the most common way these edits go wrong — and it is a FAILURE.
+
+RULE 3 — PRESERVE ORIGINAL COLOR:
+The output MUST match the original's color temperature, white balance, and palette by default. Do NOT shift warmer, cooler, oranger, or yellower unless fix_plan.color_grade EXPLICITLY specifies a change. Any unwanted color shift is a FAILURE equivalent to altering the subject's face.
+
+══════════════════════════════════════════════
+IDENTITY LOCK — HIGHEST PRIORITY
+══════════════════════════════════════════════
+
 The following must be PIXEL-LEVEL FAITHFUL to the original:
 - Facial bone structure (jawline, cheekbones, forehead shape)
 - All facial feature shapes and proportions (eyes, nose, mouth, ears)
@@ -119,88 +156,100 @@ The following must be PIXEL-LEVEL FAITHFUL to the original:
 - Hair style, color, length, and texture
 Any deviation from the above is a FAILURE, regardless of how "improved" it may look.
 
----
+══════════════════════════════════════════════
+FIX PLAN (from analysis) — EXECUTE ONLY WHAT IS SPECIFIED
+══════════════════════════════════════════════
 
-FIX PLAN (from analysis):
 ${JSON.stringify(fixPlan, null, 2)}
 
 EXECUTION RULES:
-You must ONLY execute edits specified in the fix_plan above. For every field:
-- If the value is "no_change" or "none" → DO NOT touch that aspect AT ALL
+- If a field value is "no_change" or "none" → DO NOT touch that aspect AT ALL
 - If a field has a specific action → execute ONLY that action, conservatively
 - Do NOT infer, assume, or add edits beyond what fix_plan specifies
 
----
-
-FIELD-BY-FIELD INSTRUCTIONS:
+══════════════════════════════════════════════
+FIELD-BY-FIELD INSTRUCTIONS
+══════════════════════════════════════════════
 
 【FRAMING】
-- "no_change" → Do NOT crop, reframe, or adjust composition in any way. Keep exact original framing.
+- "no_change" → Do NOT crop, reframe, or adjust composition. Keep exact original framing.
 - "crop_chest_up" / "crop_waist_up" → Crop to specified frame. Center subject with slight rule-of-thirds offset. Target 4:5 aspect ratio.
 - "zoom_out_slightly" → Add contextual space around subject if image feels too tight.
 - If fix_plan says no_change but you think cropping would help: DO NOT CROP. Trust the plan.
 
 【BACKGROUND】
-- "keep" → Do NOT alter the background in any way. No blur, no color shift, no cleanup. Leave it exactly as-is.
-- "blur" → Apply subtle, natural depth-of-field blur to existing background. The original environment must remain clearly recognizable. Do NOT replace any elements.
-- "replace_outdoor_park" / "replace_outdoor_street" / "replace_cafe" / "replace_neutral_wall" → Replace background with the specified environment. Must look photorealistic — shot on a real camera, not rendered. No fake bokeh balls, no film grain, no dreamy glow.
+REMINDER: Rule 2 applies — no added light effects, no bokeh orbs, no dreamy glow in any background edit.
+
+- "keep" → Do NOT alter the background in ANY way. No blur, no color shift, no cleanup. Leave it exactly as-is.
+- "blur" → Apply subtle, natural depth-of-field blur to the EXISTING background only. The original environment must remain clearly recognizable. Do NOT replace any element. Do NOT add synthetic bokeh balls or light orbs — only an optical-style blur that a real camera aperture would produce.
+- "replace_outdoor_park" / "replace_outdoor_street" / "replace_cafe" / "replace_neutral_wall" → Replace the background with the specified environment. The replacement MUST:
+  • Match the original photo's focal length and perspective (if the subject was shot on a phone at arm's length, don't make the background look like a 85mm portrait lens)
+  • Match the original's lighting direction and time of day (if the subject's face is lit from the left by afternoon sun, the background must also read as afternoon with light from the same direction)
+  • Be a photograph-style environment — not a stylized, painted, cinematic, or AI-aesthetic render
+  • Contain ordinary, real-world detail (real objects, real textures, real imperfections) — never fantasy elements
+  • Have natural depth-of-field softness, not stylized heavy blur
 - NEVER replace background unless fix_plan explicitly says "replace_*".
 
 【LIGHTING】
-- "no_change" → Do NOT adjust lighting, shadows, highlights, or add any light sources. Do NOT warm up or cool down the existing light.
-- "brighten_face" → Gently lift shadows on the face only. Do NOT flatten the natural light/shadow interplay. Do NOT add warmth or change color temperature.
-- "add_rim_light" → Add a subtle edge light to separate subject from background. Must look like a natural light source, not a studio effect. Match the existing color temperature of the scene.
-- "warm_golden_hour" → Add VERY SUBTLE warm-tinted directional light. The color shift should be almost imperceptible — if a viewer would describe the image as "yellow" or "orange," you have FAILED. The result should look like late afternoon sun gently kissing the subject, not an orange filter. Compare your output colors to the input before returning.
-- "soften_shadows" → Reduce harsh shadow contrast on face. Preserve dimensionality. Do NOT change color temperature.
-- "add_directional_light" → Add soft light from one side to create gentle depth. Must match the existing light direction AND color temperature in the scene.
+REMINDER: Rule 2 applies — even "brighten_face" must not add light effects, only adjust existing light.
+
+- "no_change" → Do NOT adjust lighting, shadows, or highlights. Do NOT add any light sources. Do NOT warm up or cool down the existing light.
+- "brighten_face" → Gently lift shadows on the face only. Preserve the natural light/shadow interplay. Do NOT add warmth, do NOT add rim light, do NOT add glow. This is a shadow-recovery edit, not a lighting-addition edit.
+- "soften_shadows" → Reduce harsh shadow contrast on face. Preserve dimensionality. Do NOT change color temperature. Do NOT flatten the face into evenness.
+- "add_directional_light" → Very subtly emphasize existing directional light from one side. This is NOT adding a new light source — it is enhancing what's already there. Must match the existing light direction AND color temperature. If there is no existing directional light in the scene, treat this as "no_change".
 
 【SKIN RETOUCH】
-- "none" → Do NOT touch skin at all. No smoothing, no evening, no blemish removal. Leave every pore, line, and mark.
+- "none" → Do NOT touch skin. No smoothing, no evening, no blemish removal. Leave every pore, line, and mark.
 - "minimal_smooth" → Remove ONLY active temporary blemishes (fresh pimples, temporary redness). Keep ALL: pores, fine lines, freckles, moles, scars, natural skin texture. If you cannot see obvious temporary blemishes, do nothing.
-- "moderate_smooth_and_even" → Remove temporary blemishes AND gently even out blotchy skin tone. Still preserve all permanent skin features and visible texture. The skin must still look like real skin under natural light, not airbrushed.
+- "moderate_smooth_and_even" → Remove temporary blemishes AND gently even out blotchy skin tone. Preserve all permanent skin features and visible texture. Skin must still look like real skin under natural light, not airbrushed.
 
 【EXPRESSION】
-- "no_change" → Do NOT alter the expression, mouth, eyes, or any facial muscles in any way.
+- "no_change" → Do NOT alter the expression, mouth, eyes, or any facial muscles.
 - "enhance_smile" / "soften_smile" / "add_slight_smile" → Make the MINIMUM adjustment needed. This is the highest-risk edit for breaking identity lock. If the result looks even slightly unnatural, revert to original expression.
 
 【COLOR GRADE】
-- "no_change" → Preserve the EXACT original color temperature, white balance, and color palette. Do NOT add ANY warmth, coolness, or vibrance. The output should be indistinguishable from the input in terms of overall color feel. This is the DEFAULT behavior.
-- "warm_tone" → Shift color temperature by no more than 300K warmer. The change should ONLY be noticeable in direct A/B comparison. Skin tones must NOT appear orange or yellow. If they do, you have gone too far.
+- "no_change" → Preserve the EXACT original color temperature, white balance, and palette. Do NOT add ANY warmth, coolness, or vibrance. This is the DEFAULT. The output should be indistinguishable from the input in overall color feel.
+- "warm_tone" → Shift color temperature by no more than 300K warmer. The change should ONLY be noticeable in direct A/B comparison. Skin tones must NOT appear orange or yellow.
 - "cool_tone" → Add very subtle cool shift. Same restraint applies.
 - "neutral_balance" → Correct obvious color cast to neutral. Do not over-correct.
 - "increase_vibrance" → Gently boost color saturation. Skin tones must remain natural.
 
 【SHARPNESS】
 - "no_change" → Do not sharpen.
-- "sharpen_face" → Apply gentle sharpening to eyes and facial features only. Must not create halos or crunchy texture.
+- "sharpen_face" → Apply gentle sharpening to eyes and facial features only. No halos, no crunchy texture.
 - "sharpen_overall" → Gentle global sharpening. Must look natural.
 
 【EYE ENHANCE】
-- "no_change" → Do NOT touch the eyes in any way.
-- "brighten_eyes" → Very subtly brighten the whites. If the result looks "glowing" or "anime," you've gone too far. The eyes must still look like they belong in the lighting conditions of the scene.
+- "no_change" → Do NOT touch the eyes.
+- "brighten_eyes" → Very subtly brighten the whites. If the result looks "glowing" or "anime," you've gone too far. Eyes must still read as natural under the scene's lighting.
 - "sharpen_eyes" → Add subtle clarity to iris detail only.
 
----
+══════════════════════════════════════════════
+ABSOLUTE PROHIBITIONS — VIOLATION = FAILURE
+══════════════════════════════════════════════
 
-ABSOLUTE PROHIBITIONS — VIOLATION OF ANY = FAILURE:
-1. Do NOT add ANY element not present in the original photo: no lens flare, no light leaks, no bokeh orbs, no particles, no film grain, no vignette, no glow effects, no catchlights unless eyes are completely dead-black
-2. Do NOT modify the number or shape of fingers, teeth, or any body parts
-3. Do NOT create symmetry artifacts (perfectly mirrored features that look uncanny)
-4. Do NOT produce edge bleeding, texture discontinuity, or melted/warped regions
-5. Do NOT apply any global filter or color LUT — edits must be targeted per fix_plan
-6. Do NOT add makeup, accessories, clothing changes, or tattoos
-7. Do NOT modify body shape, weight, or proportions in any way
-8. Do NOT make skin look plastic, waxy, or artificially smooth
-9. Do NOT produce output at a different resolution than the input (unless framing change is specified)
-10. Do NOT add any text, watermark, or overlay to the image
-11. Do NOT shift the overall color temperature or white balance of the image unless fix_plan.color_grade EXPLICITLY requires it. Any unwanted warm/cool/yellow/orange shift is a FAILURE.
+1. Do NOT add ANY element not present in the original: no lens flare, no light leaks, no bokeh orbs, no particles, no film grain, no vignette, no glow effects, no halos, no sparkles. This re-states Rule 2 because it is the most common failure mode.
+2. Do NOT modify the number or shape of fingers, teeth, or any body parts.
+3. Do NOT create symmetry artifacts (perfectly mirrored features that look uncanny).
+4. Do NOT produce edge bleeding, texture discontinuity, or melted/warped regions.
+5. Do NOT apply any global filter or color LUT — edits must be targeted per fix_plan.
+6. Do NOT add makeup, accessories, clothing changes, or tattoos.
+7. Do NOT modify body shape, weight, or proportions.
+8. Do NOT make skin look plastic, waxy, or artificially smooth.
+9. Do NOT produce output at a different resolution than the input (unless framing change is specified).
+10. Do NOT add any text, watermark, or overlay to the image.
+11. Do NOT shift the overall color temperature or white balance unless fix_plan.color_grade EXPLICITLY requires it.
 
-OUTPUT QUALITY CHECK (apply before returning):
+══════════════════════════════════════════════
+OUTPUT QUALITY CHECK — APPLY BEFORE RETURNING
+══════════════════════════════════════════════
+
 - Would the subject's close friends immediately recognize this as them? If no → too much editing.
 - Does the photo look like it could have been taken by a skilled friend with a good phone? If no → too much editing.
-- Can you spot any element that wasn't in the original? If yes → remove it.
+- SCAN THE ENTIRE IMAGE for any light effect, glow, flare, orb, halo, sparkle, or lens artifact. If you find ANY → you have violated Rule 2 → remove it and regenerate.
 - Does any area look "digitally painted" rather than "photographed"? If yes → pull back.
-- Compare the overall color temperature and white balance to the original. If the output is noticeably warmer, yellower, oranger, or cooler without fix_plan.color_grade requesting it → you MUST revert the color shift. This check is mandatory.
+- Compare overall color temperature and white balance to the original. If the output is noticeably warmer, yellower, oranger, or cooler without fix_plan.color_grade requesting it → revert the color shift. This check is mandatory.
+- Does the background look like a real photograph taken on a real camera, or does it look stylized / AI-generated / "too pretty"? If the latter → redo it with more ordinary, real-world detail.
 
 Return only the enhanced image.`
         },
@@ -231,46 +280,27 @@ Return only the enhanced image.`
   return response.json();
 }
 
-// ─── 【新增函数】放在 addWatermarkServer 函数之前 ──────────────
-
-/**
- * 判断 fix_plan 是否包含主动色温变更指令
- * 如果用户的 fix_plan 里有明确的色温调整，就不做校色，信任模型输出
- */
+// ─── 判断 fix_plan 是否包含主动色温变更指令 ─────────────────────
+// 注意：这里判断的是"净化前"的原始 fix_plan，因为 warm_golden_hour 已经被净化成
+// brighten_face（不改色温）。如果用户显式要了 warm_tone/cool_tone 才跳过校色。
 function shouldCorrectColor(fixPlan: FixPlan | null): boolean {
-  if (!fixPlan) return true; // 没有 fix_plan，保守校色
-
-  // 这些值表示"主动要求色温变化"，此时跳过校色
+  if (!fixPlan) return true;
   const activeColorGrades = ['warm_tone', 'cool_tone'];
-  const activeLightingChanges = ['warm_golden_hour'];
-
   if (activeColorGrades.includes(fixPlan.color_grade)) return false;
-  if (activeLightingChanges.includes(fixPlan.lighting)) return false;
-
   return true;
 }
 
 /**
  * 后处理色温校正：将生成图的 RGB 通道均值拉回原图水平
- * 
- * 原理：
- * 1. 分别计算原图和生成图的 R/G/B 通道均值
- * 2. 算出每个通道的缩放比例 (原图均值 / 生成图均值)
- * 3. 用 sharp.recomb() 做线性变换，一次性校正
- * 
- * 性能：50-150ms，对用户无感
- * 画质：单次矩阵乘法，PNG 输出无损
  */
 async function correctColorTemperature(
   originalBase64: string,
   generatedBuffer: Buffer,
 ): Promise<Buffer> {
-  // 获取原图的 RGB 通道统计
   const originalBuffer = Buffer.from(originalBase64, 'base64');
   const originalStats = await sharp(originalBuffer).stats();
   const generatedStats = await sharp(generatedBuffer).stats();
 
-  // 提取各通道均值
   const origR = originalStats.channels[0].mean;
   const origG = originalStats.channels[1].mean;
   const origB = originalStats.channels[2].mean;
@@ -279,13 +309,11 @@ async function correctColorTemperature(
   const genG = generatedStats.channels[1].mean;
   const genB = generatedStats.channels[2].mean;
 
-  // 计算缩放比例，加 clamp 防止极端值
   const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
   const scaleR = clamp(origR / (genR || 1), 0.8, 1.2);
   const scaleG = clamp(origG / (genG || 1), 0.8, 1.2);
   const scaleB = clamp(origB / (genB || 1), 0.8, 1.2);
 
-  // 偏移量太小（<2%）就不校了，避免无意义处理
   const maxDrift = Math.max(
     Math.abs(scaleR - 1),
     Math.abs(scaleG - 1),
@@ -298,8 +326,6 @@ async function correctColorTemperature(
 
   console.log(`🎨 色温校正: R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)}`);
 
-  // recomb 矩阵：对角线放缩放系数，非对角线为 0
-  // 这是一个 3x3 的颜色变换矩阵
   const corrected = await sharp(generatedBuffer)
     .recomb([
       [scaleR, 0, 0],
@@ -309,6 +335,7 @@ async function correctColorTemperature(
     .toBuffer();
   return Buffer.from(corrected as any);
 }
+
 // ─── 后端加水印（预制PNG瓦片平铺，不依赖系统字体）──────────────
 async function addWatermarkServer(imageBuffer: Buffer): Promise<Buffer> {
   const meta = await sharp(imageBuffer).metadata();
@@ -331,7 +358,7 @@ async function addWatermarkServer(imageBuffer: Buffer): Promise<Buffer> {
   return Buffer.from(wmResult as any);
 }
 
-// ─── 主 Handler ──────────────────────────────────────────────/*  */
+// ─── 主 Handler ──────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
     const { imageBase64, mimeType = "image/jpeg", analysisResult } = await req.json();
@@ -350,7 +377,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── 读用户信息 + 会员状态（合并为单次查询，省一次 DB round trip）──
+    // ── 读用户信息 + 会员状态 ──
     const { data: customer, error: customerError } = await supabaseAdmin
       .from("customers")
       .select(`
@@ -367,7 +394,6 @@ export async function POST(req: Request) {
 
     const isFreeTrial = !customer.free_enhance_used;
 
-    // ── 判断会员状态（含 canceled 但仍在有效期内的情况）──
     const now = new Date().toISOString();
     const subs = (customer as any).subscriptions as any[] | null;
     const subData = subs?.find((s: any) =>
@@ -381,8 +407,7 @@ export async function POST(req: Request) {
     console.log('🔍 subData:', JSON.stringify(subData));
     console.log('🔍 isSubscribed:', isSubscribed);
 
-    // ── 前置收费（非首次免费才收费）──
-    // 会员扣 20 credits，非会员扣 25 credits（含无水印下载）
+    // ── 前置收费 ──
     let creditsRemaining = customer.credits;
 
     if (!isFreeTrial) {
@@ -390,7 +415,6 @@ export async function POST(req: Request) {
       const costNeeded = isSubscribed ? 20 : 25;
       console.log('🔍 actionType:', actionType, '| costNeeded:', costNeeded);
 
-      // 快速失败：前端友好提示
       if (customer.credits < costNeeded) {
         return new Response(
           JSON.stringify({
@@ -404,7 +428,6 @@ export async function POST(req: Request) {
         );
       }
 
-      // ── 原子扣积分（RPC，防止并发超扣）──
       const { data: rpcResult, error: rpcError } = await supabaseAdmin
         .rpc('deduct_credits', {
           p_user_id: user.id,
@@ -415,7 +438,7 @@ export async function POST(req: Request) {
             action: actionType,
           },
         })
-        .returns<DeductCreditsResult[]>()  // ← 加这行
+        .returns<DeductCreditsResult[]>()
         .single();
 
       if (rpcError) {
@@ -427,7 +450,6 @@ export async function POST(req: Request) {
       }
 
       if (!rpcResult.success) {
-        // 并发场景：前面检查时够，RPC 执行时已被别的请求扣完
         return new Response(
           JSON.stringify({
             error: "Insufficient credits",
@@ -448,11 +470,9 @@ export async function POST(req: Request) {
     try {
       geminiResult = await callGeminiImageGeneration(imageBase64, mimeType, analysisResult);
     } catch (geminiError) {
-      // 生图失败时，如果已扣费，需要退回积分（非免费试用时）
       if (!isFreeTrial) {
         const refundAmount = isSubscribed ? 20 : 25;
         try {
-          // 退款：直接加回积分 + 写流水
           await supabaseAdmin
             .from('customers')
             .update({ credits: creditsRemaining + refundAmount })
@@ -482,7 +502,6 @@ export async function POST(req: Request) {
     const imagePart = parts.find((p: any) => p.inlineData);
 
     if (!imagePart?.inlineData) {
-      // 同样退款
       if (!isFreeTrial) {
         const refundAmount = isSubscribed ? 20 : 25;
         try {
@@ -514,7 +533,7 @@ export async function POST(req: Request) {
     const rawBase64: string = imagePart.inlineData.data;
     const rawBuffer = Buffer.from(rawBase64, 'base64');
 
-    // ── 后处理色温校正（防止 Gemini 加黄）──
+    // ── 后处理色温校正 ──
     const fixPlan = extractFixPlan(analysisResult);
     let correctedBuffer = rawBuffer;
 
@@ -524,7 +543,6 @@ export async function POST(req: Request) {
         console.log('🎨 色温校正完成');
       } catch (colorErr) {
         console.error('🎨 色温校正失败，使用原始生成图:', colorErr);
-        // 校色失败不影响主流程，降级使用未校正的图
         correctedBuffer = rawBuffer;
       }
     } else {
@@ -532,8 +550,8 @@ export async function POST(req: Request) {
     }
 
     const correctedBase64 = correctedBuffer.toString('base64');
+
     // ── 后端加水印（仅首次免费试用才加水印）──
-    // 付费用户已前置付费，直接给无水印图
     let watermarkedBuffer: Buffer | null = null;
     let watermarkedBase64: string | null = null;
 
@@ -584,19 +602,15 @@ export async function POST(req: Request) {
     }
 
     // ── 返回结果 ──
-    // 首次免费 → 返回水印图 + enhancementId（下载时再收费）
-    // 付费用户 → 返回无水印图（已前置收费，下载免费）
     return new Response(
       JSON.stringify({
         success: true,
         enhancementId: enhRecord.id,
-        // 首次免费返回水印图，付费用户返回无水印原图
         watermarkedImage: isFreeTrial ? watermarkedBase64 : correctedBase64,
         mimeType: 'image/png',
         creditsRemaining,
         isFreeTrial,
         isSubscribed,
-        // 告诉前端：付费用户的图已经是无水印的，不需要再走下载付费流程
         downloadFree: !isFreeTrial,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }

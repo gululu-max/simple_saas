@@ -1,9 +1,11 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════
-// components/UsageGuideCard.tsx — 直接覆盖
+// components/UsageGuideCard.tsx — v2
 //
-// 改动：从大段结构化卡片简化成3条简短tips
+// v2 changes:
+// 1. Only consumes new `usage_tips` array field
+// 2. Gracefully renders nothing if tips is null (needs_real_photo route)
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useMemo } from "react";
@@ -18,10 +20,9 @@ export default function UsageGuideCard({ analysisJSON }: UsageGuideCardProps) {
     if (!analysisJSON) return null;
     try {
       const parsed = JSON.parse(analysisJSON);
-      // Support both new usage_tips array and old usage_guide object
-      if (Array.isArray(parsed.usage_tips) && parsed.usage_tips.length > 0) return parsed.usage_tips;
-      if (parsed.usage_guide?.action_steps) return parsed.usage_guide.action_steps;
-      if (typeof parsed.usage_guide === 'string') return [parsed.usage_guide];
+      if (Array.isArray(parsed.usage_tips) && parsed.usage_tips.length > 0) {
+        return parsed.usage_tips.filter((t: any) => typeof t === 'string' && t.trim().length > 0);
+      }
       return null;
     } catch { return null; }
   }, [analysisJSON]);

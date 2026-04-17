@@ -338,8 +338,20 @@ export default function BoostScanner() {
       trackEvent('boost_complete', { status: 'success' });
       fetch('/api/meta-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: `lead_${Date.now()}` }) }).catch(err => console.error('[Meta CAPI] Lead event failed:', err));
       dispatchCreditsUpdate(); router.refresh();
+  
+      // [v10] Guard: if photo is unusable (AI-generated / not a real photo),
+      // show the analysis result but skip enhance to save user credits.
+      try {
+        const parsed = json ? JSON.parse(json) : null;
+        if (parsed?.route === 'needs_real_photo') {
+          trackEvent('boost_blocked_unusable_photo');
+          return;
+        }
+      } catch { /* ignore parse errors, fall through to enhance */ }
+  
       if (isFacebookWebView()) { setTimeout(() => handleEnhance(json, text), 1500); } else { handleEnhance(json, text); }
     },
+    // ...
     onError: (error) => {
       try {
         const d = JSON.parse(error.message);
