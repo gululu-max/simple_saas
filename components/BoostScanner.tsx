@@ -181,6 +181,19 @@ export default function BoostScanner() {
       dispatchCreditsUpdate();
       // [v9 fix] 支付回来后标记，下载时跳过弹窗直接下载
       safeSetItem(sessionStorage, 'mf_payment_just_completed', 'true');
+
+      // [v9.4] 如果是从 Showcase 发起的支付,自动触发下载,不需要用户再点
+      const pendingDownloadId = safeGetItem(sessionStorage, 'mf_showcase_pending_download');
+      if (pendingDownloadId) {
+        safeRemoveItem(sessionStorage, 'mf_showcase_pending_download');
+        safeRemoveItem(sessionStorage, 'mf_payment_just_completed');
+        trackEvent('showcase_payment_auto_download');
+        // 延迟一下,等 credits 状态更新到位
+        setTimeout(() => {
+          window.location.href = `/api/download/${pendingDownloadId}`;
+          dispatchCreditsUpdate();
+        }, 800);
+      }
     }
     if (params.get('download_error') === 'insufficient_credits') { params.delete('download_error'); window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname); setActiveModal('download_unlock'); }
   }, []);
@@ -226,7 +239,7 @@ export default function BoostScanner() {
     // [v9.3] clear showcase state
     setShowResultShowcase(false); setShowcaseSlideIndex(1);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed'].forEach(k => safeRemoveItem(sessionStorage, k));
+    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed', 'mf_showcase_pending_download'].forEach(k => safeRemoveItem(sessionStorage, k));
     ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => safeRemoveItem(localStorage, k));
     trackEvent('boost_image_reset');
     const hero = document.getElementById('scanner-hero');
@@ -543,6 +556,16 @@ export default function BoostScanner() {
     // Small delay to let modal close, then trigger normal download flow
     setTimeout(() => handleDownload(), 100);
   };
+  // [v9.4] Direct download for Pro / already-paid users — no pricing UI
+  const handleShowcaseDirectDownload = () => {
+    if (!enhancementId) return;
+    setShowResultShowcase(false);
+    trackEvent('result_showcase_direct_download');
+    setTimeout(() => {
+      window.location.href = `/api/download/${enhancementId}`;
+      dispatchCreditsUpdate();
+    }, 100);
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => { touchEndX.current = e.touches[0].clientX; };
@@ -846,8 +869,8 @@ export default function BoostScanner() {
           </div>
         )}
 
-        {/* ═══ [v9.3] RESULT SHOWCASE MODAL ═══ */}
-        {showResultShowcase && enhancedSrc && preview && !isGuestEnhanced && (
+        {/* ═══ [v9.4] RESULT SHOWCASE MODAL — watermarked preview + inline $1.99 CTA ═══ */}
+        {showResultShowcase && watermarkedImage && preview && !isGuestEnhanced && (
           <div className="fixed inset-0 z-50 bg-black/95 flex flex-col animate-in fade-in duration-300">
             {/* Close button */}
             <button
@@ -859,16 +882,15 @@ export default function BoostScanner() {
 
             {/* Top badge */}
             <div className="flex justify-center pt-4 pb-2">
-              <span className={`text-sm font-bold px-4 py-1.5 rounded-full backdrop-blur-sm transition-all duration-300 ${
-                showcaseSlideIndex === 0
-                  ? 'text-slate-400 bg-white/5 border border-white/10'
-                  : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
-              }`}>
+              <span className={`text-sm font-bold px-4 py-1.5 rounded-full backdrop-blur-sm transition-all duration-300 ${showcaseSlideIndex === 0
+                ? 'text-slate-400 bg-white/5 border border-white/10'
+                : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                }`}>
                 {showcaseSlideIndex === 0 ? 'Original' : '✨ AI Enhanced'}
               </span>
             </div>
 
-            {/* Image area — fills available space */}
+            {/* Image area — watermarked preview (unless user already paid/subscribed) */}
             <div
               className="flex-1 flex items-center justify-center px-4 min-h-0 relative"
               onTouchStart={handleShowcaseTouchStart}
@@ -876,7 +898,7 @@ export default function BoostScanner() {
               onTouchEnd={handleShowcaseTouchEnd}
             >
               <img
-                src={showcaseSlideIndex === 0 ? preview : enhancedSrc}
+                src={showcaseSlideIndex === 0 ? preview : `data:${enhancedMimeType};base64,${watermarkedImage}`}
                 alt={showcaseSlideIndex === 0 ? 'Original' : 'AI Enhanced'}
                 className="max-w-full max-h-full object-contain rounded-xl transition-opacity duration-300"
                 style={{ touchAction: 'pinch-zoom' }}
@@ -906,44 +928,76 @@ export default function BoostScanner() {
                   <button
                     key={i}
                     onClick={() => setShowcaseSlideIndex(i)}
-                    className={`rounded-full transition-all duration-200 ${
-                      showcaseSlideIndex === i ? 'w-6 h-2 bg-emerald-400' : 'w-2 h-2 bg-white/30 hover:bg-white/50'
-                    }`}
+                    className={`rounded-full transition-all duration-200 ${showcaseSlideIndex === i ? 'w-6 h-2 bg-emerald-400' : 'w-2 h-2 bg-white/30 hover:bg-white/50'
+                      }`}
                   />
                 ))}
               </div>
 
-              {/* Urgency text */}
+              {/* Privacy note */}
               <p className="text-xs text-slate-500 text-center flex items-center gap-1.5">
                 <ShieldCheck className="size-3 text-slate-600 shrink-0" />
                 We don&apos;t store photos — save it now or lose it forever
               </p>
 
-              {/* Shimmer download button */}
-              <button
-                onClick={handleShowcaseDownload}
-                className="showcase-download-btn w-full max-w-sm h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-white shadow-xl transition-all active:scale-[0.98] relative overflow-hidden"
-                style={{
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #0d9488 100%)',
-                  boxShadow: '0 8px 32px rgba(16,185,129,0.35), 0 2px 8px rgba(0,0,0,0.3)',
-                }}
-              >
-                {/* Shimmer overlay */}
-                <span
-                  className="absolute inset-0 pointer-events-none"
+              {/* ─── Main CTA: branches on isDownloadFree ─── */}
+              {isDownloadFree ? (
+                /* Already paid / subscribed — direct download */
+                <button
+                  onClick={handleShowcaseDirectDownload}
+                  className="showcase-download-btn w-full max-w-sm h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-white shadow-xl transition-all active:scale-[0.98] relative overflow-hidden"
                   style={{
-                    background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.25) 55%, transparent 65%)',
-                    animation: 'showcaseShimmer 2.5s ease-in-out infinite',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #0d9488 100%)',
+                    boxShadow: '0 8px 32px rgba(16,185,129,0.35), 0 2px 8px rgba(0,0,0,0.3)',
                   }}
+                >
+                  <span
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.25) 55%, transparent 65%)',
+                      animation: 'showcaseShimmer 2.5s ease-in-out infinite',
+                    }}
+                  />
+                  <Download className="size-5 relative z-10" />
+                  <span className="relative z-10">Download Now</span>
+                </button>
+              ) : (
+                /* Needs to pay — inline $1.99 CTA */
+                <ShowcaseMicroPackButton
+                  returnPath={pathname}
+                  enhancementId={enhancementId}
                 />
-                <Download className="size-5 relative z-10" />
-                <span className="relative z-10">Save Enhanced Photo</span>
-              </button>
+              )}
 
-              {/* Secondary: try another */}
+              {/* Trust row — only show when payment is needed */}
+              {!isDownloadFree && (
+                <div className="flex items-center justify-center gap-3 text-[10px] text-slate-600 flex-wrap max-w-sm">
+                  <span className="flex items-center gap-1">
+                    <ShieldCheck className="size-3" /> 30-day money-back
+                  </span>
+                  <span className="text-slate-700">•</span>
+                  <span className="flex items-center gap-1">
+                    <Lock className="size-3" /> Secured by Creem
+                  </span>
+                  <span className="text-slate-700">•</span>
+                  <span>Instant download</span>
+                </div>
+              )}
+
+              {/* Secondary: watermark download (free) — only show when payment is needed */}
+              {!isDownloadFree && (
+                <button
+                  onClick={handleDownloadWatermarked}
+                  className="text-xs text-slate-600 hover:text-slate-400 transition-colors underline underline-offset-2 decoration-slate-700 py-1"
+                >
+                  or download with watermark (free)
+                </button>
+              )}
+
+              {/* Tertiary: try another */}
               <button
                 onClick={() => { setShowResultShowcase(false); handleTryAnother(); }}
-                className="text-sm text-slate-600 hover:text-slate-400 transition-colors py-1"
+                className="text-xs text-slate-600 hover:text-slate-500 transition-colors py-0.5"
               >
                 Try another photo
               </button>
@@ -1224,6 +1278,84 @@ function MicroPackCheckoutButton({ returnPath }: { returnPath: string }) {
       <button onClick={handleClick} disabled={loading}
         className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-lg shadow-emerald-500/20">
         {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Zap className="size-4" /> Get This Photo — $1.99</>}
+      </button>
+      {error && <p className="text-red-400 text-xs text-center">Something went wrong. Please try again.</p>}
+    </div>
+  );
+}
+// [v9.4] Showcase Micro Pack — stores enhancementId so payment return auto-downloads
+function ShowcaseMicroPackButton({ returnPath, enhancementId }: { returnPath: string; enhancementId: string | null }) {
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(false);
+
+  const handleClick = async () => {
+    setLoading(true); setError(false);
+    trackEvent('showcase_micro_pack_click');
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = '/sign-in'; return; }
+
+      // Store enhancementId so payment return auto-triggers download
+      if (enhancementId) {
+        safeSetItem(sessionStorage, 'mf_showcase_pending_download', enhancementId);
+      }
+
+      const res = await fetch('/api/creem/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_MICRO!,
+          productType: 'credits',
+          userId: user.id,
+          credits: 5,
+          returnPath,
+        }),
+      });
+      const { checkoutUrl } = await res.json();
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+      } else {
+        setError(true); setLoading(false);
+        safeRemoveItem(sessionStorage, 'mf_showcase_pending_download');
+      }
+    } catch {
+      setError(true); setLoading(false);
+      safeRemoveItem(sessionStorage, 'mf_showcase_pending_download');
+    }
+  };
+
+  return (
+    <div className="w-full max-w-sm flex flex-col gap-1">
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="showcase-download-btn w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-white shadow-xl transition-all active:scale-[0.98] relative overflow-hidden disabled:opacity-80"
+        style={{
+          background: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #0d9488 100%)',
+          boxShadow: '0 8px 32px rgba(16,185,129,0.35), 0 2px 8px rgba(0,0,0,0.3)',
+        }}
+      >
+        {!loading && (
+          <span
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.25) 55%, transparent 65%)',
+              animation: 'showcaseShimmer 2.5s ease-in-out infinite',
+            }}
+          />
+        )}
+        {loading ? (
+          <>
+            <Loader2 className="size-5 animate-spin relative z-10" />
+            <span className="relative z-10">Redirecting to checkout...</span>
+          </>
+        ) : (
+          <>
+            <Download className="size-5 relative z-10" />
+            <span className="relative z-10">Get This Photo — $1.99</span>
+          </>
+        )}
       </button>
       {error && <p className="text-red-400 text-xs text-center">Something went wrong. Please try again.</p>}
     </div>
