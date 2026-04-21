@@ -680,7 +680,7 @@ export default function BoostScanner() {
   const EnhancingOverlay = () => (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[1px]">
       <div className="absolute inset-0 overflow-hidden pointer-events-none"><div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent" style={{ boxShadow: '0 0 20px 6px rgba(52,211,153,0.5)', animation: 'scanLine 1.5s linear infinite' }} /></div>
-      <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center"><Loader2 className="w-8 h-8 text-emerald-400 animate-spin" /><p className="text-white font-semibold text-base animate-pulse">Enhancing your photo...</p><p className="text-white/50 text-sm">Ready in under 10 seconds</p></div>
+      <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center"><Loader2 className="w-8 h-8 text-emerald-400 animate-spin" /><p className="text-white font-semibold text-base animate-pulse">Enhancing your photo...</p><p className="text-white/50 text-sm">Usually done within 12 seconds</p></div>
     </div>
   );
   const GuestLockOverlay = () => (
