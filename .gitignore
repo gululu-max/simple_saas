@@ -49,3 +49,8 @@ pnpm-lock.yaml
 #
 .github
 .vscode
+
+# Scene fusion test
+scripts/test-inputs/
+scripts/test-scenes/
+scripts/test-outputs/

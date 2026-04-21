@@ -16,6 +16,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText, generateText } from 'ai';
 import { ProxyAgent } from 'undici';
 import { createClient } from "@/utils/supabase/server";
+import { TAG_PROMPT, parseSceneTags, type SceneTags } from './tag-prompt';
 
 // ── Retry helper ──
 async function streamTextWithRetry(
@@ -107,7 +108,7 @@ export async function POST(req: Request) {
 
     let fetchOptions: Record<string, unknown> = {};
     if (process.env.NODE_ENV === 'development') {
-      const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:10808';
+      const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:30808';
       console.log('🚀 Local dev mode: using proxy', proxyUrl);
       fetchOptions = { dispatcher: new ProxyAgent(proxyUrl) };
     }
@@ -385,8 +386,32 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
       );
     }
 
-    // --- streamText with retry (up to 2 retries, 2s delay) ---
+    // --- 并行触发打标请求（不阻塞 streamText 的响应） ---
+    const tagPromise: Promise<SceneTags | null> = (async () => {
+      try {
+        const { text } = await generateText({
+          model: googleCustom('gemini-2.5-flash') as any,
+          maxTokens: 2000,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: TAG_PROMPT },
+                { type: 'image', image: imageBase64, mimeType },
+              ],
+            },
+          ],
+        });
+        const tags = parseSceneTags(text);
+        console.log('🏷️  scene tags:', JSON.stringify(tags));
+        return tags;
+      } catch (err) {
+        console.warn('⚠️ tag call failed:', (err as Error).message);
+        return null;
+      }
+    })();
 
+    // --- streamText with retry ---
     const result = await streamTextWithRetry(
       {
         model: googleCustom(chosenModel) as any,
@@ -402,17 +427,23 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
         ],
         async onFinish({ finishReason }) {
           if (!user) {
-            console.log('👤 Guest scan completed — no credits deducted');
+            console.log('👤 Guest scan completed');
           } else {
-            console.log(`✅ Scan completed (User: ${user.id}, model: ${chosenModel}) — credits will be deducted in enhance step`);
+            console.log(`✅ Scan completed (User: ${user.id}, model: ${chosenModel})`);
           }
         },
       },
-      2,    // maxRetries
-      2000, // delayMs
+      2,
+      2000,
     );
 
-    return result.toDataStreamResponse();
+    // --- 把 tags 作为自定义 header 发给前端，避开流式 JSON 拼接 ---
+    const response = result.toDataStreamResponse();
+    const tags = await tagPromise;
+    if (tags) {
+      response.headers.set('x-scene-tags', JSON.stringify(tags));
+    }
+    return response;
   } catch (error) {
     console.error('Error in Scanner API:', error);
     const err = error as Error;

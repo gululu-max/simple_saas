@@ -120,6 +120,10 @@ export default function BoostScanner() {
   const lightboxTouchStartX = useRef<number | null>(null);
   const lightboxTouchEndX = useRef<number | null>(null);
 
+  // [fusion] 融合开关 — 默认开启，用户可勾掉切回纯 retouch
+  const [useFusion, setUseFusion] = useState(true);
+  const [sceneTags, setSceneTags] = useState<string | null>(null);
+
   const hasActiveResult = !!(preview && (visibleText || watermarkedImage || isGuestEnhanced));
   const showEnhanced = !!(watermarkedImage || isGuestEnhanced);
   const isCompact = !!(visibleText && preview);
@@ -239,7 +243,7 @@ export default function BoostScanner() {
     // [v9.3] clear showcase state
     setShowResultShowcase(false); setShowcaseSlideIndex(1);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed', 'mf_showcase_pending_download'].forEach(k => safeRemoveItem(sessionStorage, k));
+    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_scene_tags', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed', 'mf_showcase_pending_download'].forEach(k => safeRemoveItem(sessionStorage, k));
     ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => safeRemoveItem(localStorage, k));
     trackEvent('boost_image_reset');
     const hero = document.getElementById('scanner-hero');
@@ -299,7 +303,16 @@ export default function BoostScanner() {
     if (!user) { setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); safeSetItem(sessionStorage, 'mf_pending_enhance', 'true'); safeSetItem(localStorage, 'mf_pending_enhance', 'true'); safeSetItem(localStorage, 'mf_guest_enhanced', 'true'); if (preview) safeSetItem(localStorage, 'mf_preview', preview); if (analysisJSON) safeSetItem(localStorage, 'mf_analysisJSON', analysisJSON); if (visibleText) safeSetItem(localStorage, 'mf_visibleText', visibleText); return; }
     setIsEnhancing(true); setEnhanceError(null); trackEvent('enhance_start_click');
     try {
-      const res = await fetch('/api/enhance-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: preview.split(',')[1], mimeType: 'image/jpeg', analysisResult: jsonFromFinish ?? analysisJSON ?? textFromFinish ?? visibleText ?? '' }) });
+      const res = await fetch('/api/enhance-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: preview.split(',')[1],
+          mimeType: 'image/jpeg',
+          analysisResult: jsonFromFinish ?? analysisJSON ?? textFromFinish ?? visibleText ?? '',
+          useFusion,  // ← 新增
+        })
+      });
       const data = await res.json();
       if (!res.ok) {
         if (data.code === 'INSUFFICIENT_CREDITS') { setActiveModal('enhance'); return; }
@@ -332,24 +345,52 @@ export default function BoostScanner() {
   // ── Scanner Stream ─────────────────────────────────────────
   const { complete, completion, isLoading } = useCompletion({
     api: '/api/scanner',
+    fetch: async (url, init) => {
+      const res = await fetch(url, init);
+      const tagsHeader = res.headers.get('x-scene-tags');
+      if (tagsHeader) {
+        safeSetItem(sessionStorage, 'mf_scene_tags', tagsHeader);
+        setSceneTags(tagsHeader);
+      }
+      return res;
+    },
     onFinish: (_prompt, fullCompletion) => {
       const { visibleText: text, analysisJSON: json } = parseAnalysisStream(fullCompletion);
-      setVisibleText(text); setAnalysisJSON(json); safeSetItem(sessionStorage, 'mf_visibleText', text); if (json) safeSetItem(sessionStorage, 'mf_analysisJSON', json);
+    
+      // [fusion] 合并 scene_tags 进 analysisJSON
+      let mergedJson = json;
+      const tagsStr = safeGetItem(sessionStorage, 'mf_scene_tags');
+      if (tagsStr && json) {
+        try {
+          const parsed = JSON.parse(json);
+          parsed.scene_tags = JSON.parse(tagsStr);
+          mergedJson = JSON.stringify(parsed);
+        } catch { /* ignore */ }
+      }
+    
+      setVisibleText(text);
+      setAnalysisJSON(mergedJson);
+      safeSetItem(sessionStorage, 'mf_visibleText', text);
+      if (mergedJson) safeSetItem(sessionStorage, 'mf_analysisJSON', mergedJson);
+    
       trackEvent('boost_complete', { status: 'success' });
       fetch('/api/meta-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: `lead_${Date.now()}` }) }).catch(err => console.error('[Meta CAPI] Lead event failed:', err));
       dispatchCreditsUpdate(); router.refresh();
-  
-      // [v10] Guard: if photo is unusable (AI-generated / not a real photo),
-      // show the analysis result but skip enhance to save user credits.
+    
       try {
         const parsed = json ? JSON.parse(json) : null;
         if (parsed?.route === 'needs_real_photo') {
           trackEvent('boost_blocked_unusable_photo');
           return;
         }
-      } catch { /* ignore parse errors, fall through to enhance */ }
-  
-      if (isFacebookWebView()) { setTimeout(() => handleEnhance(json, text), 1500); } else { handleEnhance(json, text); }
+      } catch { /* ignore */ }
+    
+      // ← 关键:传 mergedJson 不是 json
+      if (isFacebookWebView()) {
+        setTimeout(() => handleEnhance(mergedJson, text), 1500);
+      } else {
+        handleEnhance(mergedJson, text);
+      }
     },
     // ...
     onError: (error) => {
@@ -657,18 +698,44 @@ export default function BoostScanner() {
         {/* ═══ DESKTOP: Initial upload ═══ */}
         {!preview && (
           <div className="hidden md:grid md:grid-cols-2 gap-5 items-stretch">
-            <label onMouseEnter={() => setIsUploadHovered(true)} onMouseLeave={() => setIsUploadHovered(false)}
-              className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] hover:border-rose-500/80 hover:bg-rose-500/[0.08] cursor-pointer transition-all duration-500 overflow-hidden min-h-[420px] flex flex-col items-center justify-center gap-6 px-8">
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-              <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
-              <div className={`relative pointer-events-none grid size-24 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-2xl shadow-rose-500/20 transition-all duration-500 ${isUploadHovered ? 'shadow-rose-500/40 scale-105 bg-rose-500/20' : ''}`}><Upload className={`size-10 transition-colors duration-300 ${isUploadHovered ? 'text-rose-300' : 'text-rose-400'}`} /></div>
-              <div className="relative pointer-events-none text-center space-y-2"><div className="text-xl font-bold text-white">Drop your main profile photo</div><div className="text-base text-slate-400 group-hover:text-slate-300 transition-colors">or click to browse</div></div>
-              <div className="relative pointer-events-none text-xs text-slate-500 mt-1">We enhance lighting, framing & color — your face stays 100% real</div>
-              <div className="relative pointer-events-none text-sm text-slate-600">JPG / PNG · Max 10 MB</div>
-            </label>
+            <div className="flex flex-col gap-2">
+              <label
+                onMouseEnter={() => setIsUploadHovered(true)}
+                onMouseLeave={() => setIsUploadHovered(false)}
+                className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] hover:border-rose-500/80 hover:bg-rose-500/[0.08] cursor-pointer transition-all duration-500 overflow-hidden flex-1 min-h-[380px] flex flex-col items-center justify-center gap-6 px-8"
+              >
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
+                <div className={`relative pointer-events-none grid size-24 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-2xl shadow-rose-500/20 transition-all duration-500 ${isUploadHovered ? 'shadow-rose-500/40 scale-105 bg-rose-500/20' : ''}`}>
+                  <Upload className={`size-10 transition-colors duration-300 ${isUploadHovered ? 'text-rose-300' : 'text-rose-400'}`} />
+                </div>
+                <div className="relative pointer-events-none text-center space-y-2">
+                  <div className="text-xl font-bold text-white">Drop your main profile photo</div>
+                  <div className="text-base text-slate-400 group-hover:text-slate-300 transition-colors">or click to browse</div>
+                </div>
+                <div className="relative pointer-events-none text-xs text-slate-500 mt-1">We enhance lighting, framing & color — your face stays 100% real</div>
+                <div className="relative pointer-events-none text-sm text-slate-600">JPG / PNG · Max 10 MB</div>
+              </label>
+
+              {/* [fusion] 开关 - 像勾选法律协议那样放在上传框下面 */}
+              <label className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500 cursor-pointer hover:text-slate-400 transition-colors select-none">
+                <input
+                  type="checkbox"
+                  checked={useFusion}
+                  onChange={(e) => setUseFusion(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-rose-500 focus:ring-offset-0 accent-rose-500"
+                />
+                <span>Replace background with a better-matching scene (recommended)</span>
+              </label>
+            </div>
+
             <div className="rounded-2xl border border-slate-800/30 bg-slate-900/30 min-h-[420px] flex flex-col items-center justify-center gap-4 px-8 opacity-30">
-              <div className="grid size-16 place-items-center rounded-2xl bg-slate-800/40 border border-slate-700/30"><Sparkles className="size-7 text-slate-600" /></div>
-              <div className="text-center"><div className="text-base text-slate-500 font-medium">Your enhanced photo will appear here</div></div>
+              <div className="grid size-16 place-items-center rounded-2xl bg-slate-800/40 border border-slate-700/30">
+                <Sparkles className="size-7 text-slate-600" />
+              </div>
+              <div className="text-center">
+                <div className="text-base text-slate-500 font-medium">Your enhanced photo will appear here</div>
+              </div>
             </div>
           </div>
         )}
@@ -687,8 +754,9 @@ export default function BoostScanner() {
                 </div>
                 {!isLoading && !isEnhancing && !showEnhanced && (
                   <div className="flex flex-col gap-3 mt-4">
-                    {/* [v9.2] autoStartChecking = loading state while checking eligibility */}
+
                     {autoStartChecking ? (
+                      // ... 其他原样保留
                       <button type="button" disabled
                         className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 opacity-70">
                         <Loader2 className="w-5 h-5 animate-spin" /> Preparing...
@@ -741,13 +809,33 @@ export default function BoostScanner() {
         {/* ═══ MOBILE ═══ */}
         <div className="md:hidden">
           {!preview ? (
-            <label className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] active:bg-rose-500/[0.08] cursor-pointer min-h-[340px] flex flex-col items-center justify-center gap-5 px-6 overflow-hidden">
-              <input type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ WebkitTapHighlightColor: 'transparent', fontSize: '0', border: 'none', outline: 'none' }} />
-              <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
-              <div className="relative pointer-events-none grid size-20 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-xl shadow-rose-500/20"><Upload className="size-8 text-rose-400" /></div>
-              <div className="relative pointer-events-none text-center space-y-1.5"><div className="text-lg font-bold text-white">Tap to upload your profile photo</div><div className="text-xs text-slate-500">Your face stays 100% real — we just fix the lighting</div><div className="text-sm text-slate-600 mt-2">JPG / PNG · Max 10 MB</div></div>
-            </label>
+            <div className="flex flex-col gap-2">
+              <label className="group relative rounded-2xl border-[3px] border-dashed border-rose-500/50 bg-rose-500/[0.04] active:bg-rose-500/[0.08] cursor-pointer min-h-[340px] flex flex-col items-center justify-center gap-5 px-6 overflow-hidden">
+                <input type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ WebkitTapHighlightColor: 'transparent', fontSize: '0', border: 'none', outline: 'none' }} />
+                <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
+                <div className="relative pointer-events-none grid size-20 place-items-center rounded-3xl bg-rose-500/15 border-2 border-rose-500/30 shadow-xl shadow-rose-500/20">
+                  <Upload className="size-8 text-rose-400" />
+                </div>
+                <div className="relative pointer-events-none text-center space-y-1.5">
+                  <div className="text-lg font-bold text-white">Tap to upload your profile photo</div>
+                  <div className="text-xs text-slate-500">Your face stays 100% real — we just fix the lighting</div>
+                  <div className="text-sm text-slate-600 mt-2">JPG / PNG · Max 10 MB</div>
+                </div>
+              </label>
+
+              {/* [fusion] 开关 - mobile */}
+              <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={useFusion}
+                  onChange={(e) => setUseFusion(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-rose-500 focus:ring-offset-0 accent-rose-500"
+                />
+                <span>Replace background with a better-matching scene (recommended)</span>
+              </label>
+            </div>
           ) : (
+            // 下面原样
             <div className="rounded-2xl border border-slate-800/60 bg-gradient-to-b from-slate-900/80 to-slate-950/90 overflow-hidden">
               {showEnhanced && (
                 <div className="grid grid-cols-2 border-b border-slate-800/40">

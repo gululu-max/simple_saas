@@ -119,7 +119,7 @@ export async function GET() {
 //       const proxyUrl =
 //         process.env.HTTP_PROXY ||
 //         process.env.HTTPS_PROXY ||
-//         'http://127.0.0.1:10808';
+//         'http://127.0.0.1:30888';
 
 //       console.log('🚀 Dev mode proxy:', proxyUrl);
 
