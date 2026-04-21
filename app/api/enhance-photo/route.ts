@@ -182,6 +182,21 @@ Target scene:
   - Scale reference: ${scene.person_scale_reference}
 
 ══════════════════════════════════════════════
+ABSOLUTE RULE — READ BEFORE EVERYTHING
+══════════════════════════════════════════════
+
+The person in IMAGE 1 has a SPECIFIC VISIBLE EXTENT — exactly what body parts are shown.
+
+You MUST preserve this exact visible extent in the output:
+- If IMAGE 1 shows only the head → output shows only the head
+- If IMAGE 1 shows chest up → output shows chest up
+- If IMAGE 1 shows waist up → output shows waist up
+- If IMAGE 1 shows the full body → output shows the full body
+
+Inventing body parts that weren't in IMAGE 1 is a SEVERE FAILURE equivalent to changing the person's identity.
+
+If IMAGE 2 (the scene) seems to require a different body framing than IMAGE 1, the PERSON WINS — crop, reframe, or creatively interpret IMAGE 2 to match IMAGE 1's visible extent. Never force IMAGE 1's partial view into a full-body pose to "fit" the scene.
+══════════════════════════════════════════════
 CORE PRINCIPLE — READ TWICE
 ══════════════════════════════════════════════
 
@@ -239,8 +254,8 @@ Use visible reference objects in IMAGE 2 for scale:
 The person should occupy approximately ${getSizeGuidance(scene.recommended_person_size)} of the frame height.
 
 ${scene.person_scale_reference === 'no_reference'
-  ? 'NOTE: This scene has no clear scale reference. Use best judgment for natural size.'
-  : 'NOTE: This scene has scale references. Use them to verify proportional correctness.'}
+      ? 'NOTE: This scene has no clear scale reference. Use best judgment for natural size.'
+      : 'NOTE: This scene has scale references. Use them to verify proportional correctness.'}
 
 ══════════════════════════════════════════════
 LIGHTING AND COLOR — CRITICAL FOR REALISM
@@ -291,10 +306,57 @@ Return only the final image.`;
 
 function getPartialViewInstructions(visibleBody: string): string {
   const map: Record<string, string> = {
-    face_only: 'The user photo shows ONLY the head and shoulders. The output MUST also be framed as head-and-shoulders. DO NOT generate any torso, arms, or legs. Frame IMAGE 2 so the visible area is behind and around the person\'s head.',
-    upper_chest: 'The user photo shows the person from the chest up. The output MUST be framed chest-up. DO NOT generate the waist, hips, or legs. If IMAGE 2 is a wide scene, crop it so only the upper portion is visible behind the person.',
-    waist_up: 'The user photo shows the person from the waist up. The output MUST be framed waist-up. DO NOT generate legs or feet. Frame IMAGE 2 to show the upper portion of the scene.',
-    full_body: 'The user photo shows the full body (or most of it). The output CAN show the full body, and IMAGE 2 can be shown as a wider scene.',
+    face_only: `THE USER PHOTO (IMAGE 1) SHOWS ONLY HEAD AND SHOULDERS.
+
+HARD RULES — VIOLATING ANY OF THESE IS A FAILURE:
+- DO NOT generate a torso, arms, hands, waist, hips, legs, or feet that don't exist in IMAGE 1
+- DO NOT invent body parts to "complete" the person — if IMAGE 1 shows head only, output shows head only
+- The face from IMAGE 1 is MANDATORY in the output — a headless or faceless result is a complete failure
+
+SCENE CONFLICT HANDLING:
+If IMAGE 2 shows chairs, sofas, tables, or other furniture that would normally require a seated/full body:
+→ CROP IMAGE 2 TIGHTLY. Show only the upper portion (the area behind the person's head and shoulders).
+→ The furniture should be BEHIND and AROUND the person's head — it should NOT force you to invent a seated body.
+→ Treat IMAGE 2 as a backdrop, not as a scene the person must physically fit into.
+
+Frame the output as a head-and-shoulders portrait. Background from IMAGE 2 sits behind the head.`,
+
+    upper_chest: `THE USER PHOTO (IMAGE 1) SHOWS THE PERSON FROM THE CHEST UP.
+
+HARD RULES — VIOLATING ANY OF THESE IS A FAILURE:
+- DO NOT generate the waist, hips, legs, feet, or lower body
+- DO NOT invent arms, hands, or body parts in positions that don't exist in IMAGE 1
+- DO NOT invent a seated pose, leg-crossing pose, or any lower-body posture
+- The face from IMAGE 1 is MANDATORY — the face is the entire point of the photo
+
+SCENE CONFLICT HANDLING:
+If IMAGE 2 contains chairs, sofas, tables, desks, or other sitting furniture:
+→ DO NOT place the person sitting in them. IMAGE 1 has no lower body to sit with.
+→ CROP IMAGE 2 TIGHTLY to show only the upper portion of the scene (above table/chair level).
+→ The furniture in IMAGE 2 can appear BEHIND or BESIDE the person as visible context, but NEVER require the person to sit.
+→ If the scene cannot be meaningfully cropped without the furniture, treat IMAGE 2's background as loose visual reference only — keep the focus tightly on the chest-up framing.
+
+The output is a chest-up portrait. Background from IMAGE 2 sits behind the person's head and shoulders.`,
+
+    waist_up: `THE USER PHOTO (IMAGE 1) SHOWS THE PERSON FROM THE WAIST UP.
+
+HARD RULES — VIOLATING ANY OF THESE IS A FAILURE:
+- DO NOT generate legs, feet, or anything below the waist
+- DO NOT invent a full seated body or leg-crossing
+- The face from IMAGE 1 is MANDATORY
+
+SCENE CONFLICT HANDLING:
+If IMAGE 2 requires a full seated or full-body pose:
+→ Frame IMAGE 2 so only the upper portion is visible behind the person
+→ The person remains waist-up in the output, even if IMAGE 2 normally shows legs/feet
+
+The output is a waist-up portrait.`,
+
+    full_body: `THE USER PHOTO (IMAGE 1) SHOWS THE FULL BODY.
+
+The output CAN show the full body. IMAGE 2 can be shown as a wider scene including floor/ground.
+
+Preserve all clothing (top, bottom, shoes) exactly as they appear in IMAGE 1.`,
   };
   return map[visibleBody] ?? map.upper_chest;
 }

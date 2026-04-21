@@ -37,9 +37,12 @@ export function loadSceneImage(file: string): { buffer: Buffer; mime: string } {
 }
 
 /**
- * 前置色温校正：把用户原图的 RGB 通道均值拉向场景图水平。
- * 目的是让融合后的人像和场景色调更融合，减少"贴纸感"。
- * clamp 在 [0.7, 1.3] 防止极端拉扯破坏肤色。
+ * 前置色温校正：把用户原图的 RGB 通道均值轻推向场景图。
+ *
+ * 关键点:
+ * - clamp [0.85, 1.15] — 最多 15% 拉扯,避免把肤色搞怪
+ * - 走 60% 路程 — 不完全对齐，只是"靠近",保留用户原图的质感
+ * - drift 过大时完全跳过 — 原图和场景差异太大,硬拉反而让 Gemini 输入变奇怪
  */
 export async function preAlignColorTemperature(
   userBuffer: Buffer,
@@ -58,10 +61,29 @@ export async function preAlignColorTemperature(
   const sceneG = sceneStats.channels[1].mean;
   const sceneB = sceneStats.channels[2].mean;
 
+  // 完全对齐时的 scale
+  const fullScaleR = sceneR / (userR || 1);
+  const fullScaleG = sceneG / (userG || 1);
+  const fullScaleB = sceneB / (userB || 1);
+
+  // 如果任何一个通道需要拉扯超过 50%,说明原图和场景色温差距太大,
+  // 硬拉会让用户原图变奇怪,完全跳过校正,交给 Gemini 处理
+  const fullDrift = Math.max(
+    Math.abs(fullScaleR - 1),
+    Math.abs(fullScaleG - 1),
+    Math.abs(fullScaleB - 1),
+  );
+  if (fullDrift > 0.5) {
+    console.log(`🎨 pre-align: drift ${(fullDrift * 100).toFixed(0)}% too large, skip (letting fusion prompt handle color)`);
+    return userBuffer;
+  }
+
+  // 走 60% 路程 + clamp 到 [0.85, 1.15]
+  const lerp = (v: number, t: number) => 1 + (v - 1) * t;
   const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
-  const scaleR = clamp(sceneR / (userR || 1), 0.7, 1.3);
-  const scaleG = clamp(sceneG / (userG || 1), 0.7, 1.3);
-  const scaleB = clamp(sceneB / (userB || 1), 0.7, 1.3);
+  const scaleR = clamp(lerp(fullScaleR, 0.6), 0.85, 1.15);
+  const scaleG = clamp(lerp(fullScaleG, 0.6), 0.85, 1.15);
+  const scaleB = clamp(lerp(fullScaleB, 0.6), 0.85, 1.15);
 
   const maxDrift = Math.max(
     Math.abs(scaleR - 1),
@@ -73,7 +95,7 @@ export async function preAlignColorTemperature(
     return userBuffer;
   }
 
-  console.log(`🎨 pre-align color: R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)}`);
+  console.log(`🎨 pre-align color (60% toward scene): R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)} [full drift ${(fullDrift * 100).toFixed(0)}%]`);
 
   const corrected = await sharp(userBuffer)
     .recomb([
