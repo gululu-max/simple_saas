@@ -276,6 +276,21 @@ BACKGROUND TREATMENT
 Keep IMAGE 2's background clearly recognizable. Apply only slight, camera-natural depth-of-field softness — NOT heavy artistic blur.
 
 ══════════════════════════════════════════════
+TEXTURE CONSISTENCY — CRITICAL FOR REALISM
+══════════════════════════════════════════════
+
+IMAGE 2 is a professional photograph. IMAGE 1 is a casual smartphone photo.
+
+The final output must look like a CASUAL SMARTPHONE PHOTO — not a professional magazine photograph. The two images have different native textures, and if you preserve IMAGE 2's professional qualities while preserving IMAGE 1's casual qualities, the person will look "pasted on." You must unify the textures toward the SMARTPHONE end:
+
+- Reduce IMAGE 2's professional sharpness and depth-of-field drama — soften backgrounds slightly toward what a phone camera would capture
+- Reduce IMAGE 2's highlight/shadow contrast range — phones have narrower dynamic range
+- Match the subtle image grain/noise across the whole frame — if IMAGE 1 has phone-camera noise, IMAGE 2's background should have consistent noise too, not be ultra-clean
+- Avoid "magazine photo" aesthetic for the final output — aim for "nice casual snapshot"
+
+The goal: someone scrolling a dating app should think "nice photo he took" — not "this looks like a magazine shoot" (which reads as fake/edited).
+
+══════════════════════════════════════════════
 ABSOLUTE PROHIBITIONS
 ══════════════════════════════════════════════
 
