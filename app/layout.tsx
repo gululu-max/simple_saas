@@ -1,5 +1,5 @@
 import Header from "@/components/header";
-import { Footer } from "@/components/footer";
+import { FooterGate } from "@/components/footer-gate";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
@@ -156,9 +156,7 @@ export default function RootLayout({
             <div className="relative min-h-screen">
               <Header />
               <main className="flex-1">{children}</main>
-              <div className="pb-24 md:pb-0">
-                <Footer />
-              </div>
+              <FooterGate />
             </div>
             <Toaster />
           </ThemeProvider>
