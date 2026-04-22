@@ -8,6 +8,8 @@ import fs from 'fs';
 import type { SceneTags } from '@/app/api/scanner/tag-prompt';
 import { loadSceneLibrary, loadSceneImage, preAlignColorTemperature } from './scene-utils';
 import { matchScene, type SceneEntry, type MatchResult } from './match-scene';
+import { alignColorTemperature } from './color-align';
+import { applyPhotographicTexture } from './photographic-texture';
 
 const ENHANCED_BUCKET = 'enhanced-photos';
 const ORIGINAL_BUCKET = 'original-photos';
@@ -623,6 +625,7 @@ export async function POST(req: Request) {
     // ═══════════════════════════════════════════════════════
     let geminiResult: any;
     let matchInfo: MatchResult | null = null;
+    let matchedSceneBuffer: Buffer | null = null;
 
     if (useFusion) {
       // ── 融合路径 ──
@@ -645,6 +648,7 @@ export async function POST(req: Request) {
 
           // 2. 读场景图
           const { buffer: sceneBuffer, mime: sceneMime } = loadSceneImage(matchInfo.scene.file);
+          matchedSceneBuffer = sceneBuffer;
 
           // 3. 前置色温校正
           const userBuffer = Buffer.from(imageBase64, 'base64');
@@ -691,40 +695,56 @@ export async function POST(req: Request) {
     const generatedBuffer = Buffer.from(rawBase64, 'base64');
 
     // ═══════════════════════════════════════════════════════
-    // 注意：融合路径不再做后处理色温校正（色温已经前置对齐）
-    //      retouch 路径保留原逻辑（后处理拉回原图色温）
+    // 色温后校 (D)：把生成图对齐到目标色温
+    // - fusion:   target = 场景图色温 (验证 Gemini 的对齐, 不到位就兜底)
+    // - retouch:  target = 原图色温   (还原用户原图的色温)
+    // 使用高光锚 + 1D 色温轴 (R 升 / B 降, G 不变), 不会引入 tint 色偏。
     // ═══════════════════════════════════════════════════════
-    let finalBuffer = generatedBuffer;
+    let finalBuffer: Buffer = generatedBuffer;
 
-    if (!useFusion) {
-      // 仅 retouch 路径做后处理色温校正
-      const fixPlan = extractFixPlan(analysisResult);
-      const activeColorGrades = ['warm_tone', 'cool_tone'];
-      const shouldCorrect = !fixPlan || !activeColorGrades.includes(fixPlan.color_grade);
+    const fixPlan = extractFixPlan(analysisResult);
+    const userLockedGrade = fixPlan
+      ? ['warm_tone', 'cool_tone'].includes(fixPlan.color_grade)
+      : false;
 
-      if (shouldCorrect) {
-        try {
-          const originalBuffer = Buffer.from(imageBase64, 'base64');
-          const origStats = await sharp(originalBuffer).stats();
-          const genStats = await sharp(generatedBuffer).stats();
+    if (!userLockedGrade) {
+      try {
+        const usingFusionTarget = useFusion && !!matchedSceneBuffer;
+        const target = usingFusionTarget
+          ? matchedSceneBuffer!
+          : Buffer.from(imageBase64, 'base64');
 
-          const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
-          const scaleR = clamp(origStats.channels[0].mean / (genStats.channels[0].mean || 1), 0.8, 1.2);
-          const scaleG = clamp(origStats.channels[1].mean / (genStats.channels[1].mean || 1), 0.8, 1.2);
-          const scaleB = clamp(origStats.channels[2].mean / (genStats.channels[2].mean || 1), 0.8, 1.2);
+        // fusion 后校更克制 (Gemini 主导, 只兜底)；retouch 更积极 (要回到原图色温)
+        const correctResult = await alignColorTemperature(finalBuffer, target, {
+          progress: usingFusionTarget ? 0.5 : 0.6,
+          maxLogShift: usingFusionTarget ? 0.06 : 0.10,
+          minLogShift: usingFusionTarget ? 0.03 : 0.02,
+          maxRawLogDelta: 0.5,
+        });
 
-          const maxDrift = Math.max(Math.abs(scaleR - 1), Math.abs(scaleG - 1), Math.abs(scaleB - 1));
-          if (maxDrift >= 0.02) {
-            const corrected = await sharp(generatedBuffer)
-              .recomb([[scaleR, 0, 0], [0, scaleG, 0], [0, 0, scaleB]])
-              .toBuffer();
-            finalBuffer = Buffer.from(corrected as any);
-            console.log(`🎨 retouch post-correct: R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)}`);
-          }
-        } catch (colorErr) {
-          console.error('🎨 色温校正失败:', colorErr);
+        if (correctResult.applied) {
+          finalBuffer = correctResult.buffer;
+          console.log(
+            `🎨 post-correct (${usingFusionTarget ? 'fusion' : 'retouch'}): log shift ${correctResult.logShift.toFixed(3)} (raw Δ ${correctResult.rawLogDelta.toFixed(3)})`,
+          );
+        } else {
+          console.log(
+            `🎨 post-correct (${usingFusionTarget ? 'fusion' : 'retouch'}): skip (${correctResult.skippedReason}, raw Δ ${correctResult.rawLogDelta.toFixed(3)})`,
+          );
         }
+      } catch (colorErr) {
+        console.error('🎨 色温后校失败:', colorErr);
       }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 摄影化处理 (C)：阴影抬升 + 全图 ~3% 噪点 tile
+    // 必须放在生成之后 — 放在 Gemini 之前会被去噪先验抹掉。
+    // ═══════════════════════════════════════════════════════
+    try {
+      finalBuffer = await applyPhotographicTexture(finalBuffer);
+    } catch (texErr) {
+      console.error('📸 摄影化处理失败:', texErr);
     }
 
     // ── 水印（仅首次免费试用） ──

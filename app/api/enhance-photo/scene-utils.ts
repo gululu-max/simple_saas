@@ -4,7 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import sharp from 'sharp';
+import { alignColorTemperature } from './color-align';
 import type { SceneEntry } from './match-scene';
 
 // 场景库 JSON 在 build 时会被 Next.js 打包进 serverless。
@@ -37,112 +37,34 @@ export function loadSceneImage(file: string): { buffer: Buffer; mime: string } {
 }
 
 /**
- * 前置色温校正：把用户原图的 RGB 通道均值轻推向场景图。
+ * 前置色温校正: 把用户原图轻推向场景图的色温。
  *
- * 关键点:
- * - clamp [0.85, 1.15] — 最多 15% 拉扯,避免把肤色搞怪
- * - 走 60% 路程 — 不完全对齐，只是"靠近",保留用户原图的质感
- * - drift 过大时完全跳过 — 原图和场景差异太大,硬拉反而让 Gemini 输入变奇怪
- */
-/**
- * 前置预处理：色温轻推向场景 + 极轻摄影化处理（减少贴纸感）
+ * 使用 color-align 的高光锚 + 1D 色温轴:
+ * - 高光锚 (top 5% 亮度均值) 代替整图均值 — 不会被衣服/背景主体色污染
+ * - R 乘 e^(s/2)、B 除以 e^(s/2)、G 保持 — 纯 1D 色温调整, 不引入 tint 色偏
+ * - 走 40% 路程, clamp log(R/B) ≤ 0.10 (~R/B 比 10%), 原始偏差 >0.6 整体跳过
  *
- * 两件事:
- * 1. 色温: 走 40% 路程,最多 ±12% 拉扯 (比之前更克制)
- * 2. 摄影化: 极轻阴影提亮 + 极轻对比度软化 + 3% 噪点
+ * 注意: 摄影化处理 (噪点 / 阴影抬升) 已搬到 photographic-texture, 在生成之后做 —
+ * 放在 Gemini 之前会被其去噪先验抹掉。
  */
 export async function preAlignColorTemperature(
   userBuffer: Buffer,
   sceneBuffer: Buffer,
 ): Promise<Buffer> {
-  const [userStats, sceneStats] = await Promise.all([
-    sharp(userBuffer).stats(),
-    sharp(sceneBuffer).stats(),
-  ]);
+  const result = await alignColorTemperature(userBuffer, sceneBuffer, {
+    progress: 0.4,
+    maxLogShift: 0.10,
+    minLogShift: 0.02,
+    maxRawLogDelta: 0.6,
+  });
 
-  const userR = userStats.channels[0].mean;
-  const userG = userStats.channels[1].mean;
-  const userB = userStats.channels[2].mean;
-  const sceneR = sceneStats.channels[0].mean;
-  const sceneG = sceneStats.channels[1].mean;
-  const sceneB = sceneStats.channels[2].mean;
-
-  const fullScaleR = sceneR / (userR || 1);
-  const fullScaleG = sceneG / (userG || 1);
-  const fullScaleB = sceneB / (userB || 1);
-
-  const fullDrift = Math.max(
-    Math.abs(fullScaleR - 1),
-    Math.abs(fullScaleG - 1),
-    Math.abs(fullScaleB - 1),
-  );
-
-  // drift 太大,直接跳过色温,但仍然做摄影化处理
-  let needColorAlign = true;
-  if (fullDrift > 0.5) {
-    console.log(`🎨 pre-align: color drift ${(fullDrift * 100).toFixed(0)}% too large, skip color align`);
-    needColorAlign = false;
-  }
-
-  // 色温: 走 40% 路程 + clamp [0.88, 1.12] (比之前 60% + [0.85, 1.15] 更克制)
-  const lerp = (v: number, t: number) => 1 + (v - 1) * t;
-  const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
-  const scaleR = needColorAlign ? clamp(lerp(fullScaleR, 0.4), 0.88, 1.12) : 1;
-  const scaleG = needColorAlign ? clamp(lerp(fullScaleG, 0.4), 0.88, 1.12) : 1;
-  const scaleB = needColorAlign ? clamp(lerp(fullScaleB, 0.4), 0.88, 1.12) : 1;
-
-  const colorDrift = Math.max(Math.abs(scaleR - 1), Math.abs(scaleG - 1), Math.abs(scaleB - 1));
-
-  if (colorDrift < 0.03) {
-    console.log('🎨 pre-align: color drift <3%, skipping color (still doing photographic texture)');
+  if (result.skippedReason === 'above_max_raw') {
+    console.log(`🎨 pre-align: raw log(R/B) Δ ${result.rawLogDelta.toFixed(3)} too large, skip`);
+  } else if (result.skippedReason === 'below_threshold') {
+    console.log(`🎨 pre-align: log(R/B) shift ${result.logShift.toFixed(3)} below threshold, skip`);
   } else {
-    console.log(`🎨 pre-align: color R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)} (40% toward scene, full drift ${(fullDrift * 100).toFixed(0)}%)`);
+    console.log(`🎨 pre-align: log(R/B) shift ${result.logShift.toFixed(3)} (raw Δ ${result.rawLogDelta.toFixed(3)}, 40% progress)`);
   }
 
-  // ─── 摄影化处理: 极轻,只是让手机图看起来不那么"干净死板" ───
-  let pipeline = sharp(userBuffer);
-
-  // 1. 色温调整 (如果需要)
-  if (colorDrift >= 0.03) {
-    pipeline = pipeline.recomb([
-      [scaleR, 0, 0],
-      [0, scaleG, 0],
-      [0, 0, scaleB],
-    ]);
-  }
-
-  // 2. 极轻阴影提亮 + 对比度软化 (modulate 的 brightness 是整体,
-  //    这里用 linear 的 (a, b) 做 y = a*x + b,轻微扩动态范围)
-  //    a=0.97 (略压对比), b=4 (略抬阴影) — 效果非常克制
-  pipeline = pipeline.linear(0.97, 4);
-
-  // 3. 加极轻噪点 (~3%,模拟手机 CMOS 颗粒)
-  //    用 sharp 叠加一张半透明的随机噪点 overlay
-  const meta = await pipeline.clone().metadata();
-  const w = meta.width ?? 800;
-  const h = meta.height ?? 800;
-
-  // 生成等大小的随机噪点 buffer (每像素 RGB 独立)
-  const noiseSize = w * h * 3;
-  const noiseData = Buffer.alloc(noiseSize);
-  for (let i = 0; i < noiseSize; i++) {
-    // 128 ± 10 随机,叠加后对原图影响 ~3%
-    noiseData[i] = 128 + Math.floor((Math.random() - 0.5) * 20);
-  }
-
-  const noiseBuffer = await sharp(noiseData, {
-    raw: { width: w, height: h, channels: 3 },
-  }).png().toBuffer();
-
-  const processed = await pipeline
-    .composite([{
-      input: noiseBuffer,
-      blend: 'soft-light',  // soft-light 混合模式,噪点效果自然
-    }])
-    .jpeg({ quality: 92 })
-    .toBuffer();
-
-  console.log('🎨 pre-align: photographic texture applied (shadow lift + noise 3%)');
-
-  return Buffer.from(processed as any);
+  return result.buffer;
 }
