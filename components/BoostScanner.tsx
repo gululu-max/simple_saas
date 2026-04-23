@@ -15,6 +15,7 @@ import { createClient } from '@/utils/supabase/client';
 import { useAuthModal } from '@/components/auth/auth-modal-context';
 import AnalysisResultCard from '@/components/AnalysisResultCard';
 import UsageGuideCard from '@/components/UsageGuideCard';
+import DatingTrivia from '@/components/DatingTrivia';
 
 // ═══════════════════════════════════════════════════════════════
 // components/BoostScanner.tsx — v9.3
@@ -755,7 +756,13 @@ export default function BoostScanner() {
                 {!isLoading && !isEnhancing && !showEnhanced && (
                   <div className="flex flex-col gap-3 mt-4">
 
-                    {autoStartChecking ? (
+                    {enhanceError ? (
+                      <button type="button" onClick={() => handleEnhance()} disabled={isEnhancing}
+                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 disabled:opacity-40 hover:scale-[1.01] active:scale-[0.99]">
+                        <RefreshCw className="w-5 h-5" /> Retry Enhancement
+                        <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">No charge</span>
+                      </button>
+                    ) : autoStartChecking ? (
                       // ... 其他原样保留
                       <button type="button" disabled
                         className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 opacity-70">
@@ -896,6 +903,15 @@ export default function BoostScanner() {
                     </label>
                   </div>
                 )}
+                {enhanceError && !isEnhancing && !showEnhanced && (
+                  <div className="flex flex-col gap-2 mt-3">
+                    <button type="button" onClick={() => handleEnhance()} disabled={isEnhancing}
+                      className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25 disabled:opacity-40">
+                      <RefreshCw className="w-5 h-5" /> Retry Enhancement
+                      <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">No charge</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -923,14 +939,12 @@ export default function BoostScanner() {
         )}
 
         {/* ═══ CONTENT PANEL ═══ */}
+        <DatingTrivia active={isLoading || isEnhancing} onTrack={trackEvent} />
         {isLoading && displayText && (
           <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
             <div className="flex items-center gap-2 mb-2"><span className="text-rose-400 font-semibold text-sm flex items-center gap-2"><span className="grid size-5 place-items-center rounded bg-rose-500/10">🎯</span> Analyzing...</span></div>
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{displayText}</div>
           </div>
-        )}
-        {isLoading && !displayText && (
-          <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4"><div className="flex items-center gap-2 py-2"><div className="flex space-x-1"><div className="w-1.5 h-1.5 bg-rose-500/60 rounded-full animate-bounce" /><div className="w-1.5 h-1.5 bg-rose-500/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><div className="w-1.5 h-1.5 bg-rose-500/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></div></div></div>
         )}
         {visibleText && !isLoading && (
           <AnalysisResultCard analysisJSON={analysisJSON} visibleText={visibleText} onCopy={handleCopy} isCopied={isCopied} />
@@ -1142,19 +1156,22 @@ export default function BoostScanner() {
               <Button
                 variant="outline"
                 className="flex-1 h-11 rounded-xl border-slate-700 text-slate-300 hover:bg-slate-800"
-                onClick={() => { setActiveModal(null); setEnhanceError(null); }}
-              >
-                Dismiss
-              </Button>
-              <button
-                className="flex-1 h-11 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm transition-all"
                 onClick={() => {
                   setActiveModal(null);
                   setEnhanceError(null);
                   handleReset();
                 }}
               >
-                Upload New Photo
+                Try a New Photo
+              </Button>
+              <button
+                className="flex-1 h-11 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
+                onClick={() => {
+                  setActiveModal(null);
+                  handleEnhance();
+                }}
+              >
+                <RefreshCw className="w-4 h-4" /> Retry Now
               </button>
             </div>
           </div>

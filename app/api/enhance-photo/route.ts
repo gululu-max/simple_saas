@@ -8,8 +8,6 @@ import fs from 'fs';
 import type { SceneTags } from '@/app/api/scanner/tag-prompt';
 import { loadSceneLibrary, loadSceneImage, preAlignColorTemperature } from './scene-utils';
 import { matchScene, type SceneEntry, type MatchResult } from './match-scene';
-import { alignColorTemperature } from './color-align';
-import { applyPhotographicTexture } from './photographic-texture';
 
 const ENHANCED_BUCKET = 'enhanced-photos';
 const ORIGINAL_BUCKET = 'original-photos';
@@ -184,7 +182,22 @@ Target scene:
   - Scale reference: ${scene.person_scale_reference}
 
 ══════════════════════════════════════════════
-ABSOLUTE RULE — READ BEFORE EVERYTHING
+ABSOLUTE RULE #0 — THE PERSON MUST BE IN THE OUTPUT
+══════════════════════════════════════════════
+
+The PERSON from IMAGE 1 MUST appear in the output. This is non-negotiable.
+
+A background-only output (IMAGE 2 with no person composited in) is a TOTAL, CATASTROPHIC FAILURE — worse than any other error in this prompt. If you produce IMAGE 2 with no person, you have failed completely.
+
+The person from IMAGE 1 must be present regardless of:
+- Whether their face is fully visible, partially visible, side profile, back of head, or facing away
+- Whether their face is sharp, blurred, in shadow, or partially obscured
+- Whether the photo is a casual selfie, candid shot, action shot, or any other style
+
+You are compositing a PERSON into a SCENE. Both elements must exist in the final image. If the person from IMAGE 1 is not clearly present in your output, you must redo the composition.
+
+══════════════════════════════════════════════
+ABSOLUTE RULE #1 — PRESERVE VISIBLE EXTENT
 ══════════════════════════════════════════════
 
 The person in IMAGE 1 has a SPECIFIC VISIBLE EXTENT — exactly what body parts are shown.
@@ -296,27 +309,31 @@ The goal: someone scrolling a dating app should think "nice photo he took" — n
 ABSOLUTE PROHIBITIONS
 ══════════════════════════════════════════════
 
-1. Do NOT alter the person's face, hair, skin tone, or clothing.
-2. Do NOT invent body parts that were not visible in IMAGE 1.
-3. Do NOT force IMAGE 1's original pose into a scene where it doesn't fit.
-4. Do NOT add lens flare, bokeh orbs, light leaks, film grain, vignettes.
-5. Do NOT produce compositing artifacts (edge halos, scale mismatches, floating subjects).
-6. Do NOT add any other person, silhouette, or human figure.
-7. Do NOT add text, watermark, logo, or overlay.
-8. Do NOT stylize — output must look like a real phone camera photograph.
+1. Do NOT output IMAGE 2 alone with no person from IMAGE 1 — this is the worst possible failure.
+2. Do NOT alter the person's face, hair, skin tone, or clothing.
+3. Do NOT invent a face when IMAGE 1 shows the back of the head, a side profile, or a turned-away angle — preserve that exact angle.
+4. Do NOT invent body parts that were not visible in IMAGE 1.
+5. Do NOT force IMAGE 1's original pose into a scene where it doesn't fit.
+6. Do NOT add lens flare, bokeh orbs, light leaks, film grain, vignettes.
+7. Do NOT produce compositing artifacts (edge halos, scale mismatches, floating subjects).
+8. Do NOT add any other person, silhouette, or human figure.
+9. Do NOT add text, watermark, logo, or overlay.
+10. Do NOT stylize — output must look like a real phone camera photograph.
 
 ══════════════════════════════════════════════
 FINAL CHECK
 ══════════════════════════════════════════════
 
-1. Identity preserved (face + hair + clothing unchanged from IMAGE 1)?
-2. Framing matches IMAGE 1's visible extent (${userTags.visible_body})?
-3. No invented body parts?
-4. Person size matches scene scale references?
-5. Pose looks natural in IMAGE 2?
-6. Lighting direction matches IMAGE 2?
-7. Color temperature matches IMAGE 2 (${scene.color_temperature})?
-8. Looks like ONE photograph, not a collage?
+1. Is the PERSON from IMAGE 1 visible in the output? (If output is background only → REDO, this is the #1 failure mode.)
+2. Identity preserved (hair + clothing + skin tone unchanged from IMAGE 1)?
+3. Face angle preserved (if IMAGE 1 shows back/side/blurred face, output must match — don't invent a front-facing face)?
+4. Framing matches IMAGE 1's visible extent (${userTags.visible_body})?
+5. No invented body parts?
+6. Person size matches scene scale references?
+7. Pose looks natural in IMAGE 2?
+8. Lighting direction matches IMAGE 2?
+9. Color temperature matches IMAGE 2 (${scene.color_temperature})?
+10. Looks like ONE photograph, not a collage?
 
 Return only the final image.`;
 }
@@ -328,7 +345,8 @@ function getPartialViewInstructions(visibleBody: string): string {
 HARD RULES — VIOLATING ANY OF THESE IS A FAILURE:
 - DO NOT generate a torso, arms, hands, waist, hips, legs, or feet that don't exist in IMAGE 1
 - DO NOT invent body parts to "complete" the person — if IMAGE 1 shows head only, output shows head only
-- The face from IMAGE 1 is MANDATORY in the output — a headless or faceless result is a complete failure
+- The PERSON from IMAGE 1 is MANDATORY in the output. Preserve their exact head/shoulder visibility — whether the face is fully visible, in profile, turned away, or partially obscured. A background-only result with no person is a TOTAL FAILURE.
+- DO NOT invent a face if IMAGE 1 shows the back of the head or a side profile — keep that exact angle
 
 SCENE CONFLICT HANDLING:
 If IMAGE 2 shows chairs, sofas, tables, or other furniture that would normally require a seated/full body:
@@ -344,7 +362,7 @@ HARD RULES — VIOLATING ANY OF THESE IS A FAILURE:
 - DO NOT generate the waist, hips, legs, feet, or lower body
 - DO NOT invent arms, hands, or body parts in positions that don't exist in IMAGE 1
 - DO NOT invent a seated pose, leg-crossing pose, or any lower-body posture
-- The face from IMAGE 1 is MANDATORY — the face is the entire point of the photo
+- The PERSON from IMAGE 1 is MANDATORY in the output. Whatever face angle IMAGE 1 shows (front, profile, three-quarter, turned away, blurred) — preserve it exactly. A background-only result with no person is a TOTAL FAILURE.
 
 SCENE CONFLICT HANDLING:
 If IMAGE 2 contains chairs, sofas, tables, desks, or other sitting furniture:
@@ -360,7 +378,7 @@ The output is a chest-up portrait. Background from IMAGE 2 sits behind the perso
 HARD RULES — VIOLATING ANY OF THESE IS A FAILURE:
 - DO NOT generate legs, feet, or anything below the waist
 - DO NOT invent a full seated body or leg-crossing
-- The face from IMAGE 1 is MANDATORY
+- The PERSON from IMAGE 1 is MANDATORY in the output. Preserve whatever face angle IMAGE 1 shows — front, side, back, blurred, all valid. A background-only result with no person is a TOTAL FAILURE.
 
 SCENE CONFLICT HANDLING:
 If IMAGE 2 requires a full seated or full-body pose:
@@ -625,7 +643,6 @@ export async function POST(req: Request) {
     // ═══════════════════════════════════════════════════════
     let geminiResult: any;
     let matchInfo: MatchResult | null = null;
-    let matchedSceneBuffer: Buffer | null = null;
 
     if (useFusion) {
       // ── 融合路径 ──
@@ -648,12 +665,11 @@ export async function POST(req: Request) {
 
           // 2. 读场景图
           const { buffer: sceneBuffer, mime: sceneMime } = loadSceneImage(matchInfo.scene.file);
-          matchedSceneBuffer = sceneBuffer;
 
           // 3. 前置色温校正
           const userBuffer = Buffer.from(imageBase64, 'base64');
-          const alignedUserBuffer = await preAlignColorTemperature(userBuffer, sceneBuffer);
-          const alignedUserBase64 = alignedUserBuffer.toString('base64');
+          // const alignedUserBuffer = await preAlignColorTemperature(userBuffer, sceneBuffer);
+          const alignedUserBase64 = userBuffer.toString('base64');
 
           // 4. 构造融合 prompt
           const rawFixPlan = extractFixPlan(analysisResult) ?? DEFAULT_FIX_PLAN;
@@ -695,56 +711,40 @@ export async function POST(req: Request) {
     const generatedBuffer = Buffer.from(rawBase64, 'base64');
 
     // ═══════════════════════════════════════════════════════
-    // 色温后校 (D)：把生成图对齐到目标色温
-    // - fusion:   target = 场景图色温 (验证 Gemini 的对齐, 不到位就兜底)
-    // - retouch:  target = 原图色温   (还原用户原图的色温)
-    // 使用高光锚 + 1D 色温轴 (R 升 / B 降, G 不变), 不会引入 tint 色偏。
+    // 注意：融合路径不再做后处理色温校正（色温已经前置对齐）
+    //      retouch 路径保留原逻辑（后处理拉回原图色温）
     // ═══════════════════════════════════════════════════════
-    let finalBuffer: Buffer = generatedBuffer;
+    let finalBuffer = generatedBuffer;
 
-    const fixPlan = extractFixPlan(analysisResult);
-    const userLockedGrade = fixPlan
-      ? ['warm_tone', 'cool_tone'].includes(fixPlan.color_grade)
-      : false;
+    if (!useFusion) {
+      // 仅 retouch 路径做后处理色温校正
+      const fixPlan = extractFixPlan(analysisResult);
+      const activeColorGrades = ['warm_tone', 'cool_tone'];
+      const shouldCorrect = !fixPlan || !activeColorGrades.includes(fixPlan.color_grade);
 
-    if (!userLockedGrade) {
-      try {
-        const usingFusionTarget = useFusion && !!matchedSceneBuffer;
-        const target = usingFusionTarget
-          ? matchedSceneBuffer!
-          : Buffer.from(imageBase64, 'base64');
+      if (shouldCorrect) {
+        try {
+          const originalBuffer = Buffer.from(imageBase64, 'base64');
+          const origStats = await sharp(originalBuffer).stats();
+          const genStats = await sharp(generatedBuffer).stats();
 
-        // fusion 后校更克制 (Gemini 主导, 只兜底)；retouch 更积极 (要回到原图色温)
-        const correctResult = await alignColorTemperature(finalBuffer, target, {
-          progress: usingFusionTarget ? 0.5 : 0.6,
-          maxLogShift: usingFusionTarget ? 0.06 : 0.10,
-          minLogShift: usingFusionTarget ? 0.03 : 0.02,
-          maxRawLogDelta: 0.5,
-        });
+          const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+          const scaleR = clamp(origStats.channels[0].mean / (genStats.channels[0].mean || 1), 0.8, 1.2);
+          const scaleG = clamp(origStats.channels[1].mean / (genStats.channels[1].mean || 1), 0.8, 1.2);
+          const scaleB = clamp(origStats.channels[2].mean / (genStats.channels[2].mean || 1), 0.8, 1.2);
 
-        if (correctResult.applied) {
-          finalBuffer = correctResult.buffer;
-          console.log(
-            `🎨 post-correct (${usingFusionTarget ? 'fusion' : 'retouch'}): log shift ${correctResult.logShift.toFixed(3)} (raw Δ ${correctResult.rawLogDelta.toFixed(3)})`,
-          );
-        } else {
-          console.log(
-            `🎨 post-correct (${usingFusionTarget ? 'fusion' : 'retouch'}): skip (${correctResult.skippedReason}, raw Δ ${correctResult.rawLogDelta.toFixed(3)})`,
-          );
+          const maxDrift = Math.max(Math.abs(scaleR - 1), Math.abs(scaleG - 1), Math.abs(scaleB - 1));
+          if (maxDrift >= 0.02) {
+            const corrected = await sharp(generatedBuffer)
+              .recomb([[scaleR, 0, 0], [0, scaleG, 0], [0, 0, scaleB]])
+              .toBuffer();
+            finalBuffer = Buffer.from(corrected as any);
+            console.log(`🎨 retouch post-correct: R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)}`);
+          }
+        } catch (colorErr) {
+          console.error('🎨 色温校正失败:', colorErr);
         }
-      } catch (colorErr) {
-        console.error('🎨 色温后校失败:', colorErr);
       }
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // 摄影化处理 (C)：阴影抬升 + 全图 ~3% 噪点 tile
-    // 必须放在生成之后 — 放在 Gemini 之前会被去噪先验抹掉。
-    // ═══════════════════════════════════════════════════════
-    try {
-      finalBuffer = await applyPhotographicTexture(finalBuffer);
-    } catch (texErr) {
-      console.error('📸 摄影化处理失败:', texErr);
     }
 
     // ── 水印（仅首次免费试用） ──

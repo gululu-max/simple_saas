@@ -9,14 +9,10 @@ export default function ScannerPage() {
       <div className="mx-auto max-w-6xl px-4 py-6 md:py-10">
 
         {/* ── Hero — 降低摩擦，推用户完成上传 ── */}
-        <div className="text-center mb-6 md:mb-8" id="scanner-hero">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+        <div className="text-center mb-4 md:mb-6" id="scanner-hero">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight text-white">
             Same You. Just the Version That Gets Swiped Right.
           </h1>
-          <p className="text-slate-400 mt-2 text-sm sm:text-base max-w-2xl mx-auto">
-            AI-enhanced lighting, framing & color that no one can tell apart from a great photographer.
-            2,847 guys upgraded this week — the rest are still wondering why they&apos;re getting left-swiped.
-          </p>
         </div>
 
         {/* ── Core ── */}
