@@ -816,6 +816,18 @@ export default function BoostScanner() {
 
   const showcaseCurrentSlide = showcaseSlides[showcaseSlideIndex] ?? null;
 
+  // True when the analysis itself returned a non-actionable verdict
+  // (e.g. AI-generated photo, can't be enhanced). Used to surface a
+  // "Try Another Photo" CTA only on these dead-ends — on the happy path
+  // the button is just clutter that interrupts the flow.
+  const analysisFailed = useMemo(() => {
+    if (!analysisJSON) return false;
+    try {
+      const parsed = JSON.parse(analysisJSON);
+      return parsed?.route === 'needs_real_photo';
+    } catch { return false; }
+  }, [analysisJSON]);
+
   // Download whichever slide the user is currently viewing in the showcase.
   const handleShowcaseDownloadCurrent = useCallback(() => {
     if (!showcaseCurrentSlide) return;
@@ -1181,7 +1193,7 @@ export default function BoostScanner() {
                 {isDownloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />} {downloadButtonText}
               </button>
             )}
-            {preview && visibleText && !isLoading && !isEnhancing && (
+            {preview && visibleText && !isLoading && !isEnhancing && (enhanceError || analysisFailed) && (
               <Button type="button" variant="outline" className="w-full h-12 text-slate-400 gap-2 border-slate-700 hover:bg-slate-800/50 rounded-xl text-sm" onClick={handleTryAnother}><RefreshCw className="w-4 h-4" /> Try Another Photo</Button>
             )}
             {isEnhancementComplete && (
@@ -1365,7 +1377,9 @@ export default function BoostScanner() {
                 </div>
               )}
 
-              {/* Secondary: watermark download (free) — only show when payment is needed */}
+              {/* Secondary: watermark download (free) — DISABLED.
+                  Removed because dating users won't actually upload a logo'd photo;
+                  this option just competes with paid CTAs. Re-enable by uncommenting.
               {!isDownloadFree && (
                 <button
                   onClick={handleDownloadWatermarked}
@@ -1374,6 +1388,7 @@ export default function BoostScanner() {
                   or download with watermark (free)
                 </button>
               )}
+              */}
 
               {/* Tertiary: try another */}
               <button
@@ -1507,20 +1522,21 @@ export default function BoostScanner() {
                 </div>
               </button>
 
-              {/* ── Option 4: Watermark download (text link, ultra-subtle) ── */}
+              {/* ── Option 4: Watermark download — DISABLED (see comment in showcase modal) ──
               <button
                 onClick={handleDownloadWatermarked}
                 className="w-full text-center text-xs text-slate-600 hover:text-slate-400 transition-colors py-1.5 underline underline-offset-2 decoration-slate-700"
               >
                 or download with watermark (free)
               </button>
+              */}
             </div>
           </div>
         </div>
       )}
 
       {/* download_choice modal (for users who already have 5+ credits) */}
-      {activeModal === 'download_choice' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20"><Download className="size-8 text-emerald-500" /></div><h2 className="text-xl font-bold text-white mb-1">Save Your Enhanced Photo</h2><p className="text-sm text-slate-400 mb-1">Your photo looks amazing — don&apos;t lose it!</p><p className="text-xs text-red-400/70 mb-4 flex items-center gap-1 justify-center"><ShieldCheck className="size-3" /> We don&apos;t store photos. Leave this page and it&apos;s gone forever.</p><div className="flex flex-col w-full gap-2.5"><button onClick={() => setActiveModal('membership')} className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-amber-500/10 shrink-0"><Crown className="size-5 text-amber-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Become a Member</div><div className="text-xs text-slate-500">No watermark · Free downloads forever</div></div><span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST</span></button><button onClick={handleDownloadWithCredits} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-rose-500/10 shrink-0"><Coins className="size-5 text-rose-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Use 5 Credits</div><div className="text-xs text-slate-500">No watermark · One-time purchase</div></div><span className="text-xs font-bold text-rose-400 shrink-0">⚡ 5</span></button><button onClick={handleDownloadWatermarked} className="w-full flex items-center gap-3 p-4 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-slate-800 shrink-0"><Download className="size-5 text-slate-400" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Download with Watermark</div><div className="text-xs text-slate-500">Free · Includes Matchfix branding</div></div><span className="text-[10px] font-bold text-slate-500 shrink-0">FREE</span></button></div><button className="mt-4 w-full h-10 text-sm text-slate-500 hover:text-slate-300 transition-colors" onClick={() => setActiveModal(null)}>Cancel</button></div></div>)}
+      {activeModal === 'download_choice' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20"><Download className="size-8 text-emerald-500" /></div><h2 className="text-xl font-bold text-white mb-1">Save Your Enhanced Photo</h2><p className="text-sm text-slate-400 mb-1">Your photo looks amazing — don&apos;t lose it!</p><p className="text-xs text-red-400/70 mb-4 flex items-center gap-1 justify-center"><ShieldCheck className="size-3" /> We don&apos;t store photos. Leave this page and it&apos;s gone forever.</p><div className="flex flex-col w-full gap-2.5"><button onClick={() => setActiveModal('membership')} className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-amber-500/10 shrink-0"><Crown className="size-5 text-amber-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Become a Member</div><div className="text-xs text-slate-500">No watermark · Free downloads forever</div></div><span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST</span></button><button onClick={handleDownloadWithCredits} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-rose-500/10 shrink-0"><Coins className="size-5 text-rose-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Use 5 Credits</div><div className="text-xs text-slate-500">No watermark · One-time purchase</div></div><span className="text-xs font-bold text-rose-400 shrink-0">⚡ 5</span></button>{/* watermark download — DISABLED (see comment in download_unlock modal) */}{false && <button onClick={handleDownloadWatermarked} className="w-full flex items-center gap-3 p-4 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-slate-800 shrink-0"><Download className="size-5 text-slate-400" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Download with Watermark</div><div className="text-xs text-slate-500">Free · Includes Matchfix branding</div></div><span className="text-[10px] font-bold text-slate-500 shrink-0">FREE</span></button>}</div><button className="mt-4 w-full h-10 text-sm text-slate-500 hover:text-slate-300 transition-colors" onClick={() => setActiveModal(null)}>Cancel</button></div></div>)}
 
       {/* membership modal — [v9] checkout button now stays open with loading */}
       {activeModal === 'membership' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Crown className="size-4 text-amber-500" /><span className="text-sm font-bold text-white">Become a Member</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ MOST POPULAR ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Pro</div><div className="text-slate-400 text-xs mt-0.5">200 credits / month</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$19.99</div><div className="text-slate-500 text-xs">/month</div></div></div><ul className="space-y-2 mb-5">{['8 photo enhancements per month (3 scenes each)', 'Unlimited watermark-free downloads', 'Save 15 credits/enhancement vs credit packs', 'AI photo analysis included free', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><MembershipCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all plans →</button></div></div></div>)}
