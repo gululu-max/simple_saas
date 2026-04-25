@@ -77,7 +77,7 @@ export async function GET(
     // ── 查 enhancement 记录 ──
     const { data: record, error: recordError } = await supabaseAdmin
       .from('photo_enhancements')
-      .select('id, user_id, storage_key, mime_type, is_free_trial, downloaded, expires_at')
+      .select('id, user_id, storage_key, mime_type, is_free_trial, downloaded, expires_at, group_id')
       .eq('id', enhancementId)
       .eq('user_id', user.id)
       .single();
@@ -139,7 +139,24 @@ export async function GET(
     );
 
     // ── 收费逻辑 ──
-    const needsPayment = record.is_free_trial && !isSubscribed;
+    // Plan B: 5-credit fee unlocks the entire variant group, not just one
+    // photo. If any sibling variant in the same group_id has already been
+    // downloaded, the group is considered unlocked and we skip the charge.
+    let needsPayment = record.is_free_trial && !isSubscribed;
+    if (needsPayment && (record as any).group_id) {
+      const { data: sibling } = await supabaseAdmin
+        .from('photo_enhancements')
+        .select('id')
+        .eq('group_id', (record as any).group_id)
+        .eq('user_id', user.id)
+        .eq('downloaded', true)
+        .neq('id', record.id)
+        .limit(1);
+      if (sibling && sibling.length > 0) {
+        needsPayment = false;
+        console.log(`[download] group ${(record as any).group_id} already unlocked, skipping charge`);
+      }
+    }
 
     if (needsPayment) {
       // ── 原子扣积分（RPC 内含积分不足判断）──

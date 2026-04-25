@@ -1,4 +1,5 @@
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { randomUUID } from 'crypto';
 import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
@@ -6,21 +7,110 @@ import path from 'path';
 import fs from 'fs';
 
 import type { SceneTags } from '@/app/api/scanner/tag-prompt';
-import { loadSceneLibrary, loadSceneImage, preAlignColorTemperature } from './scene-utils';
-import { matchScene, type SceneEntry, type MatchResult } from './match-scene';
+import { loadSceneLibrary, loadSceneImage } from './scene-utils';
+import { matchScenesTop3, type SceneEntry, type MatchResult } from './match-scene';
+import { classifyUpstreamError, classifyGeminiNoImage } from '@/lib/upstream-errors';
 
 const ENHANCED_BUCKET = 'enhanced-photos';
 const ORIGINAL_BUCKET = 'original-photos';
+
+// ─── Unified pricing (X plan) ────────────────────────────────────
+// Both retouch and fusion cost the same. Simpler, and fusion (3 variants)
+// will use the same cost once 3-variant mode is enabled.
+const COST_SUBSCRIBED = 25;
+const COST_NON_SUBSCRIBED = 40;
+
+// Emergency rollback: if true, ALL enhance requests are routed to the
+// retouch path regardless of requested mode. Use when fusion is globally
+// broken; flip back off once recovered.
+const FORCE_RETOUCH_MODE = process.env.FORCE_RETOUCH_MODE === 'true';
 
 const supabaseAdmin = createAdminClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+interface RefundCreditsResult {
+  success: boolean;
+  remaining: number;
+  customer_id: string;
+}
+
 interface DeductCreditsResult {
   success: boolean;
   remaining: number;
   customer_id: string;
+}
+
+// ─── Scan loader ─────────────────────────────────────────────────
+// Loads a photo_scans row and its original image buffer. Verifies
+// ownership (user_id match) and expiration. Returns null if anything
+// is wrong so the caller can fall back to legacy body params.
+interface LoadedScan {
+  imageBase64: string;
+  mimeType: string;
+  analysisResultString: string | null;
+}
+
+async function loadScanById(
+  scanId: string,
+  userId: string,
+): Promise<LoadedScan | null> {
+  const { data: scan, error } = await supabaseAdmin
+    .from('photo_scans')
+    .select('id, user_id, original_storage_key, mime_type, analysis_json, scene_tags, expires_at')
+    .eq('id', scanId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[enhance] scan lookup failed:', error.message);
+    return null;
+  }
+  if (!scan) {
+    console.warn(`[enhance] scan ${scanId} not found`);
+    return null;
+  }
+  if (scan.user_id !== userId) {
+    console.warn(`[enhance] scan ${scanId} owner mismatch (scan=${scan.user_id}, req=${userId})`);
+    return null;
+  }
+  if (scan.expires_at && new Date(scan.expires_at).getTime() < Date.now()) {
+    console.warn(`[enhance] scan ${scanId} expired at ${scan.expires_at}`);
+    return null;
+  }
+  if (!scan.original_storage_key) {
+    console.warn(`[enhance] scan ${scanId} has no original_storage_key`);
+    return null;
+  }
+
+  // Download original image from storage
+  const { data: blob, error: dlErr } = await supabaseAdmin.storage
+    .from(ORIGINAL_BUCKET)
+    .download(scan.original_storage_key);
+
+  if (dlErr || !blob) {
+    console.error(`[enhance] failed to download ${scan.original_storage_key}:`, dlErr?.message);
+    return null;
+  }
+
+  const arrayBuffer = await blob.arrayBuffer();
+  const imageBase64 = Buffer.from(arrayBuffer).toString('base64');
+
+  // Reconstruct analysisResult string (extractors expect string input)
+  let analysisResultString: string | null = null;
+  if (scan.analysis_json) {
+    const merged = { ...(scan.analysis_json as object) };
+    if (scan.scene_tags) {
+      (merged as any).scene_tags = scan.scene_tags;
+    }
+    analysisResultString = JSON.stringify(merged);
+  }
+
+  return {
+    imageBase64,
+    mimeType: scan.mime_type || 'image/jpeg',
+    analysisResultString,
+  };
 }
 
 // ─── 水印瓦片 ─────────────────────────────────────────────
@@ -473,14 +563,39 @@ async function callGeminiFusion(
   return callGeminiAPI(body);
 }
 
-async function callGeminiAPI(body: any) {
+// Retry wrapper: transient upstream failures (503 / 502 / 504 / network
+// errors / "high demand" text) retry with exponential backoff. Terminal
+// errors (400 / 401 / 403 / safety-related) fail fast.
+async function callGeminiAPI(body: any, maxRetries = 2, baseDelayMs = 1500) {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await callGeminiAPIOnce(body);
+    } catch (err) {
+      lastError = err as Error;
+      const msg = lastError.message;
+      const isRetryable =
+        /\b(503|502|504)\b|UNAVAILABLE|high demand|overloaded|rate.?limit|quota|ECONNRESET|ETIMEDOUT|timeout|fetch failed/i.test(msg);
+
+      console.warn(`⚠️ Gemini attempt ${attempt + 1}/${maxRetries + 1} failed: ${msg.slice(0, 200)}`);
+
+      if (!isRetryable || attempt >= maxRetries) throw lastError;
+
+      // Exponential backoff: 1.5s, 2.25s, 3.4s, ...
+      const delay = Math.round(baseDelayMs * Math.pow(1.5, attempt));
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
+async function callGeminiAPIOnce(body: any) {
   const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY!;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
 
   let fetchFn: typeof fetch = fetch;
   if (process.env.NODE_ENV === 'development') {
     const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:30808';
-    console.log('🚀 Local dev mode: using proxy', proxyUrl);
     const agent = new ProxyAgent(proxyUrl);
     fetchFn = (u: any, opts: any) => undiciFetch(u, { ...opts, dispatcher: agent }) as any;
   }
@@ -520,21 +635,171 @@ async function addWatermarkServer(imageBuffer: Buffer): Promise<Buffer> {
   return Buffer.from(wmResult as any);
 }
 
+// ─── Color correction (retouch path only) ─────────────────────────
+// Compares generated buffer's per-channel mean to original; nudges back
+// toward the original's white balance if the model drifted.
+async function colorCorrectIfNeeded(
+  generatedBuffer: Buffer,
+  userImageBase64: string,
+  fixPlan: FixPlan | null,
+): Promise<Buffer> {
+  const activeColorGrades = ['warm_tone', 'cool_tone'];
+  const shouldCorrect = !fixPlan || !activeColorGrades.includes(fixPlan.color_grade);
+  if (!shouldCorrect) return generatedBuffer;
+
+  try {
+    const originalBuffer = Buffer.from(userImageBase64, 'base64');
+    const origStats = await sharp(originalBuffer).stats();
+    const genStats = await sharp(generatedBuffer).stats();
+
+    const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+    const scaleR = clamp(origStats.channels[0].mean / (genStats.channels[0].mean || 1), 0.8, 1.2);
+    const scaleG = clamp(origStats.channels[1].mean / (genStats.channels[1].mean || 1), 0.8, 1.2);
+    const scaleB = clamp(origStats.channels[2].mean / (genStats.channels[2].mean || 1), 0.8, 1.2);
+
+    const maxDrift = Math.max(Math.abs(scaleR - 1), Math.abs(scaleG - 1), Math.abs(scaleB - 1));
+    if (maxDrift < 0.02) return generatedBuffer;
+
+    const corrected = await sharp(generatedBuffer)
+      .recomb([[scaleR, 0, 0], [0, scaleG, 0], [0, 0, scaleB]])
+      .toBuffer();
+    console.log(`🎨 retouch post-correct: R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)}`);
+    return Buffer.from(corrected as any);
+  } catch (colorErr) {
+    console.error('🎨 色温校正失败:', colorErr);
+    return generatedBuffer;
+  }
+}
+
+// ─── Per-variant processing ───────────────────────────────────────
+// Takes a single Gemini result (one image) and runs the post-Gemini
+// pipeline: extract → color-correct (retouch only) → watermark (free
+// trial only) → upload to enhanced-photos → insert photo_enhancements.
+// Throws on safety block / no-image / upload / DB failure so the caller
+// can decide whether to count it as a partial or total failure.
+
+interface VariantInput {
+  geminiResult: any;
+  userId: string;
+  isFreeTrial: boolean;
+  scanId: string | null;
+  groupId: string;
+  variantIndex: number;
+  mode: 'fusion' | 'retouch';
+  engine: string;
+  matchInfo: MatchResult | null;
+  userImageBase64: string;
+  sharedOriginalKey: string | null;
+  ts: number;
+  analysisResult?: string;
+}
+
+interface VariantOutput {
+  enhancementId: string;
+  storageKey: string;
+  clientImage: string;
+  mimeType: string;
+  matchedScene: string | null;
+  variantIndex: number;
+}
+
+async function processVariant(input: VariantInput): Promise<VariantOutput> {
+  // 1. Extract image from Gemini response
+  const parts = input.geminiResult.candidates?.[0]?.content?.parts ?? [];
+  const imagePart = parts.find((p: any) => p.inlineData);
+  if (!imagePart?.inlineData) {
+    const c = classifyGeminiNoImage(input.geminiResult);
+    const err: any = new Error(c.userMsg);
+    err.code = c.code;
+    err.retryable = c.retryable;
+    err.detail = c.detail;
+    throw err;
+  }
+
+  const cleanMime: string = imagePart.inlineData.mimeType ?? 'image/png';
+  let finalBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+
+  // 2. Color correction (retouch only — fusion already aligns via prompt)
+  if (input.mode === 'retouch') {
+    const fixPlan = input.analysisResult ? extractFixPlan(input.analysisResult) : null;
+    const corrected = await colorCorrectIfNeeded(finalBuffer, input.userImageBase64, fixPlan);
+    finalBuffer = Buffer.from(corrected);
+  }
+
+  // 3. Watermark for free-trial users
+  let clientImage: string;
+  if (input.isFreeTrial) {
+    const watermarked = await addWatermarkServer(finalBuffer);
+    clientImage = watermarked.toString('base64');
+  } else {
+    clientImage = finalBuffer.toString('base64');
+  }
+
+  // 4. Upload enhanced image
+  const storageKey = `${input.userId}/${input.ts}-v${input.variantIndex}.png`;
+  const { error: uploadErr } = await supabaseAdmin.storage
+    .from(ENHANCED_BUCKET)
+    .upload(storageKey, finalBuffer, { contentType: cleanMime, upsert: false });
+  if (uploadErr) {
+    throw new Error(`Enhanced upload failed: ${uploadErr.message}`);
+  }
+
+  // 5. Insert photo_enhancements row
+  const { data: enhRecord, error: dbErr } = await supabaseAdmin
+    .from('photo_enhancements')
+    .insert({
+      user_id: input.userId,
+      storage_key: storageKey,
+      original_storage_key: input.sharedOriginalKey,
+      mime_type: cleanMime,
+      is_free_trial: input.isFreeTrial,
+      downloaded: false,
+      scan_id: input.scanId,
+      group_id: input.groupId,
+      variant_index: input.variantIndex,
+      mode: input.mode,
+      engine: input.engine,
+      matched_scene_id: input.matchInfo?.scene.id ?? null,
+      match_relaxation_level: input.matchInfo?.relaxation_level ?? null,
+      match_score: input.matchInfo?.score ?? null,
+    })
+    .select('id')
+    .single();
+
+  if (dbErr || !enhRecord) {
+    // Best-effort cleanup of orphan storage object
+    await supabaseAdmin.storage.from(ENHANCED_BUCKET).remove([storageKey]);
+    throw new Error(`DB insert failed: ${dbErr?.message ?? 'unknown'}`);
+  }
+
+  return {
+    enhancementId: enhRecord.id,
+    storageKey,
+    clientImage,
+    mimeType: cleanMime,
+    matchedScene: input.matchInfo?.scene.id ?? null,
+    variantIndex: input.variantIndex,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════
 // 主 Handler
 // ═══════════════════════════════════════════════════════════
 export async function POST(req: Request) {
   try {
+    const body = await req.json();
     const {
-      imageBase64,
-      mimeType = "image/jpeg",
-      analysisResult,
-      useFusion = true,  // ← 新增参数，默认开启融合
-    } = await req.json();
+      scanId: rawScanId,
+      useFusion: rawUseFusion = true,
+    }: {
+      scanId?: string;
+      useFusion?: boolean;
+    } = body;
 
-    if (!imageBase64) {
-      return new Response(JSON.stringify({ error: "No image provided" }), { status: 400 });
-    }
+    // Legacy inputs (still accepted while frontend migrates)
+    let imageBase64: string | undefined = body.imageBase64;
+    let mimeType: string = body.mimeType ?? 'image/jpeg';
+    let analysisResult: string | undefined = body.analysisResult;
 
     // ── 鉴权 ──
     const supabase = await createClient();
@@ -544,6 +809,32 @@ export async function POST(req: Request) {
         JSON.stringify({ error: "Unauthorized", code: "LOGIN_REQUIRED" }),
         { status: 401 }
       );
+    }
+
+    // ── scan_id 路径：从 DB+storage 载入，覆盖 legacy 参数 ──
+    if (rawScanId) {
+      const loaded = await loadScanById(rawScanId, user.id);
+      if (!loaded) {
+        return new Response(
+          JSON.stringify({ error: 'Scan not found or expired', code: 'SCAN_NOT_FOUND' }),
+          { status: 410, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      imageBase64 = loaded.imageBase64;
+      mimeType = loaded.mimeType;
+      if (loaded.analysisResultString) {
+        analysisResult = loaded.analysisResultString;
+      }
+    }
+
+    if (!imageBase64) {
+      return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
+    }
+
+    // ── 紧急回滚开关：强制走 retouch 路径 ──
+    const useFusion = FORCE_RETOUCH_MODE ? false : rawUseFusion;
+    if (FORCE_RETOUCH_MODE && rawUseFusion) {
+      console.warn('⚠️  FORCE_RETOUCH_MODE active — fusion request routed to retouch');
     }
 
     // ── 读客户信息 ──
@@ -570,15 +861,15 @@ export async function POST(req: Request) {
     ) ?? null;
     const isSubscribed = !!subData;
 
-    console.log('🔍 user.id:', user.id, '| useFusion:', useFusion);
+    console.log(`🔍 user.id: ${user.id} | useFusion: ${useFusion} | scanId: ${rawScanId ?? 'none'}`);
 
-    // ── 扣费 ──
+    // ── 扣费（统一 25/40）──
+    const costNeeded = isSubscribed ? COST_SUBSCRIBED : COST_NON_SUBSCRIBED;
+    const actionType = isSubscribed ? 'PhotoEnhance_Member' : 'PhotoEnhance_NonMember';
     let creditsRemaining = customer.credits;
+    let deducted = false;
 
     if (!isFreeTrial) {
-      const actionType = isSubscribed ? 'PhotoEnhance_Member' : 'PhotoEnhance_NonMember';
-      const costNeeded = isSubscribed ? 20 : 25;
-
       if (customer.credits < costNeeded) {
         return new Response(
           JSON.stringify({
@@ -614,232 +905,224 @@ export async function POST(req: Request) {
         );
       }
       creditsRemaining = rpcResult.remaining;
+      deducted = true;
     }
 
+    // ── 原子退款（走 RPC） ──
     const refundOnFailure = async (reason: string) => {
-      if (isFreeTrial) return;
-      const refundAmount = isSubscribed ? 20 : 25;
+      if (!deducted) return;
       try {
-        await supabaseAdmin
-          .from('customers')
-          .update({ credits: creditsRemaining + refundAmount })
-          .eq('user_id', user.id);
-        await supabaseAdmin.from('credits_history').insert({
-          customer_id: customer.id,
-          amount: refundAmount,
-          type: 'add',
-          description: `Refund: ${reason}`,
-          metadata: { source: 'system_refund', action: reason },
-        });
-        creditsRemaining += refundAmount;
-        console.log(`退款: ${refundAmount} credits, reason: ${reason}`);
-      } catch (refundErr) {
-        console.error(`退款失败 (User: ${user.id}):`, refundErr);
+        const { data: refundResult, error: refundErr } = await supabaseAdmin
+          .rpc('refund_credits', {
+            p_user_id: user.id,
+            p_amount: costNeeded,
+            p_description: `Refund: ${reason}`,
+            p_metadata: { action: reason },
+          })
+          .returns<RefundCreditsResult[]>()
+          .single();
+
+        if (refundErr || !refundResult?.success) {
+          console.error(`退款失败 (User: ${user.id}):`, refundErr ?? refundResult);
+          return;
+        }
+        creditsRemaining = refundResult.remaining;
+        deducted = false;  // prevent double-refund
+        console.log(`退款: ${costNeeded} credits, reason: ${reason}`);
+      } catch (err) {
+        console.error(`退款异常 (User: ${user.id}):`, err);
       }
     };
 
     // ═══════════════════════════════════════════════════════
     // 分支：融合 vs retouch
+    // 所有后置逻辑包在 try/finally 里：任何未显式退款的失败路径
+    // 都会在 finally 里兜底退款（refundOnFailure 幂等）。
     // ═══════════════════════════════════════════════════════
-    let geminiResult: any;
-    let matchInfo: MatchResult | null = null;
+    let success = false;
+    try {
+    // ─── Resolve original_storage_key (shared across variants) ─────
+    // scan_id path: scanner already uploaded the original.
+    // Legacy path: upload now (non-blocking — DB row can have null key).
+    const ts = Date.now();
+    let originalStorageKey: string | null = null;
 
-    if (useFusion) {
-      // ── 融合路径 ──
+    if (rawScanId) {
+      const { data: scanRow } = await supabaseAdmin
+        .from('photo_scans')
+        .select('original_storage_key')
+        .eq('id', rawScanId)
+        .maybeSingle();
+      originalStorageKey = scanRow?.original_storage_key ?? null;
+    } else {
+      try {
+        const candidateKey = `${user.id}/${ts}.jpg`;
+        const originalBuffer = Buffer.from(imageBase64, 'base64');
+        const { error: origUploadError } = await supabaseAdmin.storage
+          .from(ORIGINAL_BUCKET)
+          .upload(candidateKey, originalBuffer, { contentType: mimeType, upsert: false });
+        if (origUploadError) {
+          console.error('Original upload error (non-blocking):', origUploadError.message);
+        } else {
+          originalStorageKey = candidateKey;
+        }
+      } catch (origErr) {
+        console.error('Original upload exception (non-blocking):', origErr);
+      }
+    }
+
+    // ─── Generate variants ─────────────────────────────────────────
+    const groupId = randomUUID();
+    const ENGINE = 'gemini-2.5-flash-image';
+    let appliedMode: 'fusion' | 'retouch' = useFusion ? 'fusion' : 'retouch';
+    let variants: VariantOutput[] = [];
+
+    if (appliedMode === 'fusion') {
       const tags = extractSceneTags(analysisResult);
       if (!tags) {
-        console.warn('⚠️  useFusion=true but no scene_tags in analysisResult, falling back to retouch');
-        try {
-          geminiResult = await callGeminiRetouch(imageBase64, mimeType, analysisResult);
-        } catch (geminiError) {
-          await refundOnFailure('generation_failed');
-          throw geminiError;
-        }
+        console.warn('⚠️ fusion requested but no scene_tags; falling back to retouch');
+        appliedMode = 'retouch';
       } else {
-        try {
-          // 1. 匹配场景
-          const library = loadSceneLibrary();
-          matchInfo = matchScene(tags, library);
-          console.log(`🎯 matched: ${matchInfo.scene.id} (relax L${matchInfo.relaxation_level}, score ${matchInfo.score})`);
-          matchInfo.reasoning.forEach(r => console.log(`   ${r}`));
+        const library = loadSceneLibrary();
+        const matches = matchScenesTop3(tags, library);
+        if (matches.length === 0) {
+          console.warn('⚠️ matchScenesTop3 returned 0; falling back to retouch');
+          appliedMode = 'retouch';
+        } else {
+          console.log(`🎯 top-${matches.length} matched: ${matches.map(m => m.scene.id).join(', ')}`);
+          matches[0].reasoning.forEach(r => console.log(`   ${r}`));
 
-          // 2. 读场景图
-          const { buffer: sceneBuffer, mime: sceneMime } = loadSceneImage(matchInfo.scene.file);
-
-          // 3. 前置色温校正
-          const userBuffer = Buffer.from(imageBase64, 'base64');
-          // const alignedUserBuffer = await preAlignColorTemperature(userBuffer, sceneBuffer);
-          const alignedUserBase64 = userBuffer.toString('base64');
-
-          // 4. 构造融合 prompt
           const rawFixPlan = extractFixPlan(analysisResult) ?? DEFAULT_FIX_PLAN;
           const fixPlan = sanitizeFixPlan(rawFixPlan);
-          const fusionPrompt = buildFusionPrompt(tags, matchInfo.scene, fixPlan);
+          const userBase64 = Buffer.from(imageBase64, 'base64').toString('base64');
 
-          // 5. 调 Gemini
-          geminiResult = await callGeminiFusion(
-            alignedUserBase64, 'image/jpeg',
-            sceneBuffer.toString('base64'), sceneMime,
-            fusionPrompt,
-          );
-        } catch (fusionError) {
-          console.error('融合失败:', fusionError);
-          await refundOnFailure('fusion_failed');
-          throw fusionError;
-        }
-      }
-    } else {
-      // ── retouch 路径（保留现有行为） ──
-      try {
-        geminiResult = await callGeminiRetouch(imageBase64, mimeType, analysisResult);
-      } catch (geminiError) {
-        await refundOnFailure('generation_failed');
-        throw geminiError;
-      }
-    }
+          // Fire all Gemini calls in parallel
+          const geminiPromises = matches.map(async (match) => {
+            const { buffer: sceneBuffer, mime: sceneMime } = loadSceneImage(match.scene.file);
+            const fusionPrompt = buildFusionPrompt(tags, match.scene, fixPlan);
+            return callGeminiFusion(
+              userBase64, 'image/jpeg',
+              sceneBuffer.toString('base64'), sceneMime,
+              fusionPrompt,
+            );
+          });
+          const settled = await Promise.allSettled(geminiPromises);
 
-    const parts = geminiResult.candidates?.[0]?.content?.parts ?? [];
-    const imagePart = parts.find((p: any) => p.inlineData);
-
-    if (!imagePart?.inlineData) {
-      await refundOnFailure('no_image_returned');
-      return new Response(JSON.stringify({ error: "No image returned from AI" }), { status: 500 });
-    }
-
-    const cleanMime: string = imagePart.inlineData.mimeType ?? "image/png";
-    const rawBase64: string = imagePart.inlineData.data;
-    const generatedBuffer = Buffer.from(rawBase64, 'base64');
-
-    // ═══════════════════════════════════════════════════════
-    // 注意：融合路径不再做后处理色温校正（色温已经前置对齐）
-    //      retouch 路径保留原逻辑（后处理拉回原图色温）
-    // ═══════════════════════════════════════════════════════
-    let finalBuffer = generatedBuffer;
-
-    if (!useFusion) {
-      // 仅 retouch 路径做后处理色温校正
-      const fixPlan = extractFixPlan(analysisResult);
-      const activeColorGrades = ['warm_tone', 'cool_tone'];
-      const shouldCorrect = !fixPlan || !activeColorGrades.includes(fixPlan.color_grade);
-
-      if (shouldCorrect) {
-        try {
-          const originalBuffer = Buffer.from(imageBase64, 'base64');
-          const origStats = await sharp(originalBuffer).stats();
-          const genStats = await sharp(generatedBuffer).stats();
-
-          const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
-          const scaleR = clamp(origStats.channels[0].mean / (genStats.channels[0].mean || 1), 0.8, 1.2);
-          const scaleG = clamp(origStats.channels[1].mean / (genStats.channels[1].mean || 1), 0.8, 1.2);
-          const scaleB = clamp(origStats.channels[2].mean / (genStats.channels[2].mean || 1), 0.8, 1.2);
-
-          const maxDrift = Math.max(Math.abs(scaleR - 1), Math.abs(scaleG - 1), Math.abs(scaleB - 1));
-          if (maxDrift >= 0.02) {
-            const corrected = await sharp(generatedBuffer)
-              .recomb([[scaleR, 0, 0], [0, scaleG, 0], [0, 0, scaleB]])
-              .toBuffer();
-            finalBuffer = Buffer.from(corrected as any);
-            console.log(`🎨 retouch post-correct: R×${scaleR.toFixed(3)} G×${scaleG.toFixed(3)} B×${scaleB.toFixed(3)}`);
-          }
-        } catch (colorErr) {
-          console.error('🎨 色温校正失败:', colorErr);
+          // Process each successful Gemini result through processVariant.
+          // Each variant has its own try/catch so a single bad output
+          // (safety block, upload error) doesn't sink the whole batch.
+          const variantPromises = settled.map(async (result, idx) => {
+            const sceneId = matches[idx].scene.id;
+            if (result.status === 'rejected') {
+              console.warn(`[fusion] variant ${idx} (${sceneId}) gemini failed:`, result.reason?.message ?? result.reason);
+              return null;
+            }
+            try {
+              return await processVariant({
+                geminiResult: result.value,
+                userId: user.id,
+                isFreeTrial,
+                scanId: rawScanId ?? null,
+                groupId,
+                variantIndex: idx,
+                mode: 'fusion',
+                engine: ENGINE,
+                matchInfo: matches[idx],
+                userImageBase64: imageBase64,
+                sharedOriginalKey: originalStorageKey,
+                ts,
+                analysisResult,
+              });
+            } catch (procErr) {
+              console.warn(`[fusion] variant ${idx} (${sceneId}) process failed:`, (procErr as Error).message);
+              return null;
+            }
+          });
+          const variantResults = await Promise.all(variantPromises);
+          variants = variantResults.filter((v): v is VariantOutput => v !== null);
+          console.log(`🖼️  fusion produced ${variants.length}/${matches.length} variants`);
         }
       }
     }
 
-    // ── 水印（仅首次免费试用） ──
-    let watermarkedBase64: string | null = null;
-    if (isFreeTrial) {
-      const watermarkedBuffer = await addWatermarkServer(finalBuffer);
-      watermarkedBase64 = watermarkedBuffer.toString('base64');
-    }
-
-    const finalBase64 = finalBuffer.toString('base64');
-
-    // ── 上传融合图 ──
-    const ts = Date.now();
-    const enhancedKey = `${user.id}/${ts}.png`;
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(ENHANCED_BUCKET)
-      .upload(enhancedKey, finalBuffer, {
-        contentType: cleanMime,
-        upsert: false,
+    if (appliedMode === 'retouch') {
+      const geminiResult = await callGeminiRetouch(imageBase64, mimeType, analysisResult);
+      const v = await processVariant({
+        geminiResult,
+        userId: user.id,
+        isFreeTrial,
+        scanId: rawScanId ?? null,
+        groupId,
+        variantIndex: 0,
+        mode: 'retouch',
+        engine: ENGINE,
+        matchInfo: null,
+        userImageBase64: imageBase64,
+        sharedOriginalKey: originalStorageKey,
+        ts,
+        analysisResult,
       });
-    if (uploadError) {
-      console.error("Enhanced upload error:", uploadError);
-      return new Response(JSON.stringify({ error: "Failed to store enhanced photo" }), { status: 500 });
+      variants = [v];
     }
 
-    // ── 上传原图（新增，失败不阻塞主流程） ──
-    let originalKey: string | null = null;
-    try {
-      originalKey = `${user.id}/${ts}.jpg`;
-      const originalBuffer = Buffer.from(imageBase64, 'base64');
-      const { error: origUploadError } = await supabaseAdmin.storage
-        .from(ORIGINAL_BUCKET)
-        .upload(originalKey, originalBuffer, {
-          contentType: mimeType,
-          upsert: false,
-        });
-      if (origUploadError) {
-        console.error("Original upload error (non-blocking):", origUploadError);
-        originalKey = null;
-      }
-    } catch (origErr) {
-      console.error("Original upload exception (non-blocking):", origErr);
-      originalKey = null;
-    }
-
-    // ── 写 photo_enhancements 记录 ──
-    const { data: enhRecord, error: dbError } = await supabaseAdmin
-      .from('photo_enhancements')
-      .insert({
-        user_id: user.id,
-        storage_key: enhancedKey,
-        original_storage_key: originalKey,
-        mime_type: cleanMime,
-        is_free_trial: isFreeTrial,
-        downloaded: false,
-      })
-      .select('id')
-      .single();
-
-    if (dbError || !enhRecord) {
-      await supabaseAdmin.storage.from(ENHANCED_BUCKET).remove([enhancedKey]);
-      if (originalKey) await supabaseAdmin.storage.from(ORIGINAL_BUCKET).remove([originalKey]);
-      console.error("DB insert error:", dbError);
-      return new Response(JSON.stringify({ error: "Failed to record enhancement" }), { status: 500 });
+    if (variants.length === 0) {
+      // All variants failed. Let finally refund and outer catch shape response.
+      throw new Error('All variants failed to generate');
     }
 
     if (isFreeTrial) {
       await supabase
-        .from("customers")
+        .from('customers')
         .update({ free_enhance_used: true })
-        .eq("user_id", user.id);
+        .eq('user_id', user.id);
     }
 
+    success = true;
+    const first = variants[0];
     return new Response(
       JSON.stringify({
         success: true,
-        enhancementId: enhRecord.id,
-        watermarkedImage: isFreeTrial ? watermarkedBase64 : finalBase64,
-        mimeType: 'image/png',
+        // Legacy top-level fields (mirror first variant) for back-compat
+        enhancementId: first.enhancementId,
+        watermarkedImage: first.clientImage,
+        mimeType: first.mimeType,
+        fusion: appliedMode === 'fusion',
+        matchedScene: first.matchedScene,
+        // Shared
         creditsRemaining,
         isFreeTrial,
         isSubscribed,
         downloadFree: !isFreeTrial,
-        fusion: useFusion && !!matchInfo,
-        matchedScene: matchInfo?.scene.id ?? null,
+        // New: full variants (length 1 for retouch, up to 3 for fusion)
+        mode: appliedMode,
+        groupId,
+        variants: variants.map(v => ({
+          enhancementId: v.enhancementId,
+          image: v.clientImage,
+          mimeType: v.mimeType,
+          matchedScene: v.matchedScene,
+          variantIndex: v.variantIndex,
+        })),
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
+    } finally {
+      if (!success) {
+        await refundOnFailure('post_deduction_failure');
+      }
+    }
 
   } catch (error) {
     const err = error as Error;
     console.error("enhance-photo error:", err);
+    const c = classifyUpstreamError(err);
     return new Response(
-      JSON.stringify({ error: err.message || "Internal Server Error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({
+        error: c.userMsg,
+        code: c.code,
+        retryable: c.retryable,
+      }),
+      { status: c.status, headers: { "Content-Type": "application/json" } }
     );
   }
 }

@@ -11,16 +11,23 @@ const PRODUCT_IDS = {
   PACK_PRO:     process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_PRO!,
 };
 
+// Pricing model:
+//   Each "enhancement" generates 3 different scene variations to choose from.
+//   Subscribers pay 25 credits per enhancement.
+//   Non-subscribers (credit-pack only) pay 40 credits per enhancement.
+//
+// Tier credit allocations are unchanged from launch — the copy below
+// reflects how those credits map to the new 3-variant model.
 export const SUBSCRIPTION_TIERS: ProductTier[] = [
   {
     name: "Starter",
     id: "tier-starter",
     productId: PRODUCT_IDS.STARTER,
     priceMonthly: "$6.99",
-    description: "Fix your worst photos and start getting more matches.",
+    description: "Try the full experience — perfect for fixing one standout photo.",
     features: [
       "40 Credits per month",
-      "Enhance up to 2 photos with AI",
+      "1 photo enhancement (3 scene options)",
       "Unlimited watermark-free downloads",
       "AI photo analysis included free",
       "Credits never expire",
@@ -36,10 +43,10 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
     description: "Optimize your entire profile — the #1 choice for serious daters.",
     features: [
       "200 Credits per month",
-      "Enhance up to 10 photos with AI",
+      "8 photo enhancements (3 scenes each)",
       "Unlimited watermark-free downloads",
       "AI photo analysis included free",
-      "Save $1.50/photo vs credit packs",
+      "Save $1.50/enhancement vs credit packs",
       "Credits never expire",
     ],
     featured: true,
@@ -53,10 +60,10 @@ export const SUBSCRIPTION_TIERS: ProductTier[] = [
     description: "For power users, dating coaches, and profile makeover pros.",
     features: [
       "500 Credits per month",
-      "Enhance up to 25 photos with AI",
+      "20 photo enhancements (3 scenes each)",
       "Unlimited watermark-free downloads",
       "AI photo analysis included free",
-      "Best per-photo value",
+      "Best per-enhancement value",
       "Credits never expire",
     ],
     featured: false,
@@ -69,12 +76,12 @@ export const CREDITS_TIERS: ProductTier[] = [
     name: "Starter Pack",
     id: "pack-75-credits",
     productId: PRODUCT_IDS.PACK_STARTER,
-    priceMonthly: "$9.99", 
-    description: "Try it out — enough for 3 full photo enhancements.",
+    priceMonthly: "$9.99",
+    description: "One-shot top-up — enough for a single 3-scene enhancement.",
     creditAmount: 75,
     features: [
       "75 Credits",
-      "Enhance up to 3 photos",
+      "1 photo enhancement (3 scene options)",
       "Watermark-free downloads included",
       "Credits never expire",
     ],
@@ -90,7 +97,7 @@ export const CREDITS_TIERS: ProductTier[] = [
     creditAmount: 200,
     features: [
       "200 Credits",
-      "Enhance up to 8 photos",
+      "5 photo enhancements (3 scenes each)",
       "Watermark-free downloads included",
       "Credits never expire",
     ],
@@ -106,9 +113,9 @@ export const CREDITS_TIERS: ProductTier[] = [
     creditAmount: 500,
     features: [
       "500 Credits",
-      "Enhance up to 20 photos",
+      "12 photo enhancements (3 scenes each)",
       "Watermark-free downloads included",
-      "Lowest cost per photo",
+      "Lowest cost per enhancement",
       "Credits never expire",
     ],
     featured: false,

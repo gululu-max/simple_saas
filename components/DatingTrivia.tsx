@@ -6,6 +6,10 @@ import { TRIVIA_QUESTIONS, type TriviaQuestion, type TriviaOption } from '@/lib/
 
 const FEEDBACK_HOLD_MS = 2000;
 const INTERRUPT_HOLD_MS = 1100;
+// Debounce: tolerate brief active=false glitches (e.g. between isLoading
+// flipping false and isEnhancing flipping true) without aborting the
+// in-flight question.
+const INTERRUPT_DEBOUNCE_MS = 350;
 
 type TrackFn = (event: string, params?: Record<string, any>) => void;
 
@@ -28,9 +32,29 @@ export default function DatingTrivia({ active, onTrack }: Props) {
 
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const interruptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const interruptDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentRef = useRef<TriviaQuestion | null>(null);
   const selectedRef = useRef<TriviaOption | null>(null);
   const onTrackRef = useRef<TrackFn | undefined>(onTrack);
+
+  // Schedule "advance to next question" after FEEDBACK_HOLD_MS. Stable across
+  // re-renders so the activation effect can call it to repair an aborted
+  // advance (e.g. after a brief active=false flicker).
+  const scheduleAdvance = useCallback(() => {
+    if (advanceTimer.current) return;
+    advanceTimer.current = setTimeout(() => {
+      const cur = currentRef.current;
+      if (!cur) {
+        advanceTimer.current = null;
+        return;
+      }
+      const next = pickRandom(cur.id);
+      setCurrent(next);
+      setSelected(null);
+      onTrackRef.current?.('trivia_shown', { question_id: next.id });
+      advanceTimer.current = null;
+    }, FEEDBACK_HOLD_MS);
+  }, []);
 
   useEffect(() => { currentRef.current = current; }, [current]);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
@@ -38,6 +62,12 @@ export default function DatingTrivia({ active, onTrack }: Props) {
 
   useEffect(() => {
     if (active) {
+      // Cancel any pending interrupt — parent came back online before we
+      // committed to tearing the question down.
+      if (interruptDebounceTimer.current) {
+        clearTimeout(interruptDebounceTimer.current);
+        interruptDebounceTimer.current = null;
+      }
       if (interruptTimer.current) {
         clearTimeout(interruptTimer.current);
         interruptTimer.current = null;
@@ -47,11 +77,24 @@ export default function DatingTrivia({ active, onTrack }: Props) {
         const first = pickRandom();
         setCurrent(first);
         onTrackRef.current?.('trivia_shown', { question_id: first.id });
+      } else if (selectedRef.current && !advanceTimer.current) {
+        // Selected an answer, but our advance timer was cleared by an
+        // earlier interrupt-debounce cycle. Re-arm so the user isn't
+        // stranded on the feedback screen forever.
+        scheduleAdvance();
       }
       return;
     }
 
-    if (currentRef.current && !interrupting) {
+    if (!currentRef.current || interrupting) return;
+
+    // Debounce: only trigger the interrupt sequence if active stays false
+    // for longer than INTERRUPT_DEBOUNCE_MS. Brief flickers (state
+    // transitions in the parent) shouldn't tear down the question.
+    if (interruptDebounceTimer.current) clearTimeout(interruptDebounceTimer.current);
+    interruptDebounceTimer.current = setTimeout(() => {
+      interruptDebounceTimer.current = null;
+      if (!currentRef.current) return;
       onTrackRef.current?.('trivia_interrupted', {
         question_id: currentRef.current.id,
         had_selection: !!selectedRef.current,
@@ -67,7 +110,7 @@ export default function DatingTrivia({ active, onTrack }: Props) {
         setInterrupting(false);
         interruptTimer.current = null;
       }, INTERRUPT_HOLD_MS);
-    }
+    }, INTERRUPT_DEBOUNCE_MS);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
@@ -75,6 +118,7 @@ export default function DatingTrivia({ active, onTrack }: Props) {
     return () => {
       if (advanceTimer.current) clearTimeout(advanceTimer.current);
       if (interruptTimer.current) clearTimeout(interruptTimer.current);
+      if (interruptDebounceTimer.current) clearTimeout(interruptDebounceTimer.current);
     };
   }, []);
 
@@ -85,14 +129,8 @@ export default function DatingTrivia({ active, onTrack }: Props) {
       question_id: current.id,
       option_id: opt.id,
     });
-    advanceTimer.current = setTimeout(() => {
-      const next = pickRandom(current.id);
-      setCurrent(next);
-      setSelected(null);
-      onTrackRef.current?.('trivia_shown', { question_id: next.id });
-      advanceTimer.current = null;
-    }, FEEDBACK_HOLD_MS);
-  }, [selected, current]);
+    scheduleAdvance();
+  }, [selected, current, scheduleAdvance]);
 
   if (!active && !interrupting) return null;
   if (interrupting) {

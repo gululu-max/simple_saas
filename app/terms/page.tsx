@@ -53,7 +53,7 @@ export default function TermsPage() {
               By using our service, you agree to these terms and conditions.
             </p>
             <p className="text-sm text-muted-foreground">
-              <strong>Effective Date:</strong> March 6, 2026
+              <strong>Effective Date:</strong> April 25, 2026
             </p>
           </div>
 
@@ -147,12 +147,83 @@ export default function TermsPage() {
                     <XCircle className="h-4 w-4" /> Prohibited Activities
                   </h4>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li>• Uploading highly sensitive, illegal, or non-consensual explicit content</li>
+                    <li>• Uploading or processing <strong>NSFW, pornographic, sexually explicit, or sexually suggestive</strong> content of any kind</li>
+                    <li>• Uploading nude, partially nude, or otherwise sexualized imagery (real, AI-generated, or stylized)</li>
+                    <li>• Uploading any content depicting minors in a sexual, suggestive, or otherwise inappropriate context (zero tolerance)</li>
+                    <li>• Uploading non-consensual intimate imagery, deepfakes, or images of any person without their permission</li>
+                    <li>• Uploading illegal content, hate speech, gore, or content that violates third-party rights</li>
                     <li>• Using the service to harass, dox, bully, or stalk individuals</li>
-                    <li>• Attempting to reverse-engineer our AI prompts</li>
+                    <li>• Attempting to reverse-engineer our AI prompts or bypass safety filters</li>
                     <li>• Using automated tools to bulk-generate requests</li>
                   </ul>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Acceptable Use Policy — Content Restrictions */}
+          <div className="space-y-8">
+            <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-8">
+              <h3 className="text-2xl font-bold mb-6 flex items-center gap-3 text-red-800">
+                <XCircle className="h-6 w-6" />
+                Acceptable Use Policy — Content Restrictions
+              </h3>
+
+              <div className="space-y-4 text-muted-foreground">
+                <p className="font-semibold text-red-900">
+                  Matchfix is a strictly safe-for-work (SFW) service. The following content is
+                  expressly prohibited from being uploaded, processed, generated, or distributed
+                  through our platform:
+                </p>
+
+                <ul className="space-y-2">
+                  <li>
+                    • <strong>NSFW, pornographic, or sexually explicit content</strong> of any kind,
+                    including but not limited to nudity, partial nudity, sexual acts, sexually
+                    suggestive poses, fetish content, or erotic material.
+                  </li>
+                  <li>
+                    • Any content sexualizing or depicting <strong>minors</strong> (anyone under
+                    18). This includes real, AI-generated, illustrated, animated, or otherwise
+                    stylized depictions. We have a <strong>zero-tolerance policy</strong> for
+                    Child Sexual Abuse Material (CSAM); such content will be reported to the
+                    National Center for Missing &amp; Exploited Children (NCMEC) and law
+                    enforcement.
+                  </li>
+                  <li>
+                    • <strong>Non-consensual intimate imagery</strong> (&ldquo;revenge porn&rdquo;),
+                    deepfakes, face-swaps, or any photo of a person uploaded without their
+                    explicit consent.
+                  </li>
+                  <li>
+                    • Content intended to <strong>sexualize, objectify, or harass</strong> any
+                    individual.
+                  </li>
+                  <li>
+                    • Content that is illegal, promotes violence, terrorism, self-harm, or
+                    contains hate speech, gore, or graphic violence.
+                  </li>
+                  <li>
+                    • Content that infringes on intellectual property, privacy, or publicity
+                    rights of any third party.
+                  </li>
+                </ul>
+
+                <p>
+                  We deploy automated content moderation and may also conduct manual review.
+                  We reserve the right to <strong>refuse processing, remove content, suspend or
+                  terminate accounts, withhold refunds, and report violations</strong> to
+                  payment processors and law enforcement, at our sole discretion and without
+                  prior notice. Violations of this Acceptable Use Policy may also result in
+                  permanent bans from the Service.
+                </p>
+
+                <p>
+                  By uploading any image, you represent and warrant that (a) the content does
+                  not violate this policy, (b) you have all necessary rights and consents from
+                  any person depicted, and (c) the subject of the image is at least 18 years
+                  of age.
+                </p>
               </div>
             </div>
           </div>

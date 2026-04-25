@@ -76,12 +76,14 @@ function scoreScene(userTags: SceneTags, scene: SceneEntry): number {
   return score;
 }
 
-export function matchScene(
-  userTags: SceneTags,
-  library: SceneEntry[],
-  options: { topN?: number } = {},
-): MatchResult {
-  const topN = options.topN ?? 3;
+// ─── Internal: gather candidates with progressive relaxation ──────
+interface GatheredCandidates {
+  candidates: SceneEntry[];
+  relaxation: number;
+  reasoning: string[];
+}
+
+function gatherCandidates(userTags: SceneTags, library: SceneEntry[]): GatheredCandidates {
   const reasoning: string[] = [];
 
   let candidates = library.filter(s =>
@@ -126,6 +128,18 @@ export function matchScene(
     reasoning.push(`Level 4 (full library): ${candidates.length} candidates — tag system has holes`);
   }
 
+  return { candidates, relaxation, reasoning };
+}
+
+// ─── Single match (kept for legacy callers, e.g. scripts/scene-fusion-test) ─
+export function matchScene(
+  userTags: SceneTags,
+  library: SceneEntry[],
+  options: { topN?: number } = {},
+): MatchResult {
+  const topN = options.topN ?? 3;
+  const { candidates, relaxation, reasoning } = gatherCandidates(userTags, library);
+
   const scored = candidates.map(s => ({ scene: s, score: scoreScene(userTags, s) }));
   scored.sort((a, b) => b.score - a.score);
   const topK = scored.slice(0, Math.min(topN, scored.length));
@@ -141,4 +155,56 @@ export function matchScene(
     score: chosen.score,
     reasoning,
   };
+}
+
+// ─── Top-3 diverse match (used by 3-variant fusion mode) ───────────
+// Returns up to 3 scenes prioritising different scene_category, falling
+// back to filling from the remaining pool if we can't get 3 distinct
+// categories. Each is wrapped in its own MatchResult so the caller can
+// log/track them individually.
+export function matchScenesTop3(
+  userTags: SceneTags,
+  library: SceneEntry[],
+): MatchResult[] {
+  const { candidates, relaxation, reasoning } = gatherCandidates(userTags, library);
+
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  // Score and sort high-to-low. Add small jitter so equal-score ties don't
+  // always resolve in the same library order across requests.
+  const scored = candidates
+    .map(s => ({ scene: s, score: scoreScene(userTags, s) + Math.random() * 0.01 }))
+    .sort((a, b) => b.score - a.score);
+
+  // First pass: greedy pick by category diversity.
+  const picked: typeof scored = [];
+  const usedCategories = new Set<string>();
+  for (const item of scored) {
+    if (usedCategories.has(item.scene.scene_category)) continue;
+    picked.push(item);
+    usedCategories.add(item.scene.scene_category);
+    if (picked.length >= 3) break;
+  }
+
+  // Second pass: if fewer than 3 categories available, fill from highest
+  // remaining scores regardless of category.
+  if (picked.length < 3) {
+    for (const item of scored) {
+      if (picked.find(p => p.scene.id === item.scene.id)) continue;
+      picked.push(item);
+      if (picked.length >= 3) break;
+    }
+  }
+
+  const summary = `Top-3 picks: [${picked.map(p => `${p.scene.id}(${p.score.toFixed(1)})`).join(', ')}]`;
+
+  return picked.map((item, idx) => ({
+    scene: item.scene,
+    candidates_count: candidates.length,
+    relaxation_level: relaxation,
+    score: Math.round(item.score),
+    reasoning: idx === 0 ? [...reasoning, summary] : [summary],
+  }));
 }

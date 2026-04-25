@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useCompletion } from 'ai/react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
@@ -107,7 +107,7 @@ export default function BoostScanner() {
   // [v9.2] Auto-start & credit confirm states
   const [autoStartChecking, setAutoStartChecking] = useState(false);
   const [showCreditConfirm, setShowCreditConfirm] = useState(false);
-  const [requiredCredits, setRequiredCredits] = useState(25);
+  const [requiredCredits, setRequiredCredits] = useState(40);
 
   // [v9.3] Result Showcase Modal state
   const [showResultShowcase, setShowResultShowcase] = useState(false);
@@ -124,6 +124,26 @@ export default function BoostScanner() {
   // [fusion] 融合开关 — 默认开启，用户可勾掉切回纯 retouch
   const [useFusion, setUseFusion] = useState(true);
   const [sceneTags, setSceneTags] = useState<string | null>(null);
+
+  // [scan_id] Server-side scan reference returned by the scanner. When
+  // present, enhance-photo loads the original + analysis from DB instead
+  // of re-uploading them.
+  const [scanId, setScanId] = useState<string | null>(null);
+
+  // [variants] Full variant array from enhance-photo response. Length 1
+  // for retouch, up to 3 for fusion. The "currently shown" variant is
+  // tracked via selectedVariantIndex; watermarkedImage/enhancementId/
+  // enhancedMimeType above mirror variants[selectedVariantIndex] so the
+  // existing display + download paths keep working unchanged.
+  type VariantData = {
+    enhancementId: string;
+    image: string;
+    mimeType: string;
+    matchedScene: string | null;
+    variantIndex: number;
+  };
+  const [variants, setVariants] = useState<VariantData[] | null>(null);
+  const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
 
   const hasActiveResult = !!(preview && (visibleText || watermarkedImage || isGuestEnhanced));
   const showEnhanced = !!(watermarkedImage || isGuestEnhanced);
@@ -166,11 +186,20 @@ export default function BoostScanner() {
     const savedMimeType = safeGetItem(sessionStorage, 'mf_enhancedMimeType');
     const savedFreeTrial = safeGetItem(sessionStorage, 'mf_isFreeGeneration');
     const savedDownloadFree = safeGetItem(sessionStorage, 'mf_isDownloadFree');
+    const savedScanId = safeGetItem(sessionStorage, 'mf_scan_id');
+    const savedVariants = safeGetItem(sessionStorage, 'mf_variants');
     if (savedWatermarked && savedEnhancementId) {
       setWatermarkedImage(savedWatermarked); setEnhancementId(savedEnhancementId);
       if (savedMimeType) setEnhancedMimeType(savedMimeType);
       setIsFreeGeneration(savedFreeTrial === 'true'); setIsDownloadFree(savedDownloadFree === 'true');
       setSliderIndex(1); setSelectedPanel('enhanced');
+    }
+    if (savedScanId) setScanId(savedScanId);
+    if (savedVariants) {
+      try {
+        const parsed = JSON.parse(savedVariants) as VariantData[];
+        if (Array.isArray(parsed) && parsed.length > 0) setVariants(parsed);
+      } catch { /* ignore */ }
     }
     if (guestFlag === 'true' && savedPreview) {
       const supabase = createClient();
@@ -189,13 +218,32 @@ export default function BoostScanner() {
 
       // [v9.4] 如果是从 Showcase 发起的支付,自动触发下载,不需要用户再点
       const pendingDownloadId = safeGetItem(sessionStorage, 'mf_showcase_pending_download');
-      if (pendingDownloadId) {
+      const pendingGroup = safeGetItem(sessionStorage, 'mf_showcase_pending_download_group');
+      if (pendingDownloadId || pendingGroup) {
         safeRemoveItem(sessionStorage, 'mf_showcase_pending_download');
+        safeRemoveItem(sessionStorage, 'mf_showcase_pending_download_group');
         safeRemoveItem(sessionStorage, 'mf_payment_just_completed');
-        trackEvent('showcase_payment_auto_download');
+        // Plan B: prefer the full group list when available so the user
+        // gets all 3 looks for a single $1.99 unlock.
+        let ids: string[] = [];
+        if (pendingGroup) {
+          try {
+            const arr = JSON.parse(pendingGroup);
+            if (Array.isArray(arr)) ids = arr.filter((x: unknown): x is string => typeof x === 'string');
+          } catch { /* ignore */ }
+        }
+        if (ids.length === 0 && pendingDownloadId) ids = [pendingDownloadId];
+        trackEvent('showcase_payment_auto_download', { count: ids.length });
         // 延迟一下,等 credits 状态更新到位
         setTimeout(() => {
-          window.location.href = `/api/download/${pendingDownloadId}`;
+          ids.forEach((id, idx) => setTimeout(() => {
+            const a = document.createElement('a');
+            a.href = `/api/download/${id}`;
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }, idx * 250));
           dispatchCreditsUpdate();
         }, 800);
       }
@@ -237,14 +285,31 @@ export default function BoostScanner() {
   }, [isCompact]);
 
   // ── Reset ──────────────────────────────────────────────────
+  // Switch which variant is currently shown. Updates derived display +
+  // download state so the existing slider / lightbox / download paths
+  // pick up the new variant without further changes.
+  const selectVariant = useCallback((idx: number) => {
+    if (!variants || idx < 0 || idx >= variants.length) return;
+    const v = variants[idx];
+    setSelectedVariantIndex(idx);
+    setWatermarkedImage(v.image);
+    setEnhancementId(v.enhancementId);
+    setEnhancedMimeType(v.mimeType ?? 'image/png');
+    safeSetItem(sessionStorage, 'mf_watermarkedImage', v.image);
+    safeSetItem(sessionStorage, 'mf_enhancementId', v.enhancementId);
+    safeSetItem(sessionStorage, 'mf_enhancedMimeType', v.mimeType ?? 'image/png');
+    trackEvent('variant_selected', { variantIndex: idx, matchedScene: v.matchedScene });
+  }, [variants]);
+
   const handleReset = useCallback(() => {
     setPreview(null); setWatermarkedImage(null); setEnhancementId(null); setIsGuestEnhanced(false); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setVisibleText(''); setAnalysisJSON(null); setSelectedPanel('original'); setLightboxOpen(false); setLightboxIndex(0);
+    setVariants(null); setSelectedVariantIndex(0); setScanId(null);
     // [v9.2] clear auto-start states
     setAutoStartChecking(false); setShowCreditConfirm(false);
     // [v9.3] clear showcase state
     setShowResultShowcase(false); setShowcaseSlideIndex(1);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_scene_tags', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed', 'mf_showcase_pending_download'].forEach(k => safeRemoveItem(sessionStorage, k));
+    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_scene_tags', 'mf_scan_id', 'mf_variants', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed', 'mf_showcase_pending_download'].forEach(k => safeRemoveItem(sessionStorage, k));
     ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => safeRemoveItem(localStorage, k));
     trackEvent('boost_image_reset');
     const hero = document.getElementById('scanner-hero');
@@ -300,34 +365,80 @@ export default function BoostScanner() {
   // ── Enhance ────────────────────────────────────────────────
   const handleEnhance = async (jsonFromFinish?: string | null, textFromFinish?: string) => {
     if (!preview) return;
-    const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); safeSetItem(sessionStorage, 'mf_pending_enhance', 'true'); safeSetItem(localStorage, 'mf_pending_enhance', 'true'); safeSetItem(localStorage, 'mf_guest_enhanced', 'true'); if (preview) safeSetItem(localStorage, 'mf_preview', preview); if (analysisJSON) safeSetItem(localStorage, 'mf_analysisJSON', analysisJSON); if (visibleText) safeSetItem(localStorage, 'mf_visibleText', visibleText); return; }
+    // getSession() reads from local storage (no network), so it's resilient to transient
+    // fetch failures. Server-side /api/enhance-photo will re-validate via getUser() and
+    // return LOGIN_REQUIRED if the session is actually invalid.
+    const supabase = createClient(); const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); safeSetItem(sessionStorage, 'mf_pending_enhance', 'true'); safeSetItem(localStorage, 'mf_pending_enhance', 'true'); safeSetItem(localStorage, 'mf_guest_enhanced', 'true'); if (preview) safeSetItem(localStorage, 'mf_preview', preview); if (analysisJSON) safeSetItem(localStorage, 'mf_analysisJSON', analysisJSON); if (visibleText) safeSetItem(localStorage, 'mf_visibleText', visibleText); return; }
     setIsEnhancing(true); setEnhanceError(null); trackEvent('enhance_start_click');
     try {
+      // Prefer scan_id when available (server-side state). Fall back to
+      // legacy imageBase64 + analysisResult so older sessions still work.
+      const currentScanId = scanId ?? safeGetItem(sessionStorage, 'mf_scan_id');
       const res = await fetch('/api/enhance-photo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageBase64: preview.split(',')[1],
-          mimeType: 'image/jpeg',
-          analysisResult: jsonFromFinish ?? analysisJSON ?? textFromFinish ?? visibleText ?? '',
-          useFusion,  // ← 新增
+          ...(currentScanId
+            ? { scanId: currentScanId }
+            : {
+                imageBase64: preview.split(',')[1],
+                mimeType: 'image/jpeg',
+                analysisResult: jsonFromFinish ?? analysisJSON ?? textFromFinish ?? visibleText ?? '',
+              }),
+          useFusion,
         })
       });
       const data = await res.json();
       if (!res.ok) {
         if (data.code === 'INSUFFICIENT_CREDITS') { setActiveModal('enhance'); return; }
+
+        // Route transient upstream failures (overload / timeout / no-image-retryable)
+        // to ai_busy with auto-countdown; only true content issues (SAFETY_BLOCKED /
+        // generic INTERNAL_ERROR) keep the "try a clearer portrait" modal.
         const msg = data.error || 'Unknown error';
+        const isRetryable =
+          data.retryable === true ||
+          data.code === 'UPSTREAM_OVERLOADED' ||
+          data.code === 'UPSTREAM_TIMEOUT' ||
+          data.code === 'MODEL_OVERLOADED';
+
+        if (isRetryable) {
+          setSliderIndex(0);
+          setSelectedPanel('original');
+          setIsGuestEnhanced(false);
+          setRetryAttempt(prev => prev + 1);
+          setActiveModal('ai_busy');
+          startRetryCountdown(10);
+          trackEvent('enhance_failed', { reason: 'ai_overloaded', code: data.code, attempt: retryAttempt });
+          return;
+        }
+
         setEnhanceError(msg);
         setSliderIndex(0);
         setSelectedPanel('original');
         setIsGuestEnhanced(false);
         setActiveModal('enhance_failed');
-        trackEvent('enhance_failed', { reason: msg });
+        trackEvent('enhance_failed', { reason: msg, code: data.code });
         return;
       }
+      // New shape: data.variants is an array (length 1 for retouch, up to 3 for
+      // fusion). For backward compat the API also exposes the first variant at
+      // top level — we still consume that, but persist the full array so the
+      // 3-variant gallery can render.
+      const variantsFromServer: VariantData[] | undefined = Array.isArray(data.variants) ? data.variants : undefined;
+      setVariants(variantsFromServer ?? null);
+      setSelectedVariantIndex(0);
+
       setWatermarkedImage(data.watermarkedImage); setEnhancementId(data.enhancementId); setEnhancedMimeType(data.mimeType ?? 'image/png'); setIsFreeGeneration(data.isFreeTrial); setIsDownloadFree(data.downloadFree ?? false);
       safeSetItem(sessionStorage, 'mf_watermarkedImage', data.watermarkedImage); safeSetItem(sessionStorage, 'mf_enhancementId', data.enhancementId); safeSetItem(sessionStorage, 'mf_enhancedMimeType', data.mimeType ?? 'image/png'); safeSetItem(sessionStorage, 'mf_isFreeGeneration', String(data.isFreeTrial)); safeSetItem(sessionStorage, 'mf_isDownloadFree', String(data.downloadFree ?? false));
+      if (variantsFromServer) {
+        // Persist the array (best-effort — 3× ~500KB base64 PNG can hit
+        // sessionStorage quotas on iOS Safari; safeSetItem swallows quota errors).
+        safeSetItem(sessionStorage, 'mf_variants', JSON.stringify(variantsFromServer));
+      } else {
+        safeRemoveItem(sessionStorage, 'mf_variants');
+      }
       setIsGuestEnhanced(false); setSliderIndex(1); setSelectedPanel('enhanced'); dispatchCreditsUpdate(); router.refresh(); trackEvent('enhance_complete', { status: 'success' });
       // [v9.3] Auto-pop Result Showcase Modal
       setShowcaseSlideIndex(1);
@@ -352,6 +463,11 @@ export default function BoostScanner() {
       if (tagsHeader) {
         safeSetItem(sessionStorage, 'mf_scene_tags', tagsHeader);
         setSceneTags(tagsHeader);
+      }
+      const scanIdHeader = res.headers.get('x-scan-id');
+      if (scanIdHeader) {
+        safeSetItem(sessionStorage, 'mf_scan_id', scanIdHeader);
+        setScanId(scanIdHeader);
       }
       return res;
     },
@@ -482,7 +598,7 @@ export default function BoostScanner() {
         const cd = await cr.json();
         const isSub = cd.isSubscribed === true;
         const credits = cd.credits?.remaining_credits ?? 0;
-        const needed = isSub ? 20 : 25;
+        const needed = isSub ? 25 : 40;
         setRequiredCredits(needed);
         setIsSubscribed(isSub);
 
@@ -530,23 +646,53 @@ export default function BoostScanner() {
   handleSubmitRef.current = handleSubmit;  // ← 加这一行
 
   // ── Download ───────────────────────────────────────────────
+  // Resolve the list of enhancementIds the current download action should
+  // fetch. Fusion mode → all 3 variants in the group; otherwise → just the
+  // currently selected one. The download API treats the 5-credit fee as a
+  // group-level unlock, so triggering all 3 only charges once.
+  const getDownloadIds = useCallback((): string[] => {
+    if (variants && variants.length > 0) {
+      return variants.map(v => v.enhancementId);
+    }
+    return enhancementId ? [enhancementId] : [];
+  }, [variants, enhancementId]);
+
+  // Trigger downloads for one or more enhancementIds. Uses anchor click +
+  // small stagger so the browser doesn't block subsequent downloads as
+  // a popup.
+  const triggerGroupDownloads = useCallback((ids: string[], opts?: { watermarked?: boolean }) => {
+    const suffix = opts?.watermarked ? '?watermarked=1' : '';
+    ids.forEach((id, idx) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = `/api/download/${id}${suffix}`;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, idx * 250);
+    });
+    dispatchCreditsUpdate();
+  }, []);
+
   const handleDownload = () => {
-    if (!enhancementId) return;
-    trackEvent('enhance_download_click', { isDownloadFree, isFreeGeneration });
+    const ids = getDownloadIds();
+    if (ids.length === 0) return;
+    trackEvent('enhance_download_click', { isDownloadFree, isFreeGeneration, count: ids.length });
     // [v9 fix] 刚支付完回来，直接下载，不弹窗
     const justPaid = safeGetItem(sessionStorage, 'mf_payment_just_completed') === 'true';
     if (justPaid) {
       safeRemoveItem(sessionStorage, 'mf_payment_just_completed');
-      window.location.href = `/api/download/${enhancementId}`;
-      dispatchCreditsUpdate();
+      triggerGroupDownloads(ids);
       return;
     }
     if (isFreeGeneration && !isDownloadFree) handleDownloadWithPrecheck();
-    else { window.location.href = `/api/download/${enhancementId}`; dispatchCreditsUpdate(); }
+    else triggerGroupDownloads(ids);
   };
   // [v9] insufficient credits → download_unlock instead of credits_shop
   const handleDownloadWithPrecheck = async () => {
-    if (!enhancementId) return;
+    const ids = getDownloadIds();
+    if (ids.length === 0) return;
     setIsDownloading(true);
     try {
       const cr = await fetch('/api/credits');
@@ -555,9 +701,9 @@ export default function BoostScanner() {
         const s = createClient();
         const { data: { user } } = await s.auth.getUser();
         if (user && cd.isSubscribed) {
-          window.location.href = `/api/download/${enhancementId}`;
-          trackEvent('enhance_download_precheck_ok');
-          dispatchCreditsUpdate(); router.refresh();
+          triggerGroupDownloads(ids);
+          trackEvent('enhance_download_precheck_ok', { count: ids.length });
+          router.refresh();
           return;
         }
         if (user && cd.credits >= 5) {
@@ -573,9 +719,23 @@ export default function BoostScanner() {
       setIsDownloading(false);
     }
   };
-  const handleDownloadWatermarked = () => { if (!watermarkedImage) return; if (enhancementId) window.location.href = `/api/download/${enhancementId}?watermarked=1`; else { const l = document.createElement('a'); l.href = `data:${enhancedMimeType};base64,${watermarkedImage}`; l.download = 'matchfix-enhanced-watermark.png'; l.click(); } setActiveModal(null); trackEvent('enhance_download_watermark_free'); };
+  const handleDownloadWatermarked = () => {
+    if (!watermarkedImage) return;
+    const ids = getDownloadIds();
+    if (ids.length > 0) {
+      triggerGroupDownloads(ids, { watermarked: true });
+    } else {
+      const l = document.createElement('a');
+      l.href = `data:${enhancedMimeType};base64,${watermarkedImage}`;
+      l.download = 'matchfix-enhanced-watermark.png';
+      l.click();
+    }
+    setActiveModal(null);
+    trackEvent('enhance_download_watermark_free', { count: ids.length });
+  };
   const handleDownloadWithCredits = async () => {
-    if (!enhancementId) return;
+    const ids = getDownloadIds();
+    if (ids.length === 0) return;
     setIsDownloading(true);
     try {
       const cr = await fetch('/api/credits');
@@ -592,9 +752,8 @@ export default function BoostScanner() {
         return;
       }
       setActiveModal(null);
-      window.location.href = `/api/download/${enhancementId}`;
-      trackEvent('enhance_download_credits_success');
-      dispatchCreditsUpdate();
+      triggerGroupDownloads(ids);
+      trackEvent('enhance_download_credits_success', { count: ids.length });
       router.refresh();
     } catch {
       setActiveModal('download_unlock');
@@ -612,14 +771,72 @@ export default function BoostScanner() {
   };
   // [v9.4] Direct download for Pro / already-paid users — no pricing UI
   const handleShowcaseDirectDownload = () => {
-    if (!enhancementId) return;
+    const ids = getDownloadIds();
+    if (ids.length === 0) return;
     setShowResultShowcase(false);
-    trackEvent('result_showcase_direct_download');
-    setTimeout(() => {
-      window.location.href = `/api/download/${enhancementId}`;
-      dispatchCreditsUpdate();
-    }, 100);
+    trackEvent('result_showcase_direct_download', { count: ids.length });
+    setTimeout(() => triggerGroupDownloads(ids), 100);
   };
+
+  // ─── Showcase modal slide model ───────────────────────────────
+  // The showcase modal shows: original photo + each variant. The user can
+  // swipe between them; "Download" targets whichever slide they're on.
+  type ShowcaseSlide = {
+    type: 'original' | 'variant';
+    src: string;
+    label: string;
+    enhancementId: string | null;
+  };
+  const showcaseSlides = useMemo<ShowcaseSlide[]>(() => {
+    const slides: ShowcaseSlide[] = [];
+    if (preview) {
+      slides.push({ type: 'original', src: preview, label: 'Original', enhancementId: null });
+    }
+    if (variants && variants.length > 0) {
+      const showLabel = variants.length > 1;
+      variants.forEach((v, i) => {
+        slides.push({
+          type: 'variant',
+          src: `data:${v.mimeType ?? 'image/png'};base64,${v.image}`,
+          label: showLabel ? `✨ Look ${i + 1}` : '✨ AI Enhanced',
+          enhancementId: v.enhancementId,
+        });
+      });
+    } else if (watermarkedImage) {
+      // Legacy single-variant fallback
+      slides.push({
+        type: 'variant',
+        src: `data:${enhancedMimeType};base64,${watermarkedImage}`,
+        label: '✨ AI Enhanced',
+        enhancementId,
+      });
+    }
+    return slides;
+  }, [preview, variants, watermarkedImage, enhancedMimeType, enhancementId]);
+
+  const showcaseCurrentSlide = showcaseSlides[showcaseSlideIndex] ?? null;
+
+  // Download whichever slide the user is currently viewing in the showcase.
+  const handleShowcaseDownloadCurrent = useCallback(() => {
+    if (!showcaseCurrentSlide) return;
+    setShowResultShowcase(false);
+    trackEvent('result_showcase_download_current', {
+      slideIndex: showcaseSlideIndex,
+      type: showcaseCurrentSlide.type,
+    });
+    setTimeout(() => {
+      if (showcaseCurrentSlide.type === 'original') {
+        const a = document.createElement('a');
+        a.href = showcaseCurrentSlide.src;
+        a.download = 'matchfix-original.jpg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else if (showcaseCurrentSlide.enhancementId) {
+        triggerGroupDownloads([showcaseCurrentSlide.enhancementId]);
+      }
+    }, 100);
+  }, [showcaseCurrentSlide, showcaseSlideIndex, triggerGroupDownloads]);
 
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => { touchEndX.current = e.touches[0].clientX; };
@@ -661,8 +878,9 @@ export default function BoostScanner() {
     if (showcaseTouchStartX.current === null || showcaseTouchEndX.current === null) return;
     const diff = showcaseTouchStartX.current - showcaseTouchEndX.current;
     if (Math.abs(diff) > 40) {
-      if (diff > 0 && showcaseSlideIndex < 1) setShowcaseSlideIndex(1);
-      if (diff < 0 && showcaseSlideIndex > 0) setShowcaseSlideIndex(0);
+      const lastIdx = Math.max(0, showcaseSlides.length - 1);
+      if (diff > 0 && showcaseSlideIndex < lastIdx) setShowcaseSlideIndex(showcaseSlideIndex + 1);
+      if (diff < 0 && showcaseSlideIndex > 0) setShowcaseSlideIndex(showcaseSlideIndex - 1);
     }
     showcaseTouchStartX.current = null; showcaseTouchEndX.current = null;
   };
@@ -808,6 +1026,25 @@ export default function BoostScanner() {
                     <div className="flex flex-col items-center gap-4 text-center px-6 opacity-30"><div className="grid size-16 place-items-center rounded-2xl bg-slate-800/40 border border-slate-700/30"><Sparkles className="size-7 text-slate-600" /></div><div className="text-base text-slate-500">Your enhanced photo will appear here</div></div>
                   )}
                 </div>
+                {showEnhanced && variants && variants.length > 1 && !isGuestEnhanced && (
+                  <div className="flex items-center justify-center gap-2 pt-3">
+                    {variants.map((v, i) => (
+                      <button
+                        key={v.enhancementId}
+                        type="button"
+                        onClick={() => selectVariant(i)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                          i === selectedVariantIndex
+                            ? 'bg-emerald-500 text-white border-emerald-400 shadow-md shadow-emerald-500/30'
+                            : 'bg-slate-800/60 text-slate-300 border-slate-700/60 hover:bg-slate-700/60'
+                        }`}
+                        title={v.matchedScene ?? `Variant ${i + 1}`}
+                      >
+                        Look {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -875,6 +1112,24 @@ export default function BoostScanner() {
                     <><button className="absolute left-2 top-1/2 -translate-y-1/2 grid size-9 place-items-center rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 disabled:opacity-20 border border-white/10" onClick={selectOriginal} disabled={sliderIndex === 0}><ChevronLeft className="w-4 h-4" /></button><button className="absolute right-2 top-1/2 -translate-y-1/2 grid size-9 place-items-center rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 disabled:opacity-20 border border-white/10" onClick={selectEnhanced} disabled={sliderIndex === 1}><ChevronRight className="w-4 h-4" /></button></>
                   )}
                 </div>
+                {showEnhanced && variants && variants.length > 1 && !isGuestEnhanced && sliderIndex === 1 && (
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    {variants.map((v, i) => (
+                      <button
+                        key={v.enhancementId}
+                        type="button"
+                        onClick={() => selectVariant(i)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                          i === selectedVariantIndex
+                            ? 'bg-emerald-500 text-white border-emerald-400 shadow-md shadow-emerald-500/30'
+                            : 'bg-slate-800/60 text-slate-300 border-slate-700/60 active:bg-slate-700/60'
+                        }`}
+                      >
+                        Look {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {showEnhanced && (
                   <div className="flex items-center justify-center gap-2 py-2">{[0, 1].map(i => <button key={i} onClick={() => { setSliderIndex(i); setSelectedPanel(i === 0 ? 'original' : 'enhanced'); }} className={`rounded-full transition-all duration-200 ${sliderIndex === i ? 'w-5 h-2 bg-rose-500' : 'w-2 h-2 bg-slate-600 hover:bg-slate-500'}`} />)}</div>
                 )}
@@ -894,7 +1149,7 @@ export default function BoostScanner() {
                     ) : (
                       <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
                         className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 disabled:opacity-40">
-                        <Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span>
+                        <Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 25' : '⚡ 40') : 'Free'}</span>
                       </button>
                     )}
                     <label className="w-full h-9 rounded-xl text-xs text-slate-500 hover:text-slate-300 flex items-center justify-center gap-1.5 cursor-pointer">
@@ -984,7 +1239,7 @@ export default function BoostScanner() {
         )}
 
         {/* ═══ [v9.4] RESULT SHOWCASE MODAL — watermarked preview + inline $1.99 CTA ═══ */}
-        {showResultShowcase && watermarkedImage && preview && !isGuestEnhanced && (
+        {showResultShowcase && showcaseCurrentSlide && !isGuestEnhanced && (
           <div className="fixed inset-0 z-50 bg-black/95 flex flex-col animate-in fade-in duration-300">
             {/* Close button */}
             <button
@@ -994,17 +1249,17 @@ export default function BoostScanner() {
               <X className="size-5" />
             </button>
 
-            {/* Top badge */}
+            {/* Top badge — dynamic per-slide label */}
             <div className="flex justify-center pt-4 pb-2">
-              <span className={`text-sm font-bold px-4 py-1.5 rounded-full backdrop-blur-sm transition-all duration-300 ${showcaseSlideIndex === 0
+              <span className={`text-sm font-bold px-4 py-1.5 rounded-full backdrop-blur-sm transition-all duration-300 ${showcaseCurrentSlide.type === 'original'
                 ? 'text-slate-400 bg-white/5 border border-white/10'
                 : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
                 }`}>
-                {showcaseSlideIndex === 0 ? 'Original' : '✨ AI Enhanced'}
+                {showcaseCurrentSlide.label}
               </span>
             </div>
 
-            {/* Image area — watermarked preview (unless user already paid/subscribed) */}
+            {/* Image area */}
             <div
               className="flex-1 flex items-center justify-center px-4 min-h-0 relative"
               onTouchStart={handleShowcaseTouchStart}
@@ -1012,23 +1267,23 @@ export default function BoostScanner() {
               onTouchEnd={handleShowcaseTouchEnd}
             >
               <img
-                src={showcaseSlideIndex === 0 ? preview : `data:${enhancedMimeType};base64,${watermarkedImage}`}
-                alt={showcaseSlideIndex === 0 ? 'Original' : 'AI Enhanced'}
+                src={showcaseCurrentSlide.src}
+                alt={showcaseCurrentSlide.label}
                 className="max-w-full max-h-full object-contain rounded-xl transition-opacity duration-300"
                 style={{ touchAction: 'pinch-zoom' }}
               />
               {/* Left/Right arrows */}
               <button
                 className="absolute left-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10 transition-all"
-                onClick={() => setShowcaseSlideIndex(0)}
+                onClick={() => setShowcaseSlideIndex(Math.max(0, showcaseSlideIndex - 1))}
                 disabled={showcaseSlideIndex === 0}
               >
                 <ChevronLeft className="size-5" />
               </button>
               <button
                 className="absolute right-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10 transition-all"
-                onClick={() => setShowcaseSlideIndex(1)}
-                disabled={showcaseSlideIndex === 1}
+                onClick={() => setShowcaseSlideIndex(Math.min(showcaseSlides.length - 1, showcaseSlideIndex + 1))}
+                disabled={showcaseSlideIndex >= showcaseSlides.length - 1}
               >
                 <ChevronRight className="size-5" />
               </button>
@@ -1036,9 +1291,9 @@ export default function BoostScanner() {
 
             {/* Bottom CTA area */}
             <div className="shrink-0 px-5 pb-6 pt-3 flex flex-col items-center gap-3">
-              {/* Dots */}
+              {/* Dots — one per slide */}
               <div className="flex gap-2 mb-1">
-                {[0, 1].map(i => (
+                {showcaseSlides.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setShowcaseSlideIndex(i)}
@@ -1054,11 +1309,20 @@ export default function BoostScanner() {
                 We don&apos;t store photos — save it now or lose it forever
               </p>
 
-              {/* ─── Main CTA: branches on isDownloadFree ─── */}
-              {isDownloadFree ? (
-                /* Already paid / subscribed — direct download */
+              {/* ─── Main CTA — downloads the slide currently in view ─── */}
+              {showcaseCurrentSlide.type === 'original' ? (
+                /* On the original slide — offer to save the original (free, dataURL) */
                 <button
-                  onClick={handleShowcaseDirectDownload}
+                  onClick={handleShowcaseDownloadCurrent}
+                  className="w-full max-w-sm h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-slate-300 border border-slate-700 hover:bg-slate-800 transition-all"
+                >
+                  <Download className="size-5" />
+                  Save Original
+                </button>
+              ) : isDownloadFree ? (
+                /* Subscribed / already-paid — direct download of THIS slide */
+                <button
+                  onClick={handleShowcaseDownloadCurrent}
                   className="showcase-download-btn w-full max-w-sm h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-white shadow-xl transition-all active:scale-[0.98] relative overflow-hidden"
                   style={{
                     background: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #0d9488 100%)',
@@ -1073,13 +1337,16 @@ export default function BoostScanner() {
                     }}
                   />
                   <Download className="size-5 relative z-10" />
-                  <span className="relative z-10">Download Now</span>
+                  <span className="relative z-10">Download This Look</span>
                 </button>
               ) : (
-                /* Needs to pay — inline $1.99 CTA */
+                /* Free trial user, payment needed — pays $1.99 to unlock THIS slide.
+                   The backend group-unlock means subsequent variants in the same
+                   group are downloadable for free if the user wants more later. */
                 <ShowcaseMicroPackButton
                   returnPath={pathname}
-                  enhancementId={enhancementId}
+                  enhancementId={showcaseCurrentSlide.enhancementId}
+                  groupIds={showcaseCurrentSlide.enhancementId ? [showcaseCurrentSlide.enhancementId] : []}
                 />
               )}
 
@@ -1199,7 +1466,7 @@ export default function BoostScanner() {
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <div className="text-white font-bold text-base">Save This Photo</div>
+                      <div className="text-white font-bold text-base">{getDownloadIds().length > 1 ? `Save All ${getDownloadIds().length} Looks` : 'Save This Photo'}</div>
                       <div className="text-slate-400 text-xs mt-0.5">Watermark-free · Instant download</div>
                     </div>
                     <div className="text-right">
@@ -1207,7 +1474,7 @@ export default function BoostScanner() {
                       <div className="text-slate-500 text-[10px]">one-time</div>
                     </div>
                   </div>
-                  <MicroPackCheckoutButton returnPath={pathname} />
+                  <MicroPackCheckoutButton returnPath={pathname} groupIds={getDownloadIds()} />
                 </div>
               </div>
 
@@ -1221,7 +1488,7 @@ export default function BoostScanner() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-200 text-sm">Go Pro — $19.99/mo</div>
-                  <div className="text-xs text-slate-500">All downloads free · 200 credits/mo</div>
+                  <div className="text-xs text-slate-500">All downloads free · 8 enhancements/mo</div>
                 </div>
                 <span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST VALUE</span>
               </button>
@@ -1236,7 +1503,7 @@ export default function BoostScanner() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-200 text-sm">Buy Credits Pack</div>
-                  <div className="text-xs text-slate-500">From $9.99 · Good for 3+ photos</div>
+                  <div className="text-xs text-slate-500">From $9.99 · Top up &amp; enhance more</div>
                 </div>
               </button>
 
@@ -1256,10 +1523,10 @@ export default function BoostScanner() {
       {activeModal === 'download_choice' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-emerald-500/10 mb-4 border border-emerald-500/20"><Download className="size-8 text-emerald-500" /></div><h2 className="text-xl font-bold text-white mb-1">Save Your Enhanced Photo</h2><p className="text-sm text-slate-400 mb-1">Your photo looks amazing — don&apos;t lose it!</p><p className="text-xs text-red-400/70 mb-4 flex items-center gap-1 justify-center"><ShieldCheck className="size-3" /> We don&apos;t store photos. Leave this page and it&apos;s gone forever.</p><div className="flex flex-col w-full gap-2.5"><button onClick={() => setActiveModal('membership')} className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-amber-500/10 shrink-0"><Crown className="size-5 text-amber-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Become a Member</div><div className="text-xs text-slate-500">No watermark · Free downloads forever</div></div><span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST</span></button><button onClick={handleDownloadWithCredits} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-rose-500/10 shrink-0"><Coins className="size-5 text-rose-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Use 5 Credits</div><div className="text-xs text-slate-500">No watermark · One-time purchase</div></div><span className="text-xs font-bold text-rose-400 shrink-0">⚡ 5</span></button><button onClick={handleDownloadWatermarked} className="w-full flex items-center gap-3 p-4 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-slate-800 shrink-0"><Download className="size-5 text-slate-400" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-slate-200 text-sm">Download with Watermark</div><div className="text-xs text-slate-500">Free · Includes Matchfix branding</div></div><span className="text-[10px] font-bold text-slate-500 shrink-0">FREE</span></button></div><button className="mt-4 w-full h-10 text-sm text-slate-500 hover:text-slate-300 transition-colors" onClick={() => setActiveModal(null)}>Cancel</button></div></div>)}
 
       {/* membership modal — [v9] checkout button now stays open with loading */}
-      {activeModal === 'membership' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Crown className="size-4 text-amber-500" /><span className="text-sm font-bold text-white">Become a Member</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ MOST POPULAR ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Pro</div><div className="text-slate-400 text-xs mt-0.5">200 credits / month</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$19.99</div><div className="text-slate-500 text-xs">/month</div></div></div><ul className="space-y-2 mb-5">{['Enhance up to 10 photos per month', 'Unlimited watermark-free downloads', 'Save 5 credits/photo vs credit packs', 'AI photo analysis included free', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><MembershipCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all plans →</button></div></div></div>)}
+      {activeModal === 'membership' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Crown className="size-4 text-amber-500" /><span className="text-sm font-bold text-white">Become a Member</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ MOST POPULAR ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Pro</div><div className="text-slate-400 text-xs mt-0.5">200 credits / month</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$19.99</div><div className="text-slate-500 text-xs">/month</div></div></div><ul className="space-y-2 mb-5">{['8 photo enhancements per month (3 scenes each)', 'Unlimited watermark-free downloads', 'Save 15 credits/enhancement vs credit packs', 'AI photo analysis included free', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><MembershipCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all plans →</button></div></div></div>)}
 
       {/* credits_shop modal — [v9] kept as fallback, checkout button now stays open with loading */}
-      {activeModal === 'credits_shop' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Coins className="size-4 text-rose-500" /><span className="text-sm font-bold text-white">Get Credits</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ QUICKEST OPTION ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Starter Pack</div><div className="text-slate-400 text-xs mt-0.5">Try it out — enough for 3 full photo enhancements.</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$9.99</div><div className="text-slate-500 text-xs">one-time</div></div></div><ul className="space-y-2 mb-5">{['75 Credits', 'Enhance up to 3 photos', 'Watermark-free downloads included', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><CreditsCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all credit packs →</button></div></div></div>)}
+      {activeModal === 'credits_shop' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Coins className="size-4 text-rose-500" /><span className="text-sm font-bold text-white">Get Credits</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-slate-800 transition-colors text-slate-400 text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rose-500/30 bg-slate-900 overflow-hidden"><div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ QUICKEST OPTION ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Starter Pack</div><div className="text-slate-400 text-xs mt-0.5">Try it out — one full enhancement with 3 scene looks.</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$9.99</div><div className="text-slate-500 text-xs">one-time</div></div></div><ul className="space-y-2 mb-5">{['75 Credits', '1 photo enhancement (3 scene options)', 'Watermark-free downloads included', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-slate-300"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><CreditsCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">View all credit packs →</button></div></div></div>)}
       {activeModal === 'ai_busy' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm p-6 mx-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
@@ -1374,48 +1641,61 @@ function CreditsCheckoutButton({ returnPath }: { returnPath: string }) {
 }
 
 // [v9] NEW: $1.99 Micro Pack checkout button
-function MicroPackCheckoutButton({ returnPath }: { returnPath: string }) {
+// `groupIds` carries the enhancementIds the user should be able to download
+// after payment. For fusion mode this is all 3 variants; for retouch it's 1.
+function MicroPackCheckoutButton({ returnPath, groupIds }: { returnPath: string; groupIds: string[] }) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(false);
   const handleClick = async () => {
     setLoading(true); setError(false);
-    trackEvent('micro_pack_checkout_click');
+    trackEvent('micro_pack_checkout_click', { count: groupIds.length });
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = '/sign-in'; return; }
+      // Persist the full group so the post-payment auto-download fires
+      // for every variant (Plan B: 5 credits unlocks the whole group).
+      if (groupIds.length > 0) {
+        safeSetItem(sessionStorage, 'mf_showcase_pending_download_group', JSON.stringify(groupIds));
+      }
       const res = await fetch('/api/creem/create-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: process.env.NEXT_PUBLIC_PRODUCT_ID_PACK_MICRO!, productType: 'credits', userId: user.id, credits: 5, returnPath }) });
       const { checkoutUrl } = await res.json();
       if (checkoutUrl) { window.location.href = checkoutUrl; }
-      else { setError(true); setLoading(false); }
-    } catch (e) { setError(true); setLoading(false); }
+      else { setError(true); setLoading(false); safeRemoveItem(sessionStorage, 'mf_showcase_pending_download_group'); }
+    } catch (e) { setError(true); setLoading(false); safeRemoveItem(sessionStorage, 'mf_showcase_pending_download_group'); }
   };
+  const buttonLabel = groupIds.length > 1 ? `Get All ${groupIds.length} Looks — $1.99` : 'Get This Photo — $1.99';
   return (
     <div className="flex flex-col gap-1">
       <button onClick={handleClick} disabled={loading}
         className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-lg shadow-emerald-500/20">
-        {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Zap className="size-4" /> Get This Photo — $1.99</>}
+        {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Zap className="size-4" /> {buttonLabel}</>}
       </button>
       {error && <p className="text-red-400 text-xs text-center">Something went wrong. Please try again.</p>}
     </div>
   );
 }
-// [v9.4] Showcase Micro Pack — stores enhancementId so payment return auto-downloads
-function ShowcaseMicroPackButton({ returnPath, enhancementId }: { returnPath: string; enhancementId: string | null }) {
+// [v9.4] Showcase Micro Pack — stores group of enhancementIds so payment return
+// auto-downloads all of them (Plan B: $1.99 unlocks the whole 3-variant group)
+function ShowcaseMicroPackButton({ returnPath, enhancementId, groupIds }: { returnPath: string; enhancementId: string | null; groupIds: string[] }) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(false);
 
   const handleClick = async () => {
     setLoading(true); setError(false);
-    trackEvent('showcase_micro_pack_click');
+    trackEvent('showcase_micro_pack_click', { count: groupIds.length });
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = '/sign-in'; return; }
 
-      // Store enhancementId so payment return auto-triggers download
+      // Store enhancementId (legacy) AND the full group list so the post-
+      // payment flow can iterate all 3 variants.
       if (enhancementId) {
         safeSetItem(sessionStorage, 'mf_showcase_pending_download', enhancementId);
+      }
+      if (groupIds.length > 0) {
+        safeSetItem(sessionStorage, 'mf_showcase_pending_download_group', JSON.stringify(groupIds));
       }
 
       const res = await fetch('/api/creem/create-checkout', {
@@ -1435,10 +1715,12 @@ function ShowcaseMicroPackButton({ returnPath, enhancementId }: { returnPath: st
       } else {
         setError(true); setLoading(false);
         safeRemoveItem(sessionStorage, 'mf_showcase_pending_download');
+        safeRemoveItem(sessionStorage, 'mf_showcase_pending_download_group');
       }
     } catch {
       setError(true); setLoading(false);
       safeRemoveItem(sessionStorage, 'mf_showcase_pending_download');
+      safeRemoveItem(sessionStorage, 'mf_showcase_pending_download_group');
     }
   };
 
@@ -1470,7 +1752,7 @@ function ShowcaseMicroPackButton({ returnPath, enhancementId }: { returnPath: st
         ) : (
           <>
             <Download className="size-5 relative z-10" />
-            <span className="relative z-10">Get This Photo — $1.99</span>
+            <span className="relative z-10">{groupIds.length > 1 ? `Get All ${groupIds.length} Looks — $1.99` : 'Get This Photo — $1.99'}</span>
           </>
         )}
       </button>

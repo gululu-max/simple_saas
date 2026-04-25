@@ -12,11 +12,21 @@
 // 2. [COPY] Friendlier generic error message
 // ═══════════════════════════════════════════════════════════════
 
+import { randomUUID } from 'crypto';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText, generateText } from 'ai';
 import { ProxyAgent } from 'undici';
 import { createClient } from "@/utils/supabase/server";
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { TAG_PROMPT, parseSceneTags, type SceneTags } from './tag-prompt';
+import { classifyUpstreamError } from '@/lib/upstream-errors';
+
+const supabaseAdmin = createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const ORIGINAL_BUCKET = 'original-photos';
 
 // ── Retry helper ──
 async function streamTextWithRetry(
@@ -77,13 +87,8 @@ export async function POST(req: Request) {
       const isFirstFreeUser = !customer.free_enhance_used;
 
       if (!isFirstFreeUser) {
-        const { createClient: createAdminClient } = await import('@supabase/supabase-js');
-        const adminClient = createAdminClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
         const now = new Date().toISOString();
-        const { data: subData } = await adminClient
+        const { data: subData } = await supabaseAdmin
           .from('subscriptions')
           .select('status, current_period_end')
           .eq('customer_id', customer.id)
@@ -120,6 +125,47 @@ export async function POST(req: Request) {
     });
 
     const mimeType = receivedMimeType || 'image/jpeg';
+
+    // ─── Start photo_scans creation (logged-in only) ───────────────
+    // scanId is generated in app so we can return it in the response
+    // header immediately. Upload + insert fire in parallel with the
+    // analysis stream; onFinish updates the row once analysis lands.
+    let scanId: string | null = null;
+    let uploadPromise: Promise<string | null> = Promise.resolve(null);
+    let scanInsertPromise: Promise<boolean> = Promise.resolve(false);
+
+    if (user) {
+      const newScanId = randomUUID();
+      scanId = newScanId;
+      const originalKey = `${user.id}/scan-${newScanId}.jpg`;
+      const originalBuffer = Buffer.from(imageBase64, 'base64');
+
+      uploadPromise = supabaseAdmin.storage
+        .from(ORIGINAL_BUCKET)
+        .upload(originalKey, originalBuffer, { contentType: mimeType, upsert: false })
+        .then(({ error }) => {
+          if (error) {
+            console.warn('[scan] original upload failed:', error.message);
+            return null;
+          }
+          return originalKey;
+        })
+        .catch((err) => {
+          console.warn('[scan] original upload threw:', err);
+          return null;
+        });
+
+      scanInsertPromise = (async () => {
+        const { error } = await supabaseAdmin
+          .from('photo_scans')
+          .insert({ id: newScanId, user_id: user.id, mime_type: mimeType });
+        if (error) {
+          console.error('[scan] initial insert failed:', error.message);
+          return false;
+        }
+        return true;
+      })();
+    }
 
     const userPrompt = `You are a dating profile photo analyst. You return ONLY a JSON object. No preamble, no explanation, no markdown fences, no code blocks.
 
@@ -355,36 +401,16 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
   "usage_tips": [ "<string>", "<string>", "<string>" ] | null
 }`;
 
-    // --- Model selection with probe ---
-
-    const MODELS = ['gemini-3-flash-preview', 'gemini-2.5-flash'] as const;
-
-    let chosenModel: string | null = null;
-
-    for (const modelName of MODELS) {
-      try {
-        await generateText({
-          model: googleCustom(modelName) as any,
-          maxTokens: 1,
-          messages: [{ role: 'user', content: 'hi' }],
-        });
-        chosenModel = modelName;
-        console.log(`🎯 Model available: ${modelName}`);
-        break;
-      } catch (err) {
-        console.warn(`⚠️ ${modelName} unavailable: ${(err as Error).message}`);
-      }
-    }
-
-    if (!chosenModel) {
-      return new Response(
-        JSON.stringify({
-          error: 'Our AI is experiencing high demand right now. Please try again in a few seconds.',
-          code: 'MODEL_OVERLOADED',
-        }),
-        { status: 503, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    // --- Model selection ---
+    // Default to stable gemini-2.5-flash. The preview model is opt-in via
+    // ENABLE_GEMINI_3_PREVIEW=true — it's frequently rate-limited which made
+    // the old probe-each-request pattern wasteful (probe call can 503
+    // independently of the real call, and vice versa). streamTextWithRetry
+    // below handles transient 503s uniformly regardless of which model.
+    const chosenModel = process.env.ENABLE_GEMINI_3_PREVIEW === 'true'
+      ? 'gemini-3-flash-preview'
+      : 'gemini-2.5-flash';
+    console.log(`🎯 Using model: ${chosenModel}`);
 
     // --- 并行触发打标请求（不阻塞 streamText 的响应） ---
     const tagPromise: Promise<SceneTags | null> = (async () => {
@@ -425,11 +451,57 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
             ],
           },
         ],
-        async onFinish({ finishReason }) {
+        async onFinish({ text, finishReason }) {
+          console.log(`🔔 onFinish fired — finishReason: ${finishReason}, textLen: ${text?.length ?? 0}, scanId: ${scanId}, hasUser: ${!!user}`);
+
           if (!user) {
             console.log('👤 Guest scan completed');
-          } else {
-            console.log(`✅ Scan completed (User: ${user.id}, model: ${chosenModel})`);
+            return;
+          }
+          console.log(`✅ Scan completed (User: ${user.id}, model: ${chosenModel})`);
+
+          // ── Persist analysis to photo_scans row ──
+          if (!scanId) {
+            console.warn('[scan] onFinish skipped — no scanId');
+            return;
+          }
+          try {
+            const [scanOk, originalKey, tags] = await Promise.all([
+              scanInsertPromise,
+              uploadPromise,
+              tagPromise,
+            ]);
+            console.log(`[scan] promises settled — scanOk: ${scanOk}, originalKey: ${originalKey}, hasTags: ${!!tags}`);
+            if (!scanOk) {
+              console.warn('[scan] insert did not succeed, skipping update');
+              return;
+            }
+
+            let analysisJson: unknown = null;
+            if (text) {
+              try {
+                analysisJson = JSON.parse(text);
+              } catch {
+                analysisJson = { raw: text };
+              }
+            }
+
+            const { error: updateErr } = await supabaseAdmin
+              .from('photo_scans')
+              .update({
+                analysis_json: analysisJson,
+                scene_tags: tags ?? null,
+                original_storage_key: originalKey,
+              })
+              .eq('id', scanId);
+
+            if (updateErr) {
+              console.error('[scan] update returned error:', updateErr);
+            } else {
+              console.log(`[scan] ✅ updated ${scanId} with analysis/tags/key`);
+            }
+          } catch (err) {
+            console.error('[scan] post-finish update failed:', err);
           }
         },
       },
@@ -437,8 +509,11 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
       2000,
     );
 
-    // --- 把 tags 作为自定义 header 发给前端，避开流式 JSON 拼接 ---
+    // --- 把 scan_id + tags 作为自定义 header 发给前端 ---
     const response = result.toDataStreamResponse();
+    if (scanId) {
+      response.headers.set('x-scan-id', scanId);
+    }
     const tags = await tagPromise;
     if (tags) {
       response.headers.set('x-scene-tags', JSON.stringify(tags));
@@ -446,22 +521,16 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
     return response;
   } catch (error) {
     console.error('Error in Scanner API:', error);
-    const err = error as Error;
-    const msg = err.message || '';
-
-    // Detect overload / rate-limit / 503 errors and return friendly code
-    const isOverload = /overloaded|503|rate.?limit|quota|capacity|resource.*exhausted/i.test(msg);
+    const c = classifyUpstreamError(error as Error);
 
     return new Response(
       JSON.stringify({
-        error: isOverload
-          ? 'Our AI is experiencing high demand right now. Please try again in a few seconds.'
-          : 'Something went wrong on our end. Please try again.',
-        code: isOverload ? 'MODEL_OVERLOADED' : 'INTERNAL_ERROR',
-        retryable: isOverload,
+        error: c.userMsg,
+        code: c.code,
+        retryable: c.retryable,
       }),
       {
-        status: isOverload ? 503 : 500,
+        status: c.status,
         headers: { 'Content-Type': 'application/json' },
       }
     );
