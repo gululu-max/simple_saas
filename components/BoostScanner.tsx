@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { parseAnalysisStream } from '@/utils/parseAnalysisStream';
 import { createClient } from '@/utils/supabase/client';
 import { useAuthModal } from '@/components/auth/auth-modal-context';
+import { toast } from '@/hooks/use-toast';
 import AnalysisResultCard from '@/components/AnalysisResultCard';
 import UsageGuideCard from '@/components/UsageGuideCard';
 import DatingTrivia from '@/components/DatingTrivia';
@@ -152,6 +153,7 @@ export default function BoostScanner() {
 
   const pendingNavigationRef = useRef<string | null>(null);
   const skipExitWarningRef = useRef(false);
+  const autoResumeFromOneTapRef = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
   const { openAuthModal } = useAuthModal();
@@ -204,7 +206,19 @@ export default function BoostScanner() {
     if (guestFlag === 'true' && savedPreview) {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session) { setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); safeSetItem(sessionStorage, 'mf_pending_enhance', 'true'); }
+        if (!session) {
+          setIsGuestEnhanced(true); setSliderIndex(1); setSelectedPanel('enhanced'); safeSetItem(sessionStorage, 'mf_pending_enhance', 'true');
+        } else {
+          // Logged in but stale guest data → user signed in elsewhere (e.g. One Tap on homepage).
+          // Clean up flags and auto-resume the enhance flow.
+          const hasPending = safeGetItem(localStorage, 'mf_pending_enhance') === 'true';
+          ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText']
+            .forEach(k => safeRemoveItem(localStorage, k));
+          safeRemoveItem(sessionStorage, 'mf_pending_enhance');
+          if (hasPending && (savedJSON || savedText)) {
+            autoResumeFromOneTapRef.current = true;
+          }
+        }
       });
     }
     const params = new URLSearchParams(window.location.search);
@@ -269,6 +283,21 @@ export default function BoostScanner() {
       }
     });
     return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview, analysisJSON, visibleText]);
+
+  // ── Auto-resume after One Tap (logged in elsewhere with stale guest data) ──
+  // Waits for restored preview/analysis state to flush, then triggers handleEnhance.
+  useEffect(() => {
+    if (!autoResumeFromOneTapRef.current) return;
+    if (!preview || !analysisJSON) return;
+    autoResumeFromOneTapRef.current = false;
+    toast({
+      title: 'Welcome back',
+      description: 'Generating your enhanced photo...',
+    });
+    trackEvent('one_tap_auto_resume_enhance');
+    handleEnhance(analysisJSON, visibleText);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview, analysisJSON, visibleText]);
 

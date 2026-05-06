@@ -8,6 +8,7 @@ import Script from "next/script";
 import type { Metadata } from "next";
 import { AuthModalProvider } from "@/components/auth/auth-modal-context";
 import { AuthModal } from "@/components/auth/auth-modal";
+import GoogleOneTap from "@/components/auth/google-one-tap";
 
 const baseUrl = process.env.BASE_URL
   ? `${process.env.BASE_URL}`
@@ -161,6 +162,7 @@ export default function RootLayout({
             <Toaster />
           </ThemeProvider>
           <AuthModal />
+          <GoogleOneTap />
         </AuthModalProvider>
 
         <Script
