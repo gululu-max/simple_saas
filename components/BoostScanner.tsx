@@ -5,9 +5,9 @@ import { useCompletion } from 'ai/react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   Loader2, Wand2, Download, Lock, ChevronLeft, ChevronRight,
-  Image as ImageIcon, Upload, UserRound, Copy, Check, Coins, Crown,
+  Image as ImageIcon, Upload, Copy, Check, Coins, Crown,
   ShieldCheck, RefreshCw, Sparkles, XCircle, X, ZoomIn,
-  AlertCircle, Zap,
+  AlertCircle, Zap, Camera,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { parseAnalysisStream } from '@/utils/parseAnalysisStream';
@@ -85,6 +85,217 @@ const dispatchCreditsUpdate = () => {
 type ModalType = 'enhance' | 'download_choice' | 'download_unlock' | 'membership' | 'credits_shop' | 'privacy_exit' | 'free_limit' | 'enhance_failed' | 'ai_busy';
 type SelectedPanel = 'original' | 'enhanced';
 
+// ── Pre-upload hero: auto-sweep before/after demo → upload zone ──
+type UploadHeroProps = {
+  beforeSrc: string;
+  afterSrc: string;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  useFusion: boolean;
+  setUseFusion: (v: boolean) => void;
+};
+
+function UploadHero({ beforeSrc, afterSrc, fileInputRef, onFileSelect, useFusion, setUseFusion }: UploadHeroProps) {
+  const [phase, setPhase] = useState<'sweep' | 'upload'>('sweep');
+  const [sliderPos, setSliderPos] = useState(0);
+  const isUpload = phase === 'upload';
+
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const HOLD = 350;
+    const SWEEP = 1500;
+    const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      if (elapsed < HOLD) {
+        setSliderPos(0);
+      } else if (elapsed < HOLD + SWEEP) {
+        const p = (elapsed - HOLD) / SWEEP;
+        setSliderPos(ease(p) * 100);
+      } else {
+        setSliderPos(100);
+        setTimeout(() => setPhase('upload'), 250);
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-4 w-full max-w-[460px] mx-auto">
+      {/* Merged hero: auto-sweep before/after → upload zone */}
+      <label className="relative block cursor-pointer">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={onFileSelect}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30"
+          style={{ WebkitTapHighlightColor: 'transparent', fontSize: 0, border: 'none', outline: 'none' }}
+        />
+        <div
+          className="relative w-full overflow-hidden select-none rounded-card"
+          style={{
+            aspectRatio: '4 / 5',
+            background: '#f7f7f7',
+            boxShadow: isUpload
+              ? '0 0 0 2px #ff385c, 0 12px 32px rgba(255,56,92,0.22)'
+              : '0 8px 24px rgba(0,0,0,0.08)',
+            transition: 'box-shadow 0.4s ease',
+          }}
+        >
+          {/* BEFORE base layer */}
+          <img src={beforeSrc} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+
+          {/* AFTER reveals from the LEFT as sweep advances */}
+          <div
+            className="absolute inset-y-0 left-0 overflow-hidden"
+            style={{
+              width: `${sliderPos}%`,
+              transition: isUpload ? 'width 0.5s cubic-bezier(0.4,0,0.2,1)' : 'none',
+            }}
+          >
+            <img
+              src={afterSrc}
+              alt=""
+              className="absolute inset-y-0 left-0 h-full object-cover"
+              style={{ width: `${(100 / Math.max(1, sliderPos)) * 100}%`, maxWidth: 'none' }}
+              draggable={false}
+            />
+          </div>
+
+          {/* BEFORE label — fades out as sweep progresses */}
+          <div
+            className="absolute top-3 left-3 px-2.5 py-1 rounded-pill text-[11px] font-bold text-white backdrop-blur-md"
+            style={{
+              background: 'rgba(0,0,0,0.6)',
+              opacity: isUpload ? 0 : Math.max(0, 1 - sliderPos / 60),
+              transition: 'opacity 0.3s',
+            }}
+          >
+            BEFORE
+          </div>
+
+          {/* AFTER label — fades in as sweep progresses */}
+          <div
+            className="absolute top-3 right-3 px-2.5 py-1 rounded-pill text-[11px] font-bold text-white bg-rausch flex items-center gap-1"
+            style={{
+              opacity: isUpload ? 0 : Math.min(1, sliderPos / 50),
+              transition: 'opacity 0.3s',
+            }}
+          >
+            <Sparkles className="size-3" /> AFTER
+          </div>
+
+          {/* Sweep handle */}
+          {!isUpload && (
+            <div
+              className="absolute top-0 bottom-0 pointer-events-none"
+              style={{
+                left: `calc(${sliderPos}% - 1.5px)`,
+                width: 3,
+                background: '#fff',
+                boxShadow: '0 0 16px #ff385c',
+              }}
+            >
+              <div
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-10 rounded-full grid place-items-center bg-canvas"
+                style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.18)' }}
+              >
+                <Sparkles className="size-4 text-rausch" />
+              </div>
+            </div>
+          )}
+
+          {/* Sweep status chip */}
+          {!isUpload && (
+            <div
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-pill text-[11px] font-medium text-white flex items-center gap-1.5 backdrop-blur-md"
+              style={{ background: 'rgba(0,0,0,0.65)' }}
+            >
+              <span className="size-1.5 rounded-full bg-rausch animate-pulse" />
+              See what AI does in 15 seconds
+            </div>
+          )}
+
+          {/* Upload overlay — fades in after sweep */}
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center text-center px-6"
+            style={{
+              background: isUpload
+                ? 'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.55) 100%)'
+                : 'transparent',
+              opacity: isUpload ? 1 : 0,
+              transition: 'opacity 0.5s ease 0.1s, background 0.5s ease',
+              pointerEvents: isUpload ? 'auto' : 'none',
+            }}
+          >
+            <div
+              className="size-16 rounded-full grid place-items-center mb-3 bg-rausch"
+              style={{
+                boxShadow: '0 10px 28px rgba(255,56,92,0.45)',
+                animation: isUpload ? 'heroPop 0.45s cubic-bezier(0.2,0.8,0.2,1)' : 'none',
+              }}
+            >
+              <Camera className="size-7 text-white" />
+            </div>
+            <div
+              className="font-bold text-[20px] text-white"
+              style={{ textShadow: '0 2px 12px rgba(0,0,0,0.4)' }}
+            >
+              Upload your photo
+            </div>
+            <div className="text-[12px] mt-1 text-white/85">
+              Tap here · JPG, PNG up to 10 MB
+            </div>
+            <div
+              className="mt-4 inline-flex items-center justify-center h-12 px-6 rounded-pill font-bold text-[15px] bg-canvas text-rausch"
+              style={{ boxShadow: '0 6px 18px rgba(0,0,0,0.25)' }}
+            >
+              Choose photo
+            </div>
+          </div>
+        </div>
+      </label>
+
+      {/* fusion option — preserved */}
+      <label className="flex items-center justify-center gap-2 text-xs text-ink-muted cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={useFusion}
+          onChange={(e) => setUseFusion(e.target.checked)}
+          className="w-3.5 h-3.5 rounded border-hairline-strong bg-surface-soft text-rausch focus:ring-rausch focus:ring-offset-0 accent-rausch"
+        />
+        <span>Replace background with a better-matching scene</span>
+      </label>
+
+      {/* Stats row — social proof */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { v: '2.3×', l: 'more matches' },
+          { v: '47K+', l: 'photos fixed' },
+          { v: '4.9★', l: 'avg rating' },
+        ].map((s) => (
+          <div key={s.l} className="text-center py-2.5 rounded-[12px] bg-surface-soft">
+            <div className="font-bold text-[16px] text-ink tracking-[-0.4px]">{s.v}</div>
+            <div className="text-[10px] mt-0.5 text-ink-muted">{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Trust strip */}
+      <div className="flex items-center justify-center gap-3 text-[11px] text-ink-soft">
+        <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3" /> No photos stored</span>
+        <span>·</span>
+        <span className="inline-flex items-center gap-1"><Lock className="size-3" /> Private & encrypted</span>
+      </div>
+    </div>
+  );
+}
+
 export default function BoostScanner() {
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +318,6 @@ export default function BoostScanner() {
   const [sliderIndex, setSliderIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
-  const [isUploadHovered, setIsUploadHovered] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -935,26 +1145,49 @@ export default function BoostScanner() {
 
   // Overlays
   const ScanningOverlay = () => (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[1px]">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none"><div className="absolute left-0 right-0 h-0.5 bg-rausch" style={{ boxShadow: '0 0 20px 6px rgba(244,63,94,0.6)', animation: 'scanLine 2s linear infinite' }} /></div>
-      <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center">
-        <div className="flex space-x-1.5"><div className="w-2 h-2 bg-rausch rounded-full animate-bounce" style={{ animationDelay: '0ms' }} /><div className="w-2 h-2 bg-rausch rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><div className="w-2 h-2 bg-rausch rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></div>
-        <p className="text-white font-semibold text-base animate-pulse">AI is analyzing your photo...</p>
-        <p className="text-white/50 text-sm">Usually done within 15 seconds</p>
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center bg-canvas/70 backdrop-blur-md">
+      <div className="absolute top-0 left-0 right-0 h-[3px] bg-hairline-soft overflow-hidden">
+        <div className="h-full w-1/3 bg-rausch rounded-full" style={{ animation: 'progressIndeterminate 1.6s ease-in-out infinite' }} />
+      </div>
+      <div className="grid size-12 place-items-center rounded-full bg-canvas border border-hairline shadow-ab-card">
+        <Sparkles className="size-5 text-rausch" />
+      </div>
+      <div className="space-y-1">
+        <p className="text-base font-semibold text-ink">Analyzing your photo</p>
+        <p className="text-sm text-ink-muted">Usually done within 15 seconds</p>
       </div>
     </div>
   );
   const EnhancingOverlay = () => (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[1px]">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none"><div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-rausch to-transparent" style={{ boxShadow: '0 0 20px 6px rgba(52,211,153,0.5)', animation: 'scanLine 1.5s linear infinite' }} /></div>
-      <div className="relative z-10 flex flex-col items-center gap-3 px-4 text-center"><Loader2 className="w-8 h-8 text-rausch animate-spin" /><p className="text-white font-semibold text-base animate-pulse">Enhancing your photo...</p><p className="text-white/50 text-sm">Usually done within 12 seconds</p></div>
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center bg-canvas/70 backdrop-blur-md">
+      <div className="absolute top-0 left-0 right-0 h-[3px] bg-hairline-soft overflow-hidden">
+        <div className="h-full w-1/3 bg-rausch rounded-full" style={{ animation: 'progressIndeterminate 1.6s ease-in-out infinite' }} />
+      </div>
+      <div className="grid size-12 place-items-center rounded-full bg-canvas border border-hairline shadow-ab-card">
+        <Loader2 className="size-5 text-rausch animate-spin" />
+      </div>
+      <div className="space-y-1">
+        <p className="text-base font-semibold text-ink">Enhancing your photo</p>
+        <p className="text-sm text-ink-muted">Usually done within 12 seconds</p>
+      </div>
     </div>
   );
   const GuestLockOverlay = () => (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center bg-black/50 backdrop-blur-[2px]">
-      <div className="grid size-12 place-items-center rounded-full bg-white/10 border border-white/20 backdrop-blur-sm"><Lock className="size-5 text-white" /></div>
-      <div><p className="text-white font-bold text-base">Your photo looks great</p><p className="text-white/50 text-xs mt-1">Sign in to see the full result — takes 10 seconds</p></div>
-      <Button size="lg" className="bg-white text-ink hover:bg-white/90 font-bold gap-2 px-8 py-3 rounded-xl shadow-lg text-base min-w-[200px]" onClick={() => openAuthModal('sign-up')}>View My Photo</Button>
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center bg-canvas/65 backdrop-blur-md">
+      <div className="grid size-12 place-items-center rounded-full bg-canvas border border-hairline shadow-ab-card">
+        <Lock className="size-5 text-ink" />
+      </div>
+      <div className="space-y-1">
+        <p className="text-base font-semibold text-ink">Your photo looks great</p>
+        <p className="text-sm text-ink-muted">Sign in to see the full result — takes 10 seconds</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => openAuthModal('sign-up')}
+        className="inline-flex items-center justify-center h-12 px-7 rounded-pill bg-rausch hover:bg-rausch-active text-white font-medium text-base shadow-ab-card transition-colors"
+      >
+        View My Photo
+      </button>
     </div>
   );
 
@@ -962,78 +1195,26 @@ export default function BoostScanner() {
     <div className="w-full text-foreground relative">
       <div className="mx-auto flex w-full flex-col gap-4">
 
-        {/* ═══ DESKTOP: Initial upload ═══ */}
+        {/* ═══ Initial upload — auto-sweep hero that becomes the upload zone ═══ */}
         {!preview && (
-          <div className="hidden md:grid md:grid-cols-2 gap-5 items-stretch">
-            <div className="flex flex-col gap-2">
-              <label
-                onMouseEnter={() => setIsUploadHovered(true)}
-                onMouseLeave={() => setIsUploadHovered(false)}
-                className="group relative rounded-2xl border-[3px] border-dashed border-rausch/50 bg-rausch/5 hover:border-rausch hover:bg-rausch/10 cursor-pointer transition-all duration-500 overflow-hidden flex-1 min-h-[380px] flex flex-col items-center justify-center gap-6 px-8"
-              >
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
-                <div className={`relative pointer-events-none grid size-24 place-items-center rounded-3xl bg-rausch/10 border-2 border-rausch/30 shadow-ab-card transition-all duration-500 ${isUploadHovered ? ' scale-105 bg-rausch/20' : ''}`}>
-                  <UserRound className={`size-10 transition-colors duration-300 ${isUploadHovered ? 'text-rausch' : 'text-rausch'}`} />
-                </div>
-                <div className="relative pointer-events-none text-center space-y-2">
-                  <div className="text-xl font-bold text-white">Upload a clear photo of your face</div>
-                  <div className="text-base text-ink-muted group-hover:text-ink-body transition-colors">or click to browse</div>
-                </div>
-
-                {/* Example pairs — shows users what kind of photo works */}
-                <div className="relative pointer-events-none flex flex-col items-center gap-2">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-ink-muted font-semibold">Like these</div>
-                  <div className="flex items-center gap-2.5">
-                    {EXAMPLE_PAIRS.map((ex, i) => (
-                      <div key={i} className="flex items-center gap-1">
-                        <div className="relative w-8 h-10 rounded overflow-hidden border border-hairline bg-canvas border border-hairline">
-                          <img src={ex.before} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                        <ChevronRight className="size-3 text-ink-soft" />
-                        <div className="relative w-8 h-10 rounded overflow-hidden ring-1 ring-ink bg-canvas border border-hairline">
-                          <img src={ex.after} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="relative pointer-events-none text-xs text-rausch/80 mt-1 text-center px-2">Photos that don&apos;t show your face won&apos;t be enhanced</div>
-                <div className="relative pointer-events-none text-sm text-ink-soft">JPG / PNG · Max 10 MB</div>
-              </label>
-
-              {/* [fusion] 开关 - 像勾选法律协议那样放在上传框下面 */}
-              <label className="flex items-center gap-2 px-3 py-2 text-xs text-ink-muted cursor-pointer hover:text-ink-muted transition-colors select-none">
-                <input
-                  type="checkbox"
-                  checked={useFusion}
-                  onChange={(e) => setUseFusion(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded border-hairline-strong bg-surface-soft text-rausch focus:ring-rausch focus:ring-offset-0 accent-rausch"
-                />
-                <span>Replace background with a better-matching scene (recommended)</span>
-              </label>
-            </div>
-
-            <div className="rounded-2xl border border-hairline-soft bg-surface-soft min-h-[420px] flex flex-col items-center justify-center gap-4 px-8 opacity-30">
-              <div className="grid size-16 place-items-center rounded-2xl bg-surface-soft border border-hairline-soft">
-                <Sparkles className="size-7 text-ink-soft" />
-              </div>
-              <div className="text-center">
-                <div className="text-base text-ink-muted font-medium">Your enhanced photo will appear here</div>
-              </div>
-            </div>
-          </div>
+          <UploadHero
+            beforeSrc={EXAMPLE_PAIRS[0].before}
+            afterSrc={EXAMPLE_PAIRS[0].after}
+            fileInputRef={fileInputRef}
+            onFileSelect={handleFileSelect}
+            useFusion={useFusion}
+            setUseFusion={setUseFusion}
+          />
         )}
 
         {/* ═══ DESKTOP: After upload ═══ */}
         {preview && (
           <div className="hidden md:grid md:grid-cols-2 gap-5">
             <div onClick={showEnhanced ? selectOriginal : undefined}
-              className={`rounded-2xl border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? 'cursor-pointer' : ''} ${showEnhanced ? isOriginalSelected ? 'border-rausch shadow-lg ' : 'border-hairline-soft opacity-60 hover:opacity-90' : 'border-hairline-soft'} bg-canvas`}>
+              className={`rounded-card border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? 'cursor-pointer' : ''} ${showEnhanced ? isOriginalSelected ? 'border-rausch shadow-lg ' : 'border-hairline-soft opacity-60 hover:opacity-90' : 'border-hairline-soft'} bg-canvas`}>
               {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${isOriginalSelected ? 'text-rausch bg-rausch/10' : 'text-ink-soft'}`}>ORIGINAL</div>}
               <div className="px-4 pb-4">
-                <div className={`relative w-full overflow-hidden rounded-xl border border-hairline bg-surface-soft flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
+                <div className={`relative w-full overflow-hidden rounded-card border border-hairline bg-surface-soft flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
                   <img src={preview} alt="Original" className={`w-full object-contain p-2 cursor-pointer ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'max-h-[300px] md:max-h-[360px]'}`} onClick={() => openLightbox(preview!)} />
                   {isCompact && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                   {isLoading && <ScanningOverlay />}
@@ -1043,31 +1224,29 @@ export default function BoostScanner() {
 
                     {enhanceError ? (
                       <button type="button" onClick={() => handleEnhance()} disabled={isEnhancing}
-                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-lg  disabled:opacity-40 ">
+                        className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-ab-card disabled:opacity-40 transition-colors">
                         <RefreshCw className="w-5 h-5" /> Retry Enhancement
-                        <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">No charge</span>
+                        <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-xs font-semibold">No charge</span>
                       </button>
                     ) : autoStartChecking ? (
-                      // ... 其他原样保留
                       <button type="button" disabled
-                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-rausch text-white shadow-ab-card opacity-70">
+                        className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-rausch text-white shadow-ab-card opacity-70">
                         <Loader2 className="w-5 h-5 animate-spin" /> Preparing...
                       </button>
                     ) : showCreditConfirm ? (
-                      /* [v9.2] Credit confirm bar — shows cost before starting */
                       <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
-                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-rausch hover:bg-rausch-active text-white shadow-ab-card disabled:opacity-40 ">
+                        className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-rausch hover:bg-rausch-active text-white shadow-ab-card disabled:opacity-40 transition-colors">
                         <Wand2 className="w-5 h-5" /> Enhance Photo
-                        <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">⚡ {requiredCredits}</span>
+                        <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-sm font-semibold">⚡ {requiredCredits}</span>
                       </button>
                     ) : (
                       <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
-                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-rausch hover:bg-rausch-active text-white shadow-ab-card disabled:opacity-40 ">
+                        className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-rausch hover:bg-rausch-active text-white shadow-ab-card disabled:opacity-40 transition-colors">
                         <Wand2 className="w-5 h-5" /> Enhance Photo
-                        <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span>
+                        <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 20' : '⚡ 25') : 'Free'}</span>
                       </button>
                     )}
-                    <label className="w-full h-10 rounded-xl text-sm text-ink-muted hover:text-ink-body hover:bg-surface-soft flex items-center justify-center gap-2 cursor-pointer">
+                    <label className="w-full h-10 rounded-btn text-sm text-ink-muted hover:text-ink-body hover:bg-surface-soft flex items-center justify-center gap-2 cursor-pointer">
                       <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                       <RefreshCw className="w-3.5 h-3.5" /> Change photo
                     </label>
@@ -1076,10 +1255,10 @@ export default function BoostScanner() {
               </div>
             </div>
             <div onClick={showEnhanced ? selectEnhanced : undefined}
-              className={`rounded-2xl border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? !isOriginalSelected ? 'border-ink shadow-lg  cursor-pointer' : 'border-hairline-soft opacity-60 hover:opacity-90 cursor-pointer' : 'border-hairline-soft'} bg-canvas`}>
+              className={`rounded-card border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? !isOriginalSelected ? 'border-ink shadow-lg  cursor-pointer' : 'border-hairline-soft opacity-60 hover:opacity-90 cursor-pointer' : 'border-hairline-soft'} bg-canvas`}>
               {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${!isOriginalSelected ? 'text-ink bg-surface-soft' : 'text-ink-soft'}`}>AI ENHANCED</div>}
               <div className="px-4 pb-4">
-                <div className={`relative w-full overflow-hidden rounded-xl border border-hairline bg-surface-soft flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
+                <div className={`relative w-full overflow-hidden rounded-card border border-hairline bg-surface-soft flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
                   {showEnhanced ? (
                     <div className="relative h-full w-full">
                       <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isGuestEnhanced ? '' : 'cursor-pointer'} ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'max-h-[300px] md:max-h-[360px]'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && openLightbox(enhancedSrc)} />
@@ -1090,7 +1269,7 @@ export default function BoostScanner() {
                   ) : isEnhancing ? (
                     <div className="relative w-full h-full min-h-[200px]"><EnhancingOverlay /></div>
                   ) : (
-                    <div className="flex flex-col items-center gap-4 text-center px-6 opacity-30"><div className="grid size-16 place-items-center rounded-2xl bg-surface-soft border border-hairline-soft"><Sparkles className="size-7 text-ink-soft" /></div><div className="text-base text-ink-muted">Your enhanced photo will appear here</div></div>
+                    <div className="flex flex-col items-center gap-4 text-center px-6 opacity-30"><div className="grid size-16 place-items-center rounded-card bg-surface-soft border border-hairline-soft"><Sparkles className="size-7 text-ink-soft" /></div><div className="text-base text-ink-muted">Your enhanced photo will appear here</div></div>
                   )}
                 </div>
                 {showEnhanced && variants && variants.length > 1 && !isGuestEnhanced && (
@@ -1119,57 +1298,9 @@ export default function BoostScanner() {
 
         {/* ═══ MOBILE ═══ */}
         <div className="md:hidden">
-          {!preview ? (
-            <div className="flex flex-col gap-2">
-              <label className="group relative rounded-2xl border-[3px] border-dashed border-rausch/50 bg-rausch/5 active:bg-rausch/10 cursor-pointer min-h-[340px] flex flex-col items-center justify-center gap-5 px-6 overflow-hidden">
-                <input type="file" accept="image/*" onChange={handleFileSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ WebkitTapHighlightColor: 'transparent', fontSize: '0', border: 'none', outline: 'none' }} />
-                <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.12) 0%, transparent 65%)', animation: 'uploadPulse 2.5s ease-in-out infinite' }} />
-                <div className="relative pointer-events-none grid size-20 place-items-center rounded-3xl bg-rausch/10 border-2 border-rausch/30 shadow-ab-card">
-                  <UserRound className="size-8 text-rausch" />
-                </div>
-                <div className="relative pointer-events-none text-center space-y-1.5">
-                  <div className="text-lg font-bold text-white">Upload a clear photo of your face</div>
-                  <div className="text-xs text-ink-muted">Tap here or browse from your gallery</div>
-                </div>
-
-                {/* Example pairs — shows users what kind of photo works */}
-                <div className="relative pointer-events-none flex flex-col items-center gap-1.5">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-ink-muted font-semibold">Like these</div>
-                  <div className="flex items-center gap-2">
-                    {EXAMPLE_PAIRS.map((ex, i) => (
-                      <div key={i} className="flex items-center gap-1">
-                        <div className="relative w-7 h-9 rounded overflow-hidden border border-hairline bg-canvas border border-hairline">
-                          <img src={ex.before} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                        <ChevronRight className="size-2.5 text-ink-soft" />
-                        <div className="relative w-7 h-9 rounded overflow-hidden ring-1 ring-ink bg-canvas border border-hairline">
-                          <img src={ex.after} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="relative pointer-events-none text-center space-y-1">
-                  <div className="text-xs text-rausch/80 px-2">Photos that don&apos;t show your face won&apos;t be enhanced</div>
-                  <div className="text-sm text-ink-soft">JPG / PNG · Max 10 MB</div>
-                </div>
-              </label>
-
-              {/* [fusion] 开关 - mobile */}
-              <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-ink-muted cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={useFusion}
-                  onChange={(e) => setUseFusion(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded border-hairline-strong bg-surface-soft text-rausch focus:ring-rausch focus:ring-offset-0 accent-rausch"
-                />
-                <span>Replace background with a better-matching scene (recommended)</span>
-              </label>
-            </div>
-          ) : (
+          {preview && (
             // 下面原样
-            <div className="rounded-2xl border border-hairline bg-canvas overflow-hidden">
+            <div className="rounded-card border border-hairline bg-canvas overflow-hidden">
               {showEnhanced && (
                 <div className="grid grid-cols-2 border-b border-hairline-soft">
                   <button onClick={selectOriginal} className={`py-2.5 text-sm font-bold tracking-wide transition-colors ${isOriginalSelected ? 'text-rausch bg-rausch/10 border-b-2 border-rausch' : 'text-ink-soft'}`}>ORIGINAL</button>
@@ -1178,7 +1309,7 @@ export default function BoostScanner() {
               )}
               <div className="px-4 pb-4 pt-3">
                 {/* [v9.2] Mobile preview: max-h-[280px] before analysis to keep buttons visible */}
-                <div className={`relative w-full overflow-hidden rounded-xl border border-hairline bg-surface-soft transition-all duration-500 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`}
+                <div className={`relative w-full overflow-hidden rounded-card border border-hairline bg-surface-soft transition-all duration-500 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`}
                   onTouchStart={showEnhanced ? handleTouchStart : undefined} onTouchMove={showEnhanced ? handleTouchMove : undefined} onTouchEnd={showEnhanced ? handleTouchEnd : undefined}>
                   <div style={{ display: sliderIndex === 0 ? 'block' : 'none' }} className="relative h-full w-full">
                     <img src={preview} alt="Original" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`} onClick={() => openLightbox(preview!)} />
@@ -1227,21 +1358,21 @@ export default function BoostScanner() {
                     {/* [v9.2] Mobile: same auto-start logic as desktop */}
                     {autoStartChecking ? (
                       <button type="button" disabled
-                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-rausch text-white shadow-ab-card opacity-70">
+                        className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-rausch text-white shadow-ab-card opacity-70">
                         <Loader2 className="w-5 h-5 animate-spin" /> Preparing...
                       </button>
                     ) : showCreditConfirm ? (
                       <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
-                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-rausch text-white shadow-ab-card disabled:opacity-40">
-                        <Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">⚡ {requiredCredits}</span>
+                        className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-rausch text-white shadow-ab-card disabled:opacity-40">
+                        <Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-sm font-semibold">⚡ {requiredCredits}</span>
                       </button>
                     ) : (
                       <button type="button" onClick={handleSubmit} disabled={isLoading || isEnhancing}
-                        className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-rausch text-white shadow-ab-card disabled:opacity-40">
-                        <Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 25' : '⚡ 40') : 'Free'}</span>
+                        className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-rausch text-white shadow-ab-card disabled:opacity-40">
+                        <Wand2 className="w-5 h-5" /> Enhance Photo <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-sm font-semibold">{isLoggedIn ? (isSubscribed ? '⚡ 25' : '⚡ 40') : 'Free'}</span>
                       </button>
                     )}
-                    <label className="w-full h-9 rounded-xl text-xs text-ink-muted hover:text-ink-body flex items-center justify-center gap-1.5 cursor-pointer">
+                    <label className="w-full h-9 rounded-btn text-xs text-ink-muted hover:text-ink-body flex items-center justify-center gap-1.5 cursor-pointer">
                       <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                       <RefreshCw className="w-3 h-3" /> Change photo
                     </label>
@@ -1250,9 +1381,9 @@ export default function BoostScanner() {
                 {enhanceError && !isEnhancing && !showEnhanced && (
                   <div className="flex flex-col gap-2 mt-3">
                     <button type="button" onClick={() => handleEnhance()} disabled={isEnhancing}
-                      className="w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg  disabled:opacity-40">
+                      className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-ab-card disabled:opacity-40 transition-colors">
                       <RefreshCw className="w-5 h-5" /> Retry Enhancement
-                      <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">No charge</span>
+                      <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-xs font-semibold">No charge</span>
                     </button>
                   </div>
                 )}
@@ -1266,18 +1397,18 @@ export default function BoostScanner() {
           <div className="flex flex-col gap-3">
             {isEnhancementComplete && (
               <button onClick={handleDownload} disabled={isDownloading}
-                className="w-full h-14 rounded-xl gap-2 font-bold text-base bg-rausch hover:bg-rausch-active text-white shadow-lg  hover: transition-all disabled:opacity-50 flex items-center justify-center ">
+                className="w-full h-12 rounded-btn gap-2 font-medium text-base bg-rausch hover:bg-rausch-active text-white shadow-ab-card transition-colors disabled:opacity-50 flex items-center justify-center">
                 {isDownloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />} {downloadButtonText}
               </button>
             )}
             {preview && visibleText && !isLoading && !isEnhancing && (enhanceError || analysisFailed) && (
-              <Button type="button" variant="outline" className="w-full h-12 text-ink-muted gap-2 border-hairline hover:bg-surface-soft rounded-xl text-sm" onClick={handleTryAnother}><RefreshCw className="w-4 h-4" /> Try Another Photo</Button>
+              <Button type="button" variant="outline" className="w-full h-12 text-ink-muted gap-2 border-hairline hover:bg-surface-soft rounded-btn text-sm" onClick={handleTryAnother}><RefreshCw className="w-4 h-4" /> Try Another Photo</Button>
             )}
             {isEnhancementComplete && (
               <UsageGuideCard analysisJSON={analysisJSON} />
             )}
             {enhanceError && !activeModal && (
-              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-destructive/20 bg-destructive/5"><span className="text-destructive text-sm">⚠️ Enhancement failed: {enhanceError}</span><Button size="sm" variant="outline" className="shrink-0 border-destructive/20 text-destructive hover:bg-destructive/10 rounded-lg text-xs" onClick={() => handleEnhance()}>Retry</Button></div>
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-card border border-destructive/20 bg-destructive/5"><span className="text-destructive text-sm">⚠️ Enhancement failed: {enhanceError}</span><Button size="sm" variant="outline" className="shrink-0 border-destructive/20 text-destructive hover:bg-destructive/10 rounded-lg text-xs" onClick={() => handleEnhance()}>Retry</Button></div>
             )}
           </div>
         )}
@@ -1285,7 +1416,7 @@ export default function BoostScanner() {
         {/* ═══ CONTENT PANEL ═══ */}
         <DatingTrivia active={isLoading || isEnhancing} onTrack={trackEvent} />
         {isLoading && displayText && (
-          <div className="rounded-xl border border-hairline bg-surface-soft p-4">
+          <div className="rounded-card border border-hairline bg-surface-soft p-4">
             <div className="flex items-center gap-2 mb-2"><span className="text-rausch font-semibold text-sm flex items-center gap-2"><span className="grid size-5 place-items-center rounded bg-rausch/10">🎯</span> Analyzing...</span></div>
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-ink-body">{displayText}</div>
           </div>
@@ -1329,21 +1460,19 @@ export default function BoostScanner() {
 
         {/* ═══ [v9.4] RESULT SHOWCASE MODAL — watermarked preview + inline $1.99 CTA ═══ */}
         {showResultShowcase && showcaseCurrentSlide && !isGuestEnhanced && (
-          <div className="fixed inset-0 z-50 bg-black/95 flex flex-col animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col animate-in fade-in duration-300">
             {/* Close button */}
             <button
-              className="absolute top-4 right-4 z-20 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors border border-white/10"
+              className="absolute top-4 right-4 z-20 grid size-10 place-items-center rounded-full bg-canvas text-ink hover:bg-surface-soft transition-colors shadow-ab-card"
               onClick={() => setShowResultShowcase(false)}
+              aria-label="Close"
             >
               <X className="size-5" />
             </button>
 
             {/* Top badge — dynamic per-slide label */}
             <div className="flex justify-center pt-4 pb-2">
-              <span className={`text-sm font-bold px-4 py-1.5 rounded-full backdrop-blur-sm transition-all duration-300 ${showcaseCurrentSlide.type === 'original'
-                ? 'text-ink-muted bg-white/5 border border-white/10'
-                : 'text-ink bg-surface-soft border border-emerald-500/20'
-                }`}>
+              <span className="text-sm font-medium px-4 py-1.5 rounded-pill bg-canvas text-ink shadow-ab-card">
                 {showcaseCurrentSlide.label}
               </span>
             </div>
@@ -1358,21 +1487,23 @@ export default function BoostScanner() {
               <img
                 src={showcaseCurrentSlide.src}
                 alt={showcaseCurrentSlide.label}
-                className="max-w-full max-h-full object-contain rounded-xl transition-opacity duration-300"
+                className="max-w-full max-h-full object-contain rounded-card transition-opacity duration-300"
                 style={{ touchAction: 'pinch-zoom' }}
               />
               {/* Left/Right arrows */}
               <button
-                className="absolute left-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10 transition-all"
+                className="absolute left-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-canvas text-ink hover:bg-surface-soft disabled:opacity-30 shadow-ab-card transition-colors"
                 onClick={() => setShowcaseSlideIndex(Math.max(0, showcaseSlideIndex - 1))}
                 disabled={showcaseSlideIndex === 0}
+                aria-label="Previous"
               >
                 <ChevronLeft className="size-5" />
               </button>
               <button
-                className="absolute right-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10 transition-all"
+                className="absolute right-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-canvas text-ink hover:bg-surface-soft disabled:opacity-30 shadow-ab-card transition-colors"
                 onClick={() => setShowcaseSlideIndex(Math.min(showcaseSlides.length - 1, showcaseSlideIndex + 1))}
                 disabled={showcaseSlideIndex >= showcaseSlides.length - 1}
+                aria-label="Next"
               >
                 <ChevronRight className="size-5" />
               </button>
@@ -1386,42 +1517,36 @@ export default function BoostScanner() {
                   <button
                     key={i}
                     onClick={() => setShowcaseSlideIndex(i)}
-                    className={`rounded-full transition-all duration-200 ${showcaseSlideIndex === i ? 'w-6 h-2 bg-emerald-400' : 'w-2 h-2 bg-white/30 hover:bg-white/50'
-                      }`}
+                    aria-label={`Slide ${i + 1}`}
+                    className={`rounded-full transition-all duration-200 ${showcaseSlideIndex === i ? 'w-6 h-2 bg-canvas' : 'w-2 h-2 bg-white/40 hover:bg-white/60'}`}
                   />
                 ))}
               </div>
 
               {/* Privacy note */}
-              <p className="text-xs text-ink-muted text-center flex items-center gap-1.5">
-                <ShieldCheck className="size-3 text-ink-soft shrink-0" />
+              <p className="text-xs text-white/70 text-center flex items-center gap-1.5">
+                <ShieldCheck className="size-3 text-white/60 shrink-0" />
                 We don&apos;t store photos — save it now or lose it forever
               </p>
 
               {/* ─── Main CTA — downloads the slide currently in view ─── */}
               {showcaseCurrentSlide.type === 'original' ? (
-                /* On the original slide — offer to save the original (free, dataURL) */
                 <button
                   onClick={handleShowcaseDownloadCurrent}
-                  className="w-full max-w-sm h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-ink-body border border-hairline hover:bg-surface-soft transition-all"
+                  className="w-full max-w-sm h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2.5 text-ink bg-canvas hover:bg-surface-soft transition-colors shadow-ab-card"
                 >
                   <Download className="size-5" />
                   Save Original
                 </button>
               ) : isDownloadFree ? (
-                /* Subscribed / already-paid — direct download of THIS slide */
                 <button
                   onClick={handleShowcaseDownloadCurrent}
-                  className="showcase-download-btn w-full max-w-sm h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-white shadow-xl transition-all active:scale-[0.98] relative overflow-hidden"
-                  style={{
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #0d9488 100%)',
-                    boxShadow: '0 8px 32px rgba(16,185,129,0.35), 0 2px 8px rgba(0,0,0,0.3)',
-                  }}
+                  className="showcase-download-btn w-full max-w-sm h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2.5 text-white bg-rausch hover:bg-rausch-active transition-colors shadow-ab-card relative overflow-hidden active:scale-[0.98]"
                 >
                   <span
                     className="absolute inset-0 pointer-events-none"
                     style={{
-                      background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.25) 55%, transparent 65%)',
+                      background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.22) 45%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0.22) 55%, transparent 65%)',
                       animation: 'showcaseShimmer 2.5s ease-in-out infinite',
                     }}
                   />
@@ -1429,9 +1554,6 @@ export default function BoostScanner() {
                   <span className="relative z-10">Download This Look</span>
                 </button>
               ) : (
-                /* Free trial user, payment needed — pays $1.99 to unlock THIS slide.
-                   The backend group-unlock means subsequent variants in the same
-                   group are downloadable for free if the user wants more later. */
                 <ShowcaseMicroPackButton
                   returnPath={pathname}
                   enhancementId={showcaseCurrentSlide.enhancementId}
@@ -1441,36 +1563,23 @@ export default function BoostScanner() {
 
               {/* Trust row — only show when payment is needed */}
               {!isDownloadFree && (
-                <div className="flex items-center justify-center gap-3 text-[10px] text-ink-soft flex-wrap max-w-sm">
+                <div className="flex items-center justify-center gap-3 text-[10px] text-white/60 flex-wrap max-w-sm">
                   <span className="flex items-center gap-1">
                     <ShieldCheck className="size-3" /> 30-day money-back
                   </span>
-                  <span className="text-ink-soft">•</span>
+                  <span className="text-white/40">•</span>
                   <span className="flex items-center gap-1">
                     <Lock className="size-3" /> Secured by Creem
                   </span>
-                  <span className="text-ink-soft">•</span>
+                  <span className="text-white/40">•</span>
                   <span>Instant download</span>
                 </div>
               )}
 
-              {/* Secondary: watermark download (free) — DISABLED.
-                  Removed because dating users won't actually upload a logo'd photo;
-                  this option just competes with paid CTAs. Re-enable by uncommenting.
-              {!isDownloadFree && (
-                <button
-                  onClick={handleDownloadWatermarked}
-                  className="text-xs text-ink-soft hover:text-ink-muted transition-colors underline underline-offset-2 decoration-hairline-strong py-1"
-                >
-                  or download with watermark (free)
-                </button>
-              )}
-              */}
-
               {/* Tertiary: try another */}
               <button
                 onClick={() => { setShowResultShowcase(false); handleTryAnother(); }}
-                className="text-xs text-ink-soft hover:text-ink-muted transition-colors py-0.5"
+                className="text-xs text-white/55 hover:text-white/80 transition-colors py-0.5"
               >
                 Try another photo
               </button>
@@ -1479,29 +1588,35 @@ export default function BoostScanner() {
         )}
 
         <style>{`
-          @keyframes scanLine { 0% { top: 0%; } 100% { top: 100%; } }
-          @keyframes uploadPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+          @keyframes progressIndeterminate {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+          }
           @keyframes showcaseShimmer {
             0% { transform: translateX(-120%); }
             60% { transform: translateX(120%); }
             100% { transform: translateX(120%); }
           }
+          @keyframes heroPop {
+            0% { transform: scale(0.92); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+          }
         `}</style>
       </div>
 
       {/* ═══ MODALS ═══ */}
-      {activeModal === 'privacy_exit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><ShieldCheck className="size-8 text-emerald-500" /></div><h2 className="text-xl font-bold text-white mb-2">Your Privacy Matters</h2><p className="text-sm text-ink-muted mb-1 leading-relaxed">To protect your privacy, <span className="font-semibold text-ink">we never store any photos</span> on our servers.</p><p className="text-sm text-ink-muted mb-6 leading-relaxed">Once you leave this page, your current photo and results will be <span className="font-semibold text-ink">permanently deleted</span> and cannot be recovered.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-xl border-hairline text-ink-body hover:bg-surface-soft" onClick={pendingNavigationRef.current ? handlePrivacyExitConfirm : handleTryAnotherConfirm}>{pendingNavigationRef.current ? 'Leave Anyway' : 'Start Over'}</Button><button className="flex-1 h-11 rounded-xl bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={handlePrivacyExitCancel}>Stay on Page</button></div></div></div>)}
-      {activeModal === 'free_limit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20"><Wand2 className="size-8 text-amber-500" /></div><h2 className="text-xl font-bold text-white mb-2">All 3 Free Analyses Used</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">Looks like you&apos;re enjoying Matchfix! Create a free account to keep going — it only takes 10 seconds.</p><p className="text-xs text-ink-muted mb-6">Plus, your first AI-enhanced photo is <span className="font-bold text-emerald-400">completely free</span> after sign-up.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-xl border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>Maybe Later</Button><button className="flex-1 h-11 rounded-xl bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('free_limit_signup_click'); openAuthModal('sign-up'); }}>Sign Up Free</button></div></div></div>)}
-      {activeModal === 'enhance' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><Coins className="size-8 text-rausch" /></div><h2 className="text-xl font-bold text-white mb-2">Credits Needed</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">AI photo enhancement costs <span className="font-bold text-ink">20 credits</span> for members or <span className="font-bold text-ink">25 credits</span> with a credit pack.</p><p className="text-xs text-ink-muted mb-6">Members save 5 credits per photo + get free watermark-free downloads.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-xl border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>Cancel</Button><button className="flex-1 h-11 rounded-xl bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('upgrade_modal_click_refill'); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}>Get Credits</button></div></div></div>)}
+      {activeModal === 'privacy_exit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><ShieldCheck className="size-8 text-emerald-500" /></div><h2 className="text-xl font-semibold text-ink mb-2">Your Privacy Matters</h2><p className="text-sm text-ink-muted mb-1 leading-relaxed">To protect your privacy, <span className="font-semibold text-ink">we never store any photos</span> on our servers.</p><p className="text-sm text-ink-muted mb-6 leading-relaxed">Once you leave this page, your current photo and results will be <span className="font-semibold text-ink">permanently deleted</span> and cannot be recovered.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={pendingNavigationRef.current ? handlePrivacyExitConfirm : handleTryAnotherConfirm}>{pendingNavigationRef.current ? 'Leave Anyway' : 'Start Over'}</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={handlePrivacyExitCancel}>Stay on Page</button></div></div></div>)}
+      {activeModal === 'free_limit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20"><Wand2 className="size-8 text-amber-500" /></div><h2 className="text-xl font-semibold text-ink mb-2">All 3 Free Analyses Used</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">Looks like you&apos;re enjoying Matchfix! Create a free account to keep going — it only takes 10 seconds.</p><p className="text-xs text-ink-muted mb-6">Plus, your first AI-enhanced photo is <span className="font-bold text-emerald-400">completely free</span> after sign-up.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>Maybe Later</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('free_limit_signup_click'); openAuthModal('sign-up'); }}>Sign Up Free</button></div></div></div>)}
+      {activeModal === 'enhance' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><Coins className="size-8 text-rausch" /></div><h2 className="text-xl font-semibold text-ink mb-2">Credits Needed</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">AI photo enhancement costs <span className="font-bold text-ink">20 credits</span> for members or <span className="font-bold text-ink">25 credits</span> with a credit pack.</p><p className="text-xs text-ink-muted mb-6">Members save 5 credits per photo + get free watermark-free downloads.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>Cancel</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('upgrade_modal_click_refill'); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}>Get Credits</button></div></div></div>)}
 
       {/* enhance_failed modal */}
       {activeModal === 'enhance_failed' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
             <div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20">
               <AlertCircle className="size-8 text-amber-500" />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Enhancement Couldn&apos;t Complete</h2>
+            <h2 className="text-xl font-semibold text-ink mb-2">Enhancement Couldn&apos;t Complete</h2>
             <p className="text-sm text-ink-muted mb-2 leading-relaxed">
               Our AI works best with <span className="font-semibold text-ink">clear portrait photos</span> — face visible, decent lighting, minimal obstruction.
             </p>
@@ -1514,7 +1629,7 @@ export default function BoostScanner() {
             <div className="flex w-full gap-3">
               <Button
                 variant="outline"
-                className="flex-1 h-11 rounded-xl border-hairline text-ink-body hover:bg-surface-soft"
+                className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft"
                 onClick={() => {
                   setActiveModal(null);
                   setEnhanceError(null);
@@ -1524,7 +1639,7 @@ export default function BoostScanner() {
                 Try a New Photo
               </Button>
               <button
-                className="flex-1 h-11 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
+                className="flex-1 h-11 rounded-btn bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
                 onClick={() => {
                   setActiveModal(null);
                   handleEnhance();
@@ -1540,12 +1655,12 @@ export default function BoostScanner() {
       {/* ═══ [v9] download_unlock modal — $1.99 micro pack as primary CTA ═══ */}
       {activeModal === 'download_unlock' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm bg-canvas border border-hairline rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-sm bg-canvas border border-hairline rounded-card shadow-2xl animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 text-emerald-400" />
-                <span className="text-sm font-bold text-white">Your photo is ready</span>
+                <span className="text-sm font-semibold text-ink">Your photo is ready</span>
               </div>
               <button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-surface-soft transition-colors text-ink-muted text-xs">✕</button>
             </div>
@@ -1553,16 +1668,16 @@ export default function BoostScanner() {
 
             <div className="px-4 pb-4 flex flex-col gap-2.5">
               {/* ── Option 1: $1.99 Micro Pack (Primary CTA) ── */}
-              <div className="rounded-xl border-2 border-rausch bg-rausch/5 overflow-hidden">
+              <div className="rounded-card border-2 border-rausch bg-rausch/5 overflow-hidden">
                 <div className="bg-rausch/10 text-rausch text-[10px] font-bold text-center py-1 tracking-widest uppercase">New User Special · One-Time Only</div>
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <div className="text-white font-bold text-base">{getDownloadIds().length > 1 ? `Save All ${getDownloadIds().length} Looks` : 'Save This Photo'}</div>
+                      <div className="text-ink font-semibold text-base">{getDownloadIds().length > 1 ? `Save All ${getDownloadIds().length} Looks` : 'Save This Photo'}</div>
                       <div className="text-ink-muted text-xs mt-0.5">Watermark-free · Instant download</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-white font-extrabold text-xl">$1.99</div>
+                      <div className="text-ink font-bold text-xl">$1.99</div>
                       <div className="text-ink-muted text-[10px]">one-time</div>
                     </div>
                   </div>
@@ -1573,7 +1688,7 @@ export default function BoostScanner() {
               {/* ── Option 2: Pro Membership ── */}
               <button
                 onClick={() => setActiveModal('membership')}
-                className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"
+                className="w-full flex items-center gap-3 p-3.5 rounded-card border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"
               >
                 <div className="grid size-9 place-items-center rounded-full bg-amber-500/10 shrink-0">
                   <Crown className="size-4 text-amber-500" />
@@ -1588,7 +1703,7 @@ export default function BoostScanner() {
               {/* ── Option 3: Credits Pack ── */}
               <button
                 onClick={() => { setActiveModal(null); trackEvent('download_unlock_credits_pack_click'); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}
-                className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-hairline-soft bg-surface-soft hover:bg-surface-soft transition-colors text-left"
+                className="w-full flex items-center gap-3 p-3.5 rounded-card border border-hairline-soft bg-surface-soft hover:bg-surface-soft transition-colors text-left"
               >
                 <div className="grid size-9 place-items-center rounded-full bg-surface-soft shrink-0">
                   <Coins className="size-4 text-ink-muted" />
@@ -1613,20 +1728,20 @@ export default function BoostScanner() {
       )}
 
       {/* download_choice modal (for users who already have 5+ credits) */}
-      {activeModal === 'download_choice' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><Download className="size-8 text-emerald-500" /></div><h2 className="text-xl font-bold text-white mb-1">Save Your Enhanced Photo</h2><p className="text-sm text-ink-muted mb-1">Your photo looks amazing — don&apos;t lose it!</p><p className="text-xs text-destructive/70 mb-4 flex items-center gap-1 justify-center"><ShieldCheck className="size-3" /> We don&apos;t store photos. Leave this page and it&apos;s gone forever.</p><div className="flex flex-col w-full gap-2.5"><button onClick={() => setActiveModal('membership')} className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-amber-500/10 shrink-0"><Crown className="size-5 text-amber-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-ink text-sm">Become a Member</div><div className="text-xs text-ink-muted">No watermark · Free downloads forever</div></div><span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST</span></button><button onClick={handleDownloadWithCredits} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rausch/20 bg-rausch/5 hover:bg-rausch/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-rausch/10 shrink-0"><Coins className="size-5 text-rausch" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-ink text-sm">Use 5 Credits</div><div className="text-xs text-ink-muted">No watermark · One-time purchase</div></div><span className="text-xs font-bold text-rausch shrink-0">⚡ 5</span></button>{/* watermark download — DISABLED (see comment in download_unlock modal) */}{false && <button onClick={handleDownloadWatermarked} className="w-full flex items-center gap-3 p-4 rounded-xl border border-hairline bg-surface-soft hover:bg-surface-soft transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-surface-soft shrink-0"><Download className="size-5 text-ink-muted" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-ink text-sm">Download with Watermark</div><div className="text-xs text-ink-muted">Free · Includes Matchfix branding</div></div><span className="text-[10px] font-bold text-ink-muted shrink-0">FREE</span></button>}</div><button className="mt-4 w-full h-10 text-sm text-ink-muted hover:text-ink-body transition-colors" onClick={() => setActiveModal(null)}>Cancel</button></div></div>)}
+      {activeModal === 'download_choice' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><Download className="size-8 text-emerald-500" /></div><h2 className="text-xl font-semibold text-ink mb-1">Save Your Enhanced Photo</h2><p className="text-sm text-ink-muted mb-1">Your photo looks amazing — don&apos;t lose it!</p><p className="text-xs text-destructive/70 mb-4 flex items-center gap-1 justify-center"><ShieldCheck className="size-3" /> We don&apos;t store photos. Leave this page and it&apos;s gone forever.</p><div className="flex flex-col w-full gap-2.5"><button onClick={() => setActiveModal('membership')} className="w-full flex items-center gap-3 p-4 rounded-card border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-amber-500/10 shrink-0"><Crown className="size-5 text-amber-500" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-ink text-sm">Become a Member</div><div className="text-xs text-ink-muted">No watermark · Free downloads forever</div></div><span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST</span></button><button onClick={handleDownloadWithCredits} className="w-full flex items-center gap-3 p-4 rounded-card border border-rausch/20 bg-rausch/5 hover:bg-rausch/10 transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-rausch/10 shrink-0"><Coins className="size-5 text-rausch" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-ink text-sm">Use 5 Credits</div><div className="text-xs text-ink-muted">No watermark · One-time purchase</div></div><span className="text-xs font-bold text-rausch shrink-0">⚡ 5</span></button>{/* watermark download — DISABLED (see comment in download_unlock modal) */}{false && <button onClick={handleDownloadWatermarked} className="w-full flex items-center gap-3 p-4 rounded-card border border-hairline bg-surface-soft hover:bg-surface-soft transition-colors text-left"><div className="grid size-10 place-items-center rounded-full bg-surface-soft shrink-0"><Download className="size-5 text-ink-muted" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-ink text-sm">Download with Watermark</div><div className="text-xs text-ink-muted">Free · Includes Matchfix branding</div></div><span className="text-[10px] font-bold text-ink-muted shrink-0">FREE</span></button>}</div><button className="mt-4 w-full h-10 text-sm text-ink-muted hover:text-ink-body transition-colors" onClick={() => setActiveModal(null)}>Cancel</button></div></div>)}
 
       {/* membership modal — [v9] checkout button now stays open with loading */}
-      {activeModal === 'membership' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-canvas border border-hairline rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Crown className="size-4 text-amber-500" /><span className="text-sm font-bold text-white">Become a Member</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-surface-soft transition-colors text-ink-muted text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rausch/30 bg-canvas border border-hairline overflow-hidden"><div className="bg-rausch text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ MOST POPULAR ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Pro</div><div className="text-ink-muted text-xs mt-0.5">200 credits / month</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$19.99</div><div className="text-ink-muted text-xs">/month</div></div></div><ul className="space-y-2 mb-5">{['8 photo enhancements per month (3 scenes each)', 'Unlimited watermark-free downloads', 'Save 15 credits/enhancement vs credit packs', 'AI photo analysis included free', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-ink-body"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><MembershipCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-ink-muted hover:text-ink-body transition-colors underline underline-offset-2">View all plans →</button></div></div></div>)}
+      {activeModal === 'membership' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-canvas border border-hairline rounded-card shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Crown className="size-4 text-amber-500" /><span className="text-sm font-semibold text-ink">Become a Member</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-surface-soft transition-colors text-ink-muted text-xs">✕</button></div><div className="mx-4 mb-4 rounded-btn border border-rausch/30 bg-canvas border border-hairline overflow-hidden"><div className="bg-rausch text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ MOST POPULAR ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-ink font-semibold text-lg">Pro</div><div className="text-ink-muted text-xs mt-0.5">200 credits / month</div></div><div className="text-right"><div className="text-ink font-bold text-2xl">$19.99</div><div className="text-ink-muted text-xs">/month</div></div></div><ul className="space-y-2 mb-5">{['8 photo enhancements per month (3 scenes each)', 'Unlimited watermark-free downloads', 'Save 15 credits/enhancement vs credit packs', 'AI photo analysis included free', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-ink-body"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><MembershipCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-ink-muted hover:text-ink-body transition-colors underline underline-offset-2">View all plans →</button></div></div></div>)}
 
       {/* credits_shop modal — [v9] kept as fallback, checkout button now stays open with loading */}
-      {activeModal === 'credits_shop' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-canvas border border-hairline rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Coins className="size-4 text-rausch" /><span className="text-sm font-bold text-white">Get Credits</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-surface-soft transition-colors text-ink-muted text-xs">✕</button></div><div className="mx-4 mb-4 rounded-xl border border-rausch/30 bg-canvas border border-hairline overflow-hidden"><div className="bg-rausch text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ QUICKEST OPTION ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-white font-bold text-lg">Starter Pack</div><div className="text-ink-muted text-xs mt-0.5">Try it out — one full enhancement with 3 scene looks.</div></div><div className="text-right"><div className="text-white font-extrabold text-2xl">$9.99</div><div className="text-ink-muted text-xs">one-time</div></div></div><ul className="space-y-2 mb-5">{['75 Credits', '1 photo enhancement (3 scene options)', 'Watermark-free downloads included', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-ink-body"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><CreditsCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-ink-muted hover:text-ink-body transition-colors underline underline-offset-2">View all credit packs →</button></div></div></div>)}
+      {activeModal === 'credits_shop' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm bg-canvas border border-hairline rounded-card shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex items-center justify-between px-5 pt-5 pb-3"><div className="flex items-center gap-2"><Coins className="size-4 text-rausch" /><span className="text-sm font-semibold text-ink">Get Credits</span></div><button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-surface-soft transition-colors text-ink-muted text-xs">✕</button></div><div className="mx-4 mb-4 rounded-btn border border-rausch/30 bg-canvas border border-hairline overflow-hidden"><div className="bg-rausch text-white text-xs font-bold text-center py-1.5 tracking-wide">✦ QUICKEST OPTION ✦</div><div className="p-5"><div className="flex items-start justify-between mb-3"><div><div className="text-ink font-semibold text-lg">Starter Pack</div><div className="text-ink-muted text-xs mt-0.5">Try it out — one full enhancement with 3 scene looks.</div></div><div className="text-right"><div className="text-ink font-bold text-2xl">$9.99</div><div className="text-ink-muted text-xs">one-time</div></div></div><ul className="space-y-2 mb-5">{['75 Credits', '1 photo enhancement (3 scene options)', 'Watermark-free downloads included', 'Credits never expire'].map((f, i) => <li key={i} className="flex items-center gap-2 text-xs text-ink-body"><Check className="size-3.5 text-emerald-500 shrink-0" />{f}</li>)}</ul><CreditsCheckoutButton returnPath={pathname} /></div></div><div className="px-4 pb-5 text-center"><button onClick={() => { setActiveModal(null); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }} className="text-xs text-ink-muted hover:text-ink-body transition-colors underline underline-offset-2">View all credit packs →</button></div></div></div>)}
       {activeModal === 'ai_busy' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-2xl shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
             <div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20">
               <Loader2 className="size-8 text-amber-500 animate-spin" />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">
+            <h2 className="text-xl font-semibold text-ink mb-2">
               High Demand Right Now
             </h2>
             <p className="text-sm text-ink-muted mb-1 leading-relaxed">
@@ -1647,7 +1762,7 @@ export default function BoostScanner() {
                       strokeDasharray={`${(retryCountdown / 10) * 175.9} 175.9`}
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-lg">
+                  <span className="absolute inset-0 flex items-center justify-center text-ink font-bold text-lg">
                     {retryCountdown}
                   </span>
                 </div>
@@ -1657,13 +1772,13 @@ export default function BoostScanner() {
 
             <div className="flex w-full gap-3">
               <button
-                className="flex-1 h-11 rounded-xl border border-hairline text-ink-body hover:bg-surface-soft text-sm font-medium transition-colors"
+                className="flex-1 h-11 rounded-btn border border-hairline text-ink-body hover:bg-surface-soft text-sm font-medium transition-colors"
                 onClick={handleRetryCancelAndReset}
               >
                 Cancel
               </button>
               <button
-                className="flex-1 h-11 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
+                className="flex-1 h-11 rounded-btn bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
                 onClick={handleRetrySubmit}
               >
                 <RefreshCw className="size-4" />
@@ -1699,7 +1814,7 @@ function MembershipCheckoutButton({ returnPath }: { returnPath: string }) {
   return (
     <div className="flex flex-col gap-1">
       <button onClick={handleClick} disabled={loading}
-        className="w-full h-11 rounded-xl bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70">
+        className="w-full h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70">
         {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Crown className="size-4" /> Get Pro — $19.99/mo</>}
       </button>
       {error && <p className="text-destructive text-xs text-center">Something went wrong. Please try again.</p>}
@@ -1725,7 +1840,7 @@ function CreditsCheckoutButton({ returnPath }: { returnPath: string }) {
   return (
     <div className="flex flex-col gap-1">
       <button onClick={handleClick} disabled={loading}
-        className="w-full h-11 rounded-xl bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70">
+        className="w-full h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70">
         {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Coins className="size-4" /> Buy 75 Credits — $9.99</>}
       </button>
       {error && <p className="text-destructive text-xs text-center">Something went wrong. Please try again.</p>}
@@ -1761,7 +1876,7 @@ function MicroPackCheckoutButton({ returnPath, groupIds }: { returnPath: string;
   return (
     <div className="flex flex-col gap-1">
       <button onClick={handleClick} disabled={loading}
-        className="w-full h-11 rounded-xl bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-lg ">
+        className="w-full h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-lg ">
         {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Zap className="size-4" /> {buttonLabel}</>}
       </button>
       {error && <p className="text-destructive text-xs text-center">Something went wrong. Please try again.</p>}
@@ -1822,17 +1937,13 @@ function ShowcaseMicroPackButton({ returnPath, enhancementId, groupIds }: { retu
       <button
         onClick={handleClick}
         disabled={loading}
-        className="showcase-download-btn w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 text-white shadow-xl transition-all active:scale-[0.98] relative overflow-hidden disabled:opacity-80"
-        style={{
-          background: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #0d9488 100%)',
-          boxShadow: '0 8px 32px rgba(16,185,129,0.35), 0 2px 8px rgba(0,0,0,0.3)',
-        }}
+        className="showcase-download-btn w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2.5 text-white bg-rausch hover:bg-rausch-active shadow-ab-card transition-colors active:scale-[0.98] relative overflow-hidden disabled:opacity-80"
       >
         {!loading && (
           <span
             className="absolute inset-0 pointer-events-none"
             style={{
-              background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.25) 55%, transparent 65%)',
+              background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.22) 45%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0.22) 55%, transparent 65%)',
               animation: 'showcaseShimmer 2.5s ease-in-out infinite',
             }}
           />

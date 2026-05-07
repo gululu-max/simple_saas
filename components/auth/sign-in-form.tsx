@@ -121,7 +121,7 @@ export default function SignInForm() {
           type="button"
           onClick={signInWithGoogle}
           disabled={isGoogleLoading}
-          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-sm font-medium transition-all h-11 disabled:opacity-70 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 bg-canvas hover:bg-surface-soft text-ink border border-hairline rounded-btn shadow-sm font-medium transition-colors h-12 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {isGoogleLoading ? (
             <span className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-700" />
@@ -219,7 +219,7 @@ export default function SignInForm() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold border-0 shadow-sm transition-all mt-1"
+            className="w-full h-12 bg-rausch hover:bg-rausch-active text-white font-medium rounded-btn border-0 shadow-ab-card transition-colors mt-1"
           >
             {loading ? "Signing in..." : "Sign in"}
           </Button>
@@ -230,7 +230,7 @@ export default function SignInForm() {
           <button
             type="button"
             onClick={() => setView("sign-up")}
-            className="text-red-600 font-medium hover:text-red-700 transition-colors"
+            className="text-rausch font-medium hover:text-rausch-active transition-colors"
           >
             Sign up
           </button>

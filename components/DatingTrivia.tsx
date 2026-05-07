@@ -1,14 +1,11 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Heart, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { TRIVIA_QUESTIONS, type TriviaQuestion, type TriviaOption } from '@/lib/trivia-questions';
 
 const FEEDBACK_HOLD_MS = 2000;
 const INTERRUPT_HOLD_MS = 1100;
-// Debounce: tolerate brief active=false glitches (e.g. between isLoading
-// flipping false and isEnhancing flipping true) without aborting the
-// in-flight question.
 const INTERRUPT_DEBOUNCE_MS = 350;
 
 type TrackFn = (event: string, params?: Record<string, any>) => void;
@@ -25,21 +22,26 @@ const pickRandom = (excludeId?: number): TriviaQuestion => {
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
+type Selection = { questionId: number; opt: TriviaOption };
+
 export default function DatingTrivia({ active, onTrack }: Props) {
   const [current, setCurrent] = useState<TriviaQuestion | null>(null);
-  const [selected, setSelected] = useState<TriviaOption | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [interrupting, setInterrupting] = useState(false);
+
+  // Question-id guard: only honor selection if it belongs to the current
+  // question. Option ids are 'a'|'b'|'c'|'d' which collide across questions,
+  // so a stale selection would otherwise paint the same letter on every
+  // new question.
+  const selected = selection && current && selection.questionId === current.id ? selection.opt : null;
 
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const interruptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const interruptDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentRef = useRef<TriviaQuestion | null>(null);
-  const selectedRef = useRef<TriviaOption | null>(null);
+  const selectedRef = useRef<Selection | null>(null);
   const onTrackRef = useRef<TrackFn | undefined>(onTrack);
 
-  // Schedule "advance to next question" after FEEDBACK_HOLD_MS. Stable across
-  // re-renders so the activation effect can call it to repair an aborted
-  // advance (e.g. after a brief active=false flicker).
   const scheduleAdvance = useCallback(() => {
     if (advanceTimer.current) return;
     advanceTimer.current = setTimeout(() => {
@@ -49,21 +51,19 @@ export default function DatingTrivia({ active, onTrack }: Props) {
         return;
       }
       const next = pickRandom(cur.id);
+      setSelection(null);
       setCurrent(next);
-      setSelected(null);
       onTrackRef.current?.('trivia_shown', { question_id: next.id });
       advanceTimer.current = null;
     }, FEEDBACK_HOLD_MS);
   }, []);
 
   useEffect(() => { currentRef.current = current; }, [current]);
-  useEffect(() => { selectedRef.current = selected; }, [selected]);
+  useEffect(() => { selectedRef.current = selection; }, [selection]);
   useEffect(() => { onTrackRef.current = onTrack; }, [onTrack]);
 
   useEffect(() => {
     if (active) {
-      // Cancel any pending interrupt — parent came back online before we
-      // committed to tearing the question down.
       if (interruptDebounceTimer.current) {
         clearTimeout(interruptDebounceTimer.current);
         interruptDebounceTimer.current = null;
@@ -77,10 +77,11 @@ export default function DatingTrivia({ active, onTrack }: Props) {
         const first = pickRandom();
         setCurrent(first);
         onTrackRef.current?.('trivia_shown', { question_id: first.id });
-      } else if (selectedRef.current && !advanceTimer.current) {
-        // Selected an answer, but our advance timer was cleared by an
-        // earlier interrupt-debounce cycle. Re-arm so the user isn't
-        // stranded on the feedback screen forever.
+      } else if (
+        selectedRef.current &&
+        selectedRef.current.questionId === currentRef.current.id &&
+        !advanceTimer.current
+      ) {
         scheduleAdvance();
       }
       return;
@@ -88,9 +89,6 @@ export default function DatingTrivia({ active, onTrack }: Props) {
 
     if (!currentRef.current || interrupting) return;
 
-    // Debounce: only trigger the interrupt sequence if active stays false
-    // for longer than INTERRUPT_DEBOUNCE_MS. Brief flickers (state
-    // transitions in the parent) shouldn't tear down the question.
     if (interruptDebounceTimer.current) clearTimeout(interruptDebounceTimer.current);
     interruptDebounceTimer.current = setTimeout(() => {
       interruptDebounceTimer.current = null;
@@ -106,7 +104,7 @@ export default function DatingTrivia({ active, onTrack }: Props) {
       setInterrupting(true);
       interruptTimer.current = setTimeout(() => {
         setCurrent(null);
-        setSelected(null);
+        setSelection(null);
         setInterrupting(false);
         interruptTimer.current = null;
       }, INTERRUPT_HOLD_MS);
@@ -124,7 +122,7 @@ export default function DatingTrivia({ active, onTrack }: Props) {
 
   const handleSelect = useCallback((opt: TriviaOption) => {
     if (selected || !current) return;
-    setSelected(opt);
+    setSelection({ questionId: current.id, opt });
     onTrackRef.current?.('trivia_answered', {
       question_id: current.id,
       option_id: opt.id,
@@ -135,31 +133,26 @@ export default function DatingTrivia({ active, onTrack }: Props) {
   if (!active && !interrupting) return null;
   if (interrupting) {
     return (
-      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-5 py-4 text-center animate-in fade-in duration-300">
-        <div className="text-emerald-400 font-bold text-base flex items-center justify-center gap-2">
-          <Sparkles className="size-4" />
-          Your result&apos;s ready — that matters more than the game 👇
-        </div>
+      <div className="rounded-card border border-hairline bg-canvas shadow-ab-card px-5 py-4 flex items-center justify-center gap-2 animate-in fade-in duration-300">
+        <Sparkles className="size-4 text-rausch shrink-0" />
+        <span className="text-sm font-medium text-ink">
+          Your result&apos;s ready — that matters more than the game
+        </span>
       </div>
     );
   }
   if (!current) return null;
 
   return (
-    <div className="rounded-xl border border-rose-500/20 bg-gradient-to-br from-rose-500/[0.05] via-slate-900/60 to-pink-500/[0.04] p-5 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="grid size-6 place-items-center rounded-full bg-rose-500/15 border border-rose-500/30">
-          <Heart className="size-3 text-rose-400 fill-rose-400" />
-        </span>
-        <span className="text-rose-400 font-bold text-xs uppercase tracking-[0.15em]">
+    <div className="rounded-card border border-hairline bg-canvas shadow-ab-card px-5 py-5 animate-in fade-in duration-300">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-xs uppercase tracking-[0.32px] text-ink-muted font-bold">
           While you wait
         </span>
-        <span className="ml-auto text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-          Dating IQ
-        </span>
+        <span className="text-xs text-ink-muted">Dating IQ</span>
       </div>
 
-      <h4 className="text-white font-semibold text-base md:text-[17px] leading-snug mb-4">
+      <h4 className="text-[20px] font-semibold text-ink leading-[1.2] tracking-[-0.18px] mb-5">
         {current.question}
       </h4>
 
@@ -174,31 +167,31 @@ export default function DatingTrivia({ active, onTrack }: Props) {
               disabled={!!selected}
               onClick={() => handleSelect(opt)}
               className={[
-                'group text-left rounded-lg border px-4 py-3 transition-all duration-300',
+                'group text-left rounded-card border px-4 py-3 transition-all duration-200',
                 'flex items-start gap-3',
                 isSelected
-                  ? 'border-emerald-500/60 bg-emerald-500/10 shadow-md shadow-emerald-500/10'
+                  ? 'border-ink border-2 bg-surface-soft'
                   : isOther
-                    ? 'border-slate-800/40 bg-slate-900/30 opacity-30 cursor-default'
-                    : 'border-slate-800/60 bg-slate-900/40 hover:border-rose-500/40 hover:bg-rose-500/[0.05] cursor-pointer active:scale-[0.99]',
+                    ? 'border-hairline-soft bg-canvas opacity-40 cursor-default'
+                    : 'border-hairline bg-canvas hover:border-ink hover:bg-surface-soft cursor-pointer active:scale-[0.99]',
               ].join(' ')}
             >
               <span
                 className={[
-                  'shrink-0 grid size-6 place-items-center rounded-md font-bold text-xs uppercase border transition-colors',
+                  'shrink-0 grid size-7 place-items-center rounded-full font-semibold text-xs uppercase border transition-colors tabular-nums',
                   isSelected
-                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                    : 'bg-slate-800/50 border-slate-700/50 text-slate-400 group-hover:border-rose-500/40 group-hover:text-rose-400',
+                    ? 'bg-ink border-ink text-canvas'
+                    : 'bg-surface-strong border-transparent text-ink-muted group-hover:bg-ink group-hover:text-canvas group-hover:border-ink',
                 ].join(' ')}
               >
                 {opt.id}
               </span>
               <div className="flex-1 min-w-0">
-                <div className={`text-sm leading-relaxed ${isSelected ? 'text-white font-medium' : 'text-slate-300'}`}>
+                <div className={`text-sm leading-relaxed ${isSelected ? 'text-ink font-medium' : 'text-ink-body'}`}>
                   {opt.text}
                 </div>
                 {isSelected && (
-                  <div className="mt-2 text-sm text-emerald-200/90 italic leading-relaxed animate-in fade-in slide-in-from-top-1 duration-300">
+                  <div className="mt-2 text-sm text-ink-muted leading-relaxed animate-in fade-in slide-in-from-top-1 duration-300">
                     {opt.feedback}
                   </div>
                 )}
@@ -209,9 +202,9 @@ export default function DatingTrivia({ active, onTrack }: Props) {
       </div>
 
       {selected && (
-        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
-          <span className="inline-block size-1 rounded-full bg-rose-400/60 animate-pulse" />
-          <span>Next question loading...</span>
+        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-ink-muted">
+          <span className="inline-block size-1 rounded-full bg-ink-muted animate-pulse" />
+          <span>Next question loading…</span>
         </div>
       )}
     </div>

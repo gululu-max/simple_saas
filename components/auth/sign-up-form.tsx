@@ -194,7 +194,7 @@ export default function SignUpForm() {
                   "_blank"
                 )
               }
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium h-11 shadow-sm"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-btn h-12 shadow-ab-card transition-colors"
             >
               Open Gmail
             </Button>
@@ -204,7 +204,7 @@ export default function SignUpForm() {
             type="button"
             onClick={handleResend}
             disabled={countdown > 0}
-            className="w-full h-11 bg-white border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100 disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200 disabled:opacity-100 shadow-sm transition-all"
+            className="w-full h-12 bg-canvas border border-hairline text-ink font-medium rounded-btn hover:bg-surface-soft hover:text-ink active:bg-surface-strong disabled:bg-surface-soft disabled:text-ink-soft disabled:border-hairline-soft disabled:opacity-100 shadow-sm transition-colors"
           >
             {countdown > 0
               ? `Didn't get it? Resend in ${countdown}s`
@@ -236,7 +236,7 @@ export default function SignUpForm() {
           type="button"
           onClick={signUpWithGoogle}
           disabled={isGoogleLoading}
-          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-sm font-medium transition-all h-11 disabled:opacity-70 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 bg-canvas hover:bg-surface-soft text-ink border border-hairline rounded-btn shadow-sm font-medium transition-colors h-12 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {isGoogleLoading ? (
             <span className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-700" />
@@ -323,7 +323,7 @@ export default function SignUpForm() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold border-0 shadow-sm transition-all mt-1"
+            className="w-full h-12 bg-rausch hover:bg-rausch-active text-white font-medium rounded-btn border-0 shadow-ab-card transition-colors mt-1"
           >
             {loading ? "Creating account..." : "Create account"}
           </Button>
@@ -334,7 +334,7 @@ export default function SignUpForm() {
           <button
             type="button"
             onClick={() => setView("sign-in")}
-            className="text-red-600 font-medium hover:text-red-700 transition-colors"
+            className="text-rausch font-medium hover:text-rausch-active transition-colors"
           >
             Sign in
           </button>

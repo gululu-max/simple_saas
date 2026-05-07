@@ -1,13 +1,5 @@
 "use client";
 
-// ═══════════════════════════════════════════════════════════════
-// components/UsageGuideCard.tsx — v2
-//
-// v2 changes:
-// 1. Only consumes new `usage_tips` array field
-// 2. Gracefully renders nothing if tips is null (needs_real_photo route)
-// ═══════════════════════════════════════════════════════════════
-
 import React, { useMemo } from "react";
 import { Rocket } from "lucide-react";
 
@@ -30,23 +22,24 @@ export default function UsageGuideCard({ analysisJSON }: UsageGuideCardProps) {
   if (!tips || tips.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.03] p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="grid size-6 place-items-center rounded-lg bg-emerald-500/10">
-          <Rocket className="size-3 text-emerald-400" />
-        </div>
-        <span className="text-sm font-semibold text-emerald-400">Next Steps</span>
+    <div className="rounded-card border border-hairline bg-canvas shadow-ab-card overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-hairline-soft">
+        <Rocket className="size-4 text-rausch shrink-0" />
+        <h3 className="text-[16px] font-semibold text-ink">Next steps</h3>
       </div>
-      <div className="space-y-2">
+      <ol className="px-5 py-2">
         {tips.map((tip, i) => (
-          <div key={i} className="flex items-start gap-2.5">
-            <span className="grid size-5 place-items-center rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold flex-shrink-0 mt-0.5">
+          <li
+            key={i}
+            className="flex items-start gap-3 py-3 border-b border-hairline-soft last:border-b-0"
+          >
+            <span className="grid size-7 place-items-center rounded-full bg-ink text-canvas text-xs font-semibold shrink-0 tabular-nums">
               {i + 1}
             </span>
-            <span className="text-sm text-slate-300 leading-relaxed">{tip}</span>
-          </div>
+            <span className="text-sm text-ink-body leading-relaxed pt-0.5">{tip}</span>
+          </li>
         ))}
-      </div>
+      </ol>
     </div>
   );
 }

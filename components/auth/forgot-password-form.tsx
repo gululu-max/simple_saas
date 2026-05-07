@@ -118,7 +118,7 @@ export default function ForgotPasswordForm() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold border-0 shadow-sm transition-all mt-1"
+            className="w-full h-12 bg-rausch hover:bg-rausch-active text-white font-medium rounded-btn border-0 shadow-ab-card transition-colors mt-1"
           >
             {loading ? "Sending..." : "Send reset link"}
           </Button>

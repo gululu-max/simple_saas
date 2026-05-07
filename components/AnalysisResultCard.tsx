@@ -1,25 +1,11 @@
 "use client";
 
-// ═══════════════════════════════════════════════════════════════
-// components/AnalysisResultCard.tsx — v4
-//
-// v4 changes vs v3:
-// 1. Adapted to new JSON schema: copy.{headline,one_liner_positive,
-//    one_liner_issue,first_impression,cta} instead of main_issue/positive
-// 2. New route === 'needs_real_photo' renders a dedicated simple card
-//    (no scores, no diagnostics, no enhance trigger)
-// 3. authenticity enum: usable / suspiciously_edited / unusable
-//    (suspiciously_edited shows a soft inline hint)
-// 4. Backward compatible fallback: if old main_issue/positive present, use them
-// ═══════════════════════════════════════════════════════════════
-
 import React, { useMemo } from "react";
 import {
   Sun, Camera, Mountain, Eye, Smile, Palette, Shirt, Focus,
   AlertTriangle, ThumbsUp, Crosshair, Copy, Check, TrendingUp,
   ChevronRight, ImageOff, Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 type Route = 'needs_real_photo' | 'already_great' | 'can_improve';
 type Authenticity = 'usable' | 'suspiciously_edited' | 'unusable';
@@ -41,7 +27,6 @@ interface AnalysisData {
     first_impression?: string | null;
     cta?: string;
   };
-  // Legacy fallback fields (old prompt)
   main_issue?: string;
   positive?: string;
   red_flags?: string[];
@@ -55,65 +40,75 @@ interface AnalysisResultCardProps {
   isCopied: boolean;
 }
 
-// ── Circular Gauge ───────────────────────────────────────────
+// ── Circular Gauge — ink stroke, no traffic-light coloring ──
 function CircularGauge({ score, label }: { score: number; label: string }) {
-  const r = 28, circ = 2 * Math.PI * r;
+  const r = 26, circ = 2 * Math.PI * r;
   const s = Math.max(0, Math.min(10, score));
   const progress = (s / 10) * circ;
-  const color = s >= 8 ? { stroke: "#34d399", text: "text-emerald-400" } : s >= 5 ? { stroke: "#fbbf24", text: "text-amber-400" } : { stroke: "#f87171", text: "text-red-400" };
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="relative size-[68px]">
-        <svg viewBox="0 0 72 72" className="size-full -rotate-90">
-          <circle cx="36" cy="36" r={r} fill="none" stroke="currentColor" strokeWidth="5" className="text-slate-800/60" />
-          <circle cx="36" cy="36" r={r} fill="none" stroke={color.stroke} strokeWidth="5" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ - progress} className="transition-all duration-700 ease-out" />
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative size-[64px]">
+        <svg viewBox="0 0 64 64" className="size-full -rotate-90">
+          <circle cx="32" cy="32" r={r} fill="none" stroke="#ebebeb" strokeWidth="4" />
+          <circle cx="32" cy="32" r={r} fill="none" stroke="#222222" strokeWidth="4" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ - progress} className="transition-all duration-700 ease-out" />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center"><span className={`text-lg font-bold ${color.text}`}>{s}</span></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-[18px] font-semibold text-ink tabular-nums">{s}</span>
+        </div>
       </div>
-      <span className="text-[11px] text-slate-500 font-medium text-center leading-tight">{label}</span>
+      <span className="text-[12px] text-ink-muted text-center leading-tight">{label}</span>
     </div>
   );
 }
 
-// ── Diagnostic Bar ───────────────────────────────────────────
+// ── Diagnostic Row — amenity-row style ──
 const diagnosticConfig: { key: string; label: string; icon: React.ElementType }[] = [
   { key: 'lighting', label: 'Lighting', icon: Sun },
   { key: 'composition', label: 'Composition', icon: Camera },
   { key: 'background', label: 'Background', icon: Mountain },
   { key: 'eye_contact', label: 'Eye Contact', icon: Eye },
   { key: 'expression', label: 'Expression', icon: Smile },
-  { key: 'color_grading', label: 'Color Grading', icon: Palette },
+  { key: 'color_grading', label: 'Color', icon: Palette },
   { key: 'clothing', label: 'Clothing', icon: Shirt },
   { key: 'sharpness', label: 'Sharpness', icon: Focus },
 ];
 
-function DiagnosticBar({ icon: Icon, label, score }: { icon: React.ElementType; label: string; score: number }) {
+function DiagnosticRow({ icon: Icon, label, score }: { icon: React.ElementType; label: string; score: number }) {
   const s = Math.max(0, Math.min(10, score));
   const pct = s * 10;
-  const barColor = s >= 8 ? 'bg-emerald-500' : s >= 5 ? 'bg-amber-500' : 'bg-red-500';
-  const textColor = s >= 8 ? 'text-emerald-400' : s >= 5 ? 'text-amber-400' : 'text-red-400';
   return (
-    <div className="flex items-center gap-2.5">
-      <Icon className="size-3.5 text-slate-500 flex-shrink-0" />
-      <span className="text-xs text-slate-400 w-[90px] flex-shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-700 ease-out ${barColor}`} style={{ width: `${pct}%` }} />
+    <div className="flex items-center gap-3 py-3 border-b border-hairline-soft last:border-b-0">
+      <Icon className="size-4 text-ink-muted shrink-0" />
+      <span className="text-sm text-ink w-[110px] shrink-0">{label}</span>
+      <div className="flex-1 h-1 bg-hairline-soft rounded-full overflow-hidden">
+        <div className="h-full rounded-full bg-ink transition-all duration-700 ease-out" style={{ width: `${pct}%` }} />
       </div>
-      <span className={`text-xs font-bold w-5 text-right ${textColor}`}>{s}</span>
+      <span className="text-sm font-medium text-ink w-6 text-right tabular-nums">{s}</span>
     </div>
   );
 }
 
-// ── Card Header (shared) ─────────────────────────────────────
-function CardHeader({ onCopy, isCopied, title = 'Photo Analysis' }: { onCopy: () => void; isCopied: boolean; title?: string }) {
+// ── Insight row — icon + heading + body, hairline-separated ──
+function InsightRow({
+  icon: Icon, heading, body, accent,
+}: {
+  icon: React.ElementType;
+  heading: string;
+  body: React.ReactNode;
+  accent?: 'rausch' | 'ink' | 'amber' | 'emerald';
+}) {
+  const iconColor =
+    accent === 'rausch' ? 'text-rausch' :
+    accent === 'amber' ? 'text-amber-600' :
+    accent === 'emerald' ? 'text-emerald-600' :
+    'text-ink-muted';
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-slate-800/30 border-b border-slate-800/40">
-      <span className="text-rose-400 font-semibold text-sm flex items-center gap-2">
-        <span className="grid size-5 place-items-center rounded bg-rose-500/10">🎯</span> {title}
-      </span>
-      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-slate-300" onClick={onCopy}>
-        {isCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-      </Button>
+    <div className="flex items-start gap-3 py-4 border-b border-hairline-soft last:border-b-0">
+      <Icon className={`size-5 shrink-0 mt-0.5 ${iconColor}`} />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-ink mb-1">{heading}</div>
+        <div className="text-sm text-ink-body leading-relaxed">{body}</div>
+      </div>
     </div>
   );
 }
@@ -125,45 +120,51 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
     try { return JSON.parse(analysisJSON); } catch { return null; }
   }, [analysisJSON]);
 
-  // ── Fallback: 没有 JSON，只展示流式原文 ──
+  // ── Fallback: no JSON, show streaming text ──
   if (!data) {
     return (
-      <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-rose-400 font-semibold text-sm flex items-center gap-2">
-            <span className="grid size-5 place-items-center rounded bg-rose-500/10">🎯</span> Your Profile Breakdown
-          </span>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-slate-300" onClick={onCopy}>
-            {isCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-          </Button>
+      <div className="rounded-card border border-hairline bg-canvas shadow-ab-card overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-hairline-soft">
+          <h3 className="text-[16px] font-semibold text-ink">Photo Analysis</h3>
+          <button
+            type="button"
+            onClick={onCopy}
+            className="grid size-8 place-items-center rounded-full bg-surface-strong text-ink hover:bg-hairline-soft transition-colors"
+            aria-label={isCopied ? 'Copied' : 'Copy analysis'}
+          >
+            {isCopied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
+          </button>
         </div>
-        <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{visibleText}</div>
+        <div className="p-5 whitespace-pre-wrap text-sm leading-relaxed text-ink-body">
+          {visibleText}
+        </div>
       </div>
     );
   }
 
-  // ── Route: needs_real_photo —— 不是真实照片，简洁提示卡 ──
+  // ── Route: needs_real_photo ──
   if (data.route === 'needs_real_photo') {
     const headline = data.copy?.headline ?? "This doesn't look like a real photo of you.";
     const cta = data.copy?.cta ?? "Upload a real photo of you. That's the one worth working with.";
     return (
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] overflow-hidden">
-        <CardHeader onCopy={onCopy} isCopied={isCopied} title="Quick Note" />
-        <div className="p-5 flex flex-col items-center text-center gap-4">
-          <div className="grid size-14 place-items-center rounded-full bg-amber-500/10 border border-amber-500/20">
-            <ImageOff className="size-7 text-amber-500" />
+      <div className="rounded-card border border-hairline bg-canvas shadow-ab-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-hairline-soft">
+          <h3 className="text-[16px] font-semibold text-ink">A quick note</h3>
+        </div>
+        <div className="p-6 flex flex-col items-center text-center gap-3">
+          <div className="grid size-12 place-items-center rounded-full bg-surface-soft">
+            <ImageOff className="size-5 text-ink-muted" />
           </div>
-          <p className="text-base text-slate-200 leading-relaxed max-w-md">{headline}</p>
-          <p className="text-sm text-slate-400 leading-relaxed max-w-md">{cta}</p>
+          <p className="text-base text-ink leading-relaxed max-w-md">{headline}</p>
+          <p className="text-sm text-ink-muted leading-relaxed max-w-md">{cta}</p>
         </div>
       </div>
     );
   }
 
-  // ── Route: already_great / can_improve —— 完整分析面板 ──
+  // ── Full analysis ──
   const { scores, percentile, diagnostics, match_prediction, copy, red_flags, fix_plan, authenticity } = data;
 
-  // 兼容旧字段：如果没有 copy.one_liner_issue 但有 main_issue，用旧字段
   const oneLinerIssue = copy?.one_liner_issue ?? data.main_issue ?? null;
   const oneLinerPositive = copy?.one_liner_positive ?? data.positive ?? null;
   const headline = copy?.headline ?? null;
@@ -175,165 +176,179 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
   const isAlreadyGreat = data.route === 'already_great';
 
   return (
-    <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 overflow-hidden">
-      <CardHeader onCopy={onCopy} isCopied={isCopied} />
+    <div className="rounded-card border border-hairline bg-canvas shadow-ab-card overflow-hidden">
 
-      <div className="p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-hairline-soft">
+        <h3 className="text-[16px] font-semibold text-ink">Photo Analysis</h3>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="grid size-8 place-items-center rounded-full bg-surface-strong text-ink hover:bg-hairline-soft transition-colors"
+          aria-label={isCopied ? 'Copied' : 'Copy analysis'}
+        >
+          {isCopied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
+        </button>
+      </div>
 
-        {/* ── Suspicious edit hint (very soft, inline) ── */}
+      <div className="px-5 py-5 space-y-6">
+
+        {/* Suspicious-edit hint */}
         {isSuspicious && (
-          <div className="text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2 leading-relaxed">
-            Heads up — this one looks noticeably filtered. The analysis below is based on what we can see.
+          <div className="flex items-start gap-2 text-xs text-ink-body bg-surface-soft border border-hairline-soft rounded-card px-3 py-2.5">
+            <AlertTriangle className="size-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <span>Heads up — this photo looks noticeably filtered. Analysis is based on what we can see.</span>
           </div>
         )}
 
-        {/* ── 1. Headline (new) ── */}
+        {/* Headline — display-sm */}
         {headline && (
-          <div className="text-base text-slate-200 leading-relaxed font-medium">
+          <p className="text-[20px] font-semibold text-ink leading-[1.2] tracking-[-0.18px]">
             {headline}
-          </div>
+          </p>
         )}
 
-        {/* ── 2. Score Gauges + Overall ── */}
+        {/* Score Hero — rating-display style for overall, gauges below */}
         {scores && (
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex gap-3 sm:gap-5">
-              <CircularGauge score={scores.attractiveness ?? 0} label="Attractive" />
-              <CircularGauge score={scores.approachability ?? 0} label="Approachable" />
-              <CircularGauge score={scores.confidence ?? 0} label="Confident" />
+          <div className="flex items-center justify-between gap-6 py-2">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[64px] font-bold text-ink leading-[1.1] tracking-[-1px] tabular-nums">
+                {overallScore}
+              </span>
+              <span className="text-[16px] text-ink-muted">/100</span>
             </div>
-            <div className="flex flex-col items-center gap-0.5 pl-3 border-l border-slate-800/40">
-              <div className="text-2xl font-bold text-white">{overallScore}</div>
-              <div className="text-[10px] text-slate-500 font-medium">/100</div>
-              {percentile != null && <div className="text-[10px] text-slate-500">Top {percentile}%</div>}
-            </div>
+            {percentile != null && (
+              <div className="text-right">
+                <div className="text-xs uppercase tracking-[0.32px] text-ink-muted font-bold">Percentile</div>
+                <div className="text-base font-semibold text-ink mt-0.5">Top {percentile}%</div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── 3. Match Rate Prediction ── */}
+        {scores && (
+          <div className="flex items-start justify-around gap-3 pb-1">
+            <CircularGauge score={scores.attractiveness ?? 0} label="Attractive" />
+            <CircularGauge score={scores.approachability ?? 0} label="Approachable" />
+            <CircularGauge score={scores.confidence ?? 0} label="Confident" />
+          </div>
+        )}
+
+        {/* Match Rate Prediction */}
         {match_prediction && (match_prediction.current_rate || match_prediction.enhanced_rate) && (
-          <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3">
-            <div className="flex items-center gap-1.5 mb-2.5">
-              <TrendingUp className="size-3.5 text-slate-500" />
-              <span className="text-xs font-semibold text-slate-400">Match Rate Prediction</span>
+          <div className="border-t border-hairline-soft pt-5">
+            <div className="flex items-center gap-1.5 mb-3">
+              <TrendingUp className="size-4 text-ink-muted" />
+              <span className="text-sm font-semibold text-ink">Match rate prediction</span>
             </div>
             <div className="flex items-center gap-4">
               {match_prediction.current_rate && (
-                <div className="flex-1 text-center">
-                  <div className="text-lg font-bold text-red-400">{match_prediction.current_rate}</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Current photo</div>
+                <div className="flex-1">
+                  <div className="text-[22px] font-semibold text-ink-muted tabular-nums leading-[1.18]">{match_prediction.current_rate}</div>
+                  <div className="text-xs text-ink-muted mt-1">Current photo</div>
                 </div>
               )}
               {match_prediction.current_rate && match_prediction.enhanced_rate && (
-                <div className="text-slate-600 text-lg">→</div>
+                <ChevronRight className="size-4 text-ink-soft shrink-0" />
               )}
               {match_prediction.enhanced_rate && (
-                <div className="flex-1 text-center">
-                  <div className="text-lg font-bold text-emerald-400">{match_prediction.enhanced_rate}</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">After enhancement</div>
+                <div className="flex-1">
+                  <div className="text-[22px] font-semibold text-rausch tabular-nums leading-[1.18]">{match_prediction.enhanced_rate}</div>
+                  <div className="text-xs text-ink-muted mt-1">After enhancement</div>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* ── 4. Diagnostics Panel ── */}
+        {/* Diagnostics — amenity-row list */}
         {diagnostics && (
-          <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3 space-y-2">
-            <div className="text-xs font-semibold text-slate-400 mb-1">Photo Diagnostics</div>
-            {diagnosticConfig.map(({ key, label, icon }) => {
-              const val = (diagnostics as any)[key];
-              if (val == null) return null;
-              return <DiagnosticBar key={key} icon={icon} label={label} score={val} />;
-            })}
-          </div>
-        )}
-
-        {/* ── 5. Main Issue (can_improve only — already_great has no issue) ── */}
-        {oneLinerIssue && oneLinerIssue !== "none" && !isAlreadyGreat && (
-          <div className="rounded-lg border border-red-500/15 bg-red-500/5 p-3">
-            <div className="flex items-start gap-2.5">
-              <div className="grid size-7 place-items-center rounded-lg bg-red-500/10 flex-shrink-0 mt-0.5"><Crosshair className="size-3.5 text-red-400" /></div>
-              <div>
-                <div className="text-xs font-semibold text-red-400 mb-0.5">#1 Issue Killing Your Matches</div>
-                <div className="text-sm text-slate-300 leading-relaxed">{oneLinerIssue}</div>
-              </div>
+          <div className="border-t border-hairline-soft pt-5">
+            <h4 className="text-sm font-semibold text-ink mb-1">Photo diagnostics</h4>
+            <div>
+              {diagnosticConfig.map(({ key, label, icon }) => {
+                const val = (diagnostics as any)[key];
+                if (val == null) return null;
+                return <DiagnosticRow key={key} icon={icon} label={label} score={val} />;
+              })}
             </div>
           </div>
         )}
 
-        {/* ── 6. Positive ── */}
-        {oneLinerPositive && (
-          <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 p-3">
-            <div className="flex items-start gap-2.5">
-              <div className="grid size-7 place-items-center rounded-lg bg-emerald-500/10 flex-shrink-0 mt-0.5"><ThumbsUp className="size-3.5 text-emerald-400" /></div>
-              <div>
-                <div className="text-xs font-semibold text-emerald-400 mb-0.5">What&apos;s Working</div>
-                <div className="text-sm text-slate-300 leading-relaxed">{oneLinerPositive}</div>
-              </div>
+        {/* Insights stack */}
+        {(oneLinerIssue || oneLinerPositive || firstImpression || (red_flags && red_flags.length > 0) || fix_plan?.visual_outcome) && (
+          <div className="border-t border-hairline-soft pt-5">
+            <h4 className="text-sm font-semibold text-ink mb-1">What we noticed</h4>
+            <div>
+              {oneLinerIssue && oneLinerIssue !== "none" && !isAlreadyGreat && (
+                <InsightRow
+                  icon={Crosshair}
+                  heading="#1 thing holding you back"
+                  body={oneLinerIssue}
+                  accent="rausch"
+                />
+              )}
+              {oneLinerPositive && (
+                <InsightRow
+                  icon={ThumbsUp}
+                  heading="What's working"
+                  body={oneLinerPositive}
+                  accent="emerald"
+                />
+              )}
+              {firstImpression && (
+                <InsightRow
+                  icon={Eye}
+                  heading="First impression on a dating app"
+                  body={firstImpression}
+                />
+              )}
+              {red_flags && red_flags.length > 0 && (
+                <InsightRow
+                  icon={AlertTriangle}
+                  heading="Red flags"
+                  body={
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {red_flags.map((f, i) => (
+                        <span key={i} className="text-xs text-ink-body bg-surface-soft border border-hairline-soft px-2.5 py-0.5 rounded-pill">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  }
+                  accent="amber"
+                />
+              )}
+              {fix_plan?.visual_outcome && fix_plan.visual_outcome !== 'no edit needed' && (
+                <InsightRow
+                  icon={Sparkles}
+                  heading="What enhancement will do"
+                  body={fix_plan.visual_outcome}
+                  accent="rausch"
+                />
+              )}
             </div>
           </div>
         )}
 
-        {/* ── 7. First Impression (new) ── */}
-        {firstImpression && (
-          <div className="rounded-lg border border-slate-800/40 bg-slate-950/40 p-3">
-            <div className="flex items-start gap-2.5">
-              <div className="grid size-7 place-items-center rounded-lg bg-slate-800/60 flex-shrink-0 mt-0.5"><Eye className="size-3.5 text-slate-400" /></div>
-              <div>
-                <div className="text-xs font-semibold text-slate-400 mb-0.5">First Impression on a Dating App</div>
-                <div className="text-sm text-slate-300 leading-relaxed">{firstImpression}</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── 8. Red Flags ── */}
-        {red_flags && red_flags.length > 0 && (
-          <div className="rounded-lg border border-amber-500/15 bg-amber-500/5 p-3">
-            <div className="flex items-start gap-2.5">
-              <div className="grid size-7 place-items-center rounded-lg bg-amber-500/10 flex-shrink-0 mt-0.5"><AlertTriangle className="size-3.5 text-amber-400" /></div>
-              <div>
-                <div className="text-xs font-semibold text-amber-400 mb-1">Red Flags</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {red_flags.map((f, i) => (
-                    <span key={i} className="text-xs text-amber-300/80 bg-amber-500/10 border border-amber-500/15 px-2 py-0.5 rounded-full">{f}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── 9. Visual Outcome ── */}
-        {fix_plan?.visual_outcome && fix_plan.visual_outcome !== 'no edit needed' && (
-          <div className="rounded-lg border border-rose-500/15 bg-rose-500/5 p-3">
-            <div className="flex items-start gap-2.5">
-              <div className="grid size-7 place-items-center rounded-lg bg-rose-500/10 flex-shrink-0 mt-0.5 text-sm">✨</div>
-              <div>
-                <div className="text-xs font-semibold text-rose-400 mb-0.5">What Enhancement Will Do</div>
-                <div className="text-sm text-slate-300 leading-relaxed">{fix_plan.visual_outcome}</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── 10. CTA (already_great has fun "ready to go" text) ── */}
+        {/* CTA — already_great ready-to-go banner */}
         {cta && isAlreadyGreat && (
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-4 flex items-center gap-3">
-            <Sparkles className="size-5 text-emerald-400 flex-shrink-0" />
-            <div className="text-sm text-emerald-200 font-medium leading-relaxed">{cta}</div>
+          <div className="border-t border-hairline-soft pt-5">
+            <div className="flex items-start gap-3 rounded-card bg-surface-soft px-4 py-3.5">
+              <Sparkles className="size-5 text-rausch shrink-0 mt-0.5" />
+              <p className="text-sm text-ink leading-relaxed">{cta}</p>
+            </div>
           </div>
         )}
 
-        {/* ── 11. Full Analysis Text (collapsible, for copy/debug) ── */}
+        {/* Full analysis (collapsible) */}
         {visibleText && (
-          <details className="group">
-            <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400 transition-colors flex items-center gap-1.5 py-1">
+          <details className="group border-t border-hairline-soft pt-4">
+            <summary className="text-xs text-ink-muted cursor-pointer hover:text-ink-body transition-colors flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
               <ChevronRight className="size-3.5 transition-transform duration-200 group-open:rotate-90" />
               <span>Full analysis</span>
             </summary>
-            <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-300 rounded-lg border border-slate-800/40 bg-slate-950/40 p-3">
+            <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-body bg-surface-soft rounded-card border border-hairline-soft p-3">
               {visibleText}
             </div>
           </details>
