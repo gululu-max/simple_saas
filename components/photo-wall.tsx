@@ -9,17 +9,14 @@ const ROW1 = [
   "/hero/women/w03.webp",
   "/hero/women/w04.webp",
   "/hero/women/w05.webp",
+  "/hero/women/w06.webp",
+  "/hero/women/w07.webp",
 ];
 
 const ROW2 = [
-  "/hero/women/w06.webp",
-  "/hero/women/w07.webp",
   "/hero/women/w08.webp",
   "/hero/women/w09.webp",
   "/hero/women/w10.webp",
-];
-
-const ROW3 = [
   "/hero/women/w11.webp",
   "/hero/women/w12.webp",
   "/hero/women/w13.webp",
@@ -27,16 +24,13 @@ const ROW3 = [
   "/hero/women/w15.webp",
 ];
 
-// 根据屏幕宽度计算需要重复几次才能铺满
 function useRepeatCount(cardWidth: number, gap: number, baseCount: number) {
-  // ✅ 初始值从 3 降到 2，减少首次渲染的 DOM 节点数
   const [repeat, setRepeat] = useState(2);
 
   useEffect(() => {
     function calc() {
       const screenWidth = window.innerWidth;
       const oneSetWidth = baseCount * (cardWidth + gap);
-      // 需要至少2倍屏幕宽度才能无缝滚动
       const needed = Math.ceil((screenWidth * 2) / oneSetWidth) + 1;
       setRepeat(Math.max(needed, 2));
     }
@@ -73,14 +67,13 @@ function PhotoRow({
         }
         style={{
           animationDuration: `${speed}s`,
-          // ✅ 提示浏览器走 GPU 合成层，动画不占主线程，降低 TBT
           willChange: "transform",
         }}
       >
         {repeated.map((src, i) => (
           <div
             key={`${src}-${i}`}
-            className="relative flex-shrink-0 w-[130px] h-[190px] md:w-[170px] md:h-[220px] rounded-lg overflow-hidden"
+            className="relative flex-shrink-0 w-[130px] h-[180px] md:w-[170px] md:h-[220px] rounded-card overflow-hidden bg-surface-soft"
           >
             <Image
               src={src}
@@ -88,7 +81,6 @@ function PhotoRow({
               fill
               sizes="(max-width: 768px) 130px, 170px"
               className="object-cover"
-              // ✅ 每行只有前 5 张 eager（首屏可见），其余全部 lazy
               loading={i < images.length ? "eager" : "lazy"}
             />
           </div>
@@ -100,18 +92,15 @@ function PhotoRow({
 
 export function PhotoWall() {
   return (
-    <div className="absolute inset-0 z-0 flex flex-col justify-start gap-2 overflow-hidden">
-      <PhotoRow images={ROW1} direction="left" speed={20} />
-      <PhotoRow images={ROW2} direction="right" speed={25} />
-      <PhotoRow images={ROW3} direction="left" speed={22} />
-
-      {/* 四边渐变遮罩 */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-slate-950/80 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-950 to-transparent" />
-        <div className="absolute top-0 bottom-0 left-0 w-12 bg-gradient-to-r from-slate-950 to-transparent" />
-        <div className="absolute top-0 bottom-0 right-0 w-12 bg-gradient-to-l from-slate-950 to-transparent" />
+    <div className="relative w-full overflow-hidden">
+      <div className="flex flex-col gap-2">
+        <PhotoRow images={ROW1} direction="left" speed={32} />
+        <PhotoRow images={ROW2} direction="right" speed={36} />
       </div>
+
+      {/* 左右白色渐变 mask — 隐藏滚动接缝，强化"画布感" */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-16 md:w-24 bg-gradient-to-r from-canvas to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 md:w-24 bg-gradient-to-l from-canvas to-transparent" />
     </div>
   );
 }

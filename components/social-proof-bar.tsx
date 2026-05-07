@@ -25,13 +25,13 @@ export function SocialProofBar() {
   }, []);
 
   return (
-    <div className="flex items-center gap-3 bg-slate-800/60 backdrop-blur-sm rounded-full px-4 py-2">
+    <div className="inline-flex items-center gap-2.5 bg-surface-soft rounded-pill px-3 py-1.5">
       {/* 头像组 */}
       <div className="flex -space-x-2">
         {AVATARS.map((src, i) => (
           <div
             key={i}
-            className="relative w-6 h-6 rounded-full border-2 border-slate-900 overflow-hidden"
+            className="relative w-6 h-6 rounded-pill border-2 border-canvas overflow-hidden"
           >
             <Image
               src={src}
@@ -43,8 +43,8 @@ export function SocialProofBar() {
           </div>
         ))}
       </div>
-      <p className="text-xs text-slate-400">
-        <span className="text-amber-400 font-semibold tabular-nums">
+      <p className="text-[13px] text-ink-muted leading-[1.23]">
+        <span className="font-semibold text-ink tabular-nums">
           {count.toLocaleString()}
         </span>{" "}
         photos enhanced this week

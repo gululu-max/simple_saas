@@ -13,39 +13,43 @@ export function CreditsBalanceCard({
   recentHistory,
 }: CreditsBalanceCardProps) {
   return (
-    <div className="rounded-xl bg-card p-6">
+    <div className="rounded-card border border-hairline bg-canvas p-6">
       <div className="flex items-center gap-4">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Coins className="h-6 w-6 text-primary" />
+        <div className="p-2 bg-rausch/10 rounded-md">
+          <Coins className="h-6 w-6 text-rausch" />
         </div>
         <div>
-          <p className="text-sm text-muted-foreground">Available Credits</p>
-          <h3 className="text-2xl font-bold mt-1">{credits}</h3>
+          <p className="text-sm text-ink-muted leading-[1.43]">Available Credits</p>
+          <h3 className="text-[22px] font-bold text-ink mt-1 tracking-[-0.4px] tabular-nums leading-[1.18]">
+            {credits}
+          </h3>
         </div>
       </div>
-      <div className="mt-4 space-y-2">
-        <p className="text-sm text-muted-foreground">Recent Activity</p>
-        <div className="space-y-1">
-          {recentHistory.map((history, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between text-sm"
-            >
-              <span
-                className={
-                  history.type === "add" ? "text-primary" : "text-destructive"
-                }
+      {recentHistory.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-[13px] text-ink-muted leading-[1.23]">Recent Activity</p>
+          <div className="space-y-1">
+            {recentHistory.map((history, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between text-sm leading-[1.43]"
               >
-                {history.type === "add" ? "+" : "-"}
-                {history.amount}
-              </span>
-              <span className="text-muted-foreground" suppressHydrationWarning>
-                {new Date(history.created_at).toLocaleDateString()}
-              </span>
-            </div>
-          ))}
+                <span
+                  className={
+                    history.type === "add" ? "text-rausch font-medium" : "text-ink-body font-medium"
+                  }
+                >
+                  {history.type === "add" ? "+" : "-"}
+                  {history.amount}
+                </span>
+                <span className="text-ink-muted text-[13px]" suppressHydrationWarning>
+                  {new Date(history.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

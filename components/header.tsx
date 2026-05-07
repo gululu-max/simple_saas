@@ -20,7 +20,6 @@ export default function Header() {
   const [credits, setCredits] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
-  // ─── Fetch credits (reusable) ─────────────────────────────
   const fetchCredits = useCallback(async () => {
     try {
       const { createClient } = await import("@/utils/supabase/client");
@@ -42,7 +41,6 @@ export default function Header() {
     }
   }, []);
 
-  // ─── Initial load ─────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -73,18 +71,15 @@ export default function Header() {
     return () => { cancelled = true; };
   }, []);
 
-  // ─── Listen for credits-updated events from BoostScanner ──
   useEffect(() => {
     const handleCreditsUpdate = () => {
-      // Small delay to let backend finish writing
       setTimeout(() => fetchCredits(), 800);
     };
 
     window.addEventListener('credits-updated', handleCreditsUpdate);
     return () => window.removeEventListener('credits-updated', handleCreditsUpdate);
   }, [fetchCredits]);
-  // ← 加在这里，紧跟上面那个 useEffect
-  // ─── Listen for auth changes (login/logout) ────────────────
+
   useEffect(() => {
     const handleAuthChanged = () => {
       fetchCredits().then(() => setLoaded(true));
@@ -98,15 +93,24 @@ export default function Header() {
     {
       title: "AI Photo Enhancer",
       description: "Unlock your best-looking photo with AI",
-      icon: <Wand2 className="w-4 h-4 text-purple-500" />,
+      icon: <Wand2 className="w-4 h-4 text-rausch" />,
       href: "/subscribe/scanner",
     },
   ];
 
   const isLoggedIn = loaded && user && user?.email;
 
+  // Active 判断：home 严格相等，其余前缀匹配
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : !!pathname?.startsWith(href.split("#")[0]);
+
+  const navLinkCls = (active: boolean) =>
+    `text-base font-semibold transition-colors ${
+      active ? "text-ink" : "text-ink-muted hover:text-ink"
+    }`;
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-slate-950/80 backdrop-blur supports-[backdrop-filter]:bg-slate-950/60 text-slate-50">
+    <header className="sticky top-0 z-50 w-full border-b border-hairline bg-canvas/95 backdrop-blur supports-[backdrop-filter]:bg-canvas/80">
       <div className="container flex h-16 items-center justify-between px-4">
 
         <div className="flex items-center">
@@ -114,7 +118,7 @@ export default function Header() {
         </div>
 
         <nav className="hidden md:flex items-center gap-8 absolute left-1/2 transform -translate-x-1/2">
-          <Link href="/" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
+          <Link href="/" className={navLinkCls(isActive("/"))}>
             Home
           </Link>
 
@@ -123,13 +127,13 @@ export default function Header() {
             onMouseEnter={() => setIsFeaturesOpen(true)}
             onMouseLeave={() => setIsFeaturesOpen(false)}
           >
-            <span className="flex items-center gap-1 text-lg font-semibold text-slate-400 group-hover:text-slate-100 transition-colors">
+            <span className="flex items-center gap-1 text-base font-semibold text-ink-muted group-hover:text-ink transition-colors">
               Features <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isFeaturesOpen ? "rotate-180" : ""}`} />
             </span>
 
             <div
               className={`
-                absolute top-full left-1/2 -translate-x-1/2 w-72 pt-4 z-50
+                absolute top-full left-1/2 -translate-x-1/2 w-72 pt-3 z-50
                 transition-all duration-200 ease-out
                 ${isFeaturesOpen
                   ? "opacity-100 translate-y-0 pointer-events-auto"
@@ -137,19 +141,19 @@ export default function Header() {
                 }
               `}
             >
-              <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 overflow-hidden backdrop-blur-xl">
+              <div className="bg-canvas border border-hairline rounded-card shadow-ab-card p-2 overflow-hidden">
                 {featureLinks.map((link) => (
                   <Link
                     key={link.title}
                     href={link.href}
-                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors group/item"
+                    className="flex items-start gap-3 p-3 rounded-btn hover:bg-surface-soft transition-colors group/item"
                   >
                     <div className="mt-1">{link.icon}</div>
                     <div>
-                      <div className="text-sm font-bold text-slate-100 group-hover/item:text-red-400 transition-colors">
+                      <div className="text-sm font-semibold text-ink group-hover/item:text-rausch transition-colors">
                         {link.title}
                       </div>
-                      <div className="text-xs text-slate-500 line-clamp-1">
+                      <div className="text-xs text-ink-muted line-clamp-1">
                         {link.description}
                       </div>
                     </div>
@@ -159,11 +163,11 @@ export default function Header() {
             </div>
           </div>
 
-          <Link href="/subscribe#pricing" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
+          <Link href="/subscribe#pricing" className={navLinkCls(isActive("/subscribe#pricing") || pathname === "/subscribe")}>
             Pricing
           </Link>
 
-          <Link href="/blog" className="text-lg font-semibold text-slate-400 transition-colors hover:text-slate-100">
+          <Link href="/blog" className={navLinkCls(isActive("/blog"))}>
             Blog
           </Link>
         </nav>
@@ -171,24 +175,24 @@ export default function Header() {
         <div className="flex items-center gap-2">
           {!loaded ? (
             <div className="hidden md:flex gap-2">
-              <div className="h-8 w-16 rounded-md bg-slate-800 animate-pulse" />
-              <div className="h-8 w-16 rounded-md bg-slate-800 animate-pulse" />
+              <div className="h-8 w-16 rounded-btn bg-surface-soft animate-pulse" />
+              <div className="h-8 w-16 rounded-btn bg-surface-soft animate-pulse" />
             </div>
           ) : isLoggedIn ? (
             <div className="flex items-center gap-2">
               {isSubscribe && (
-                <span className="hidden md:inline text-sm text-slate-500 mr-2">
+                <span className="hidden md:inline text-sm text-ink-muted mr-2">
                   {user.email}
                 </span>
               )}
-              <Button asChild size="sm" variant="outline" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
+              <Button asChild size="sm" variant="outline" className="border-hairline bg-canvas text-ink hover:bg-surface-soft hover:text-ink rounded-btn">
                 <Link href="/subscribe">
-                  <Zap className="mr-1.5 h-4 w-4 text-amber-500 fill-amber-500" />
+                  <Zap className="mr-1.5 h-4 w-4 text-rausch fill-rausch" />
                   {credits} <span className="hidden sm:inline ml-1">Credits</span>
                 </Link>
               </Button>
               <form action={signOutAction} className="hidden md:block">
-                <Button type="submit" variant="outline" size="sm" className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100">
+                <Button type="submit" variant="outline" size="sm" className="border-hairline bg-canvas text-ink hover:bg-surface-soft hover:text-ink rounded-btn">
                   Sign out
                 </Button>
               </form>
@@ -198,15 +202,15 @@ export default function Header() {
               <div className="hidden md:flex gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="border-slate-800/70 bg-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100"
+                  variant="ghost"
+                  className="text-ink hover:bg-surface-soft hover:text-ink rounded-btn"
                   onClick={() => openAuthModal("sign-in")}
                 >
                   Sign in
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-red-600 text-white hover:bg-red-700 border-0"
+                  className="bg-rausch text-white hover:bg-rausch-active rounded-btn border-0"
                   onClick={() => openAuthModal("sign-up")}
                 >
                   Sign up
@@ -215,8 +219,7 @@ export default function Header() {
 
               <Button
                 size="sm"
-                variant="outline"
-                className="md:hidden border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100 text-xs px-3 h-8"
+                className="md:hidden bg-rausch text-white hover:bg-rausch-active rounded-btn text-xs px-3 h-8 border-0"
                 onClick={() => openAuthModal("sign-up")}
               >
                 Get started
@@ -227,7 +230,7 @@ export default function Header() {
           <MobileNav
             items={[
               { label: "Home", href: "/" },
-              { label: "✨ AI Photo Enhancer", href: "/subscribe/scanner" },
+              { label: "AI Photo Enhancer", href: "/subscribe/scanner" },
               { label: "Pricing", href: "/subscribe#pricing" },
               { label: "Blog", href: "/blog" },
             ]}

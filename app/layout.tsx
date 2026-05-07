@@ -142,15 +142,14 @@ export default function RootLayout({
         </Script>
       </head>
       <body
-        className="bg-slate-950 text-slate-50 font-[Inter,_-apple-system,_BlinkMacSystemFont,_'Segoe_UI',_Roboto,_'Helvetica_Neue',_Arial,_sans-serif]"
+        className="bg-canvas text-ink font-cereal antialiased"
         suppressHydrationWarning
       >
         <MetaPixel />
         <AuthModalProvider>
           <ThemeProvider
             attribute="class"
-            defaultTheme="dark"
-            forcedTheme="dark"
+            defaultTheme="light"
             enableSystem={false}
             disableTransitionOnChange
           >

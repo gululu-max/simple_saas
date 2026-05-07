@@ -52,11 +52,55 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // ─── Airbnb design tokens (DESIGN.md) ───
+        rausch: {
+          DEFAULT: "#ff385c",
+          active: "#e00b41",
+          soft: "#ffd1da",
+        },
+        ink: {
+          DEFAULT: "#222222",
+          body: "#3f3f3f",
+          muted: "#6a6a6a",
+          soft: "#929292",
+        },
+        hairline: {
+          DEFAULT: "#dddddd",
+          soft: "#ebebeb",
+          strong: "#c1c1c1",
+        },
+        canvas: "#ffffff",
+        "surface-soft": "#f7f7f7",
+        "surface-strong": "#f2f2f2",
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        // ─── Airbnb radius tokens ───
+        btn: "8px",
+        card: "14px",
+        pill: "9999px",
+      },
+      spacing: {
+        section: "64px",
+      },
+      fontFamily: {
+        cereal: [
+          '"Airbnb Cereal VF"',
+          "Circular",
+          "Inter",
+          "-apple-system",
+          "system-ui",
+          "Roboto",
+          '"Helvetica Neue"',
+          "sans-serif",
+        ],
+      },
+      boxShadow: {
+        // Airbnb 全系统唯一阴影层
+        "ab-card":
+          "rgba(0,0,0,0.02) 0 0 0 1px, rgba(0,0,0,0.04) 0 2px 6px 0, rgba(0,0,0,0.1) 0 4px 8px 0",
       },
       keyframes: {
         "accordion-down": {

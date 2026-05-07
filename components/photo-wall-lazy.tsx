@@ -11,5 +11,10 @@ const PhotoWall = dynamic(
 );
 
 export function PhotoWallLazy() {
-  return <PhotoWall />;
+  // min-h 占位防 CLS：2 行 × (180/220px) + 8px gap
+  return (
+    <div className="min-h-[368px] md:min-h-[448px]">
+      <PhotoWall />
+    </div>
+  );
 }

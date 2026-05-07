@@ -52,43 +52,43 @@ export function SubscriptionStatusBar({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full flex items-center gap-3 rounded-xl border border-border/60 bg-muted/30
-                   px-3.5 py-3 text-sm transition-colors hover:bg-muted/50 active:bg-muted/60"
+        className="w-full flex items-center gap-3 rounded-card border border-hairline bg-canvas
+                   px-3.5 py-3 text-sm transition-colors hover:bg-surface-soft active:bg-surface-strong"
       >
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar flex-1 min-w-0">
 
           {hasActiveAccess ? (
             <>
               <div className="flex items-center gap-1.5 shrink-0">
-                <Crown className="h-4 w-4 text-amber-400" />
-                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-500 capitalize">
+                <Crown className="h-4 w-4 text-rausch" />
+                <span className="inline-flex items-center rounded-pill bg-rausch/10 px-2 py-0.5 text-[11px] font-semibold text-rausch capitalize">
                   Pro
                 </span>
               </div>
 
               {periodEnd && (
                 <>
-                  <span className="h-3.5 w-px bg-border/60 shrink-0" />
+                  <span className="h-3.5 w-px bg-hairline shrink-0" />
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground text-xs hidden sm:inline">Renews</span>
-                    <span className="font-medium">{periodEnd}</span>
+                    <CalendarClock className="h-4 w-4 text-ink-muted" />
+                    <span className="text-ink-muted text-[13px] hidden sm:inline">Renews</span>
+                    <span className="font-medium text-ink">{periodEnd}</span>
                   </div>
                 </>
               )}
             </>
           ) : (
             <div className="flex items-center gap-1.5 shrink-0">
-              <Zap className="h-4 w-4 text-amber-500" />
-              <span className="text-muted-foreground hidden sm:inline">Credits</span>
-              <span className="font-semibold tabular-nums">{credits}</span>
+              <Zap className="h-4 w-4 text-rausch" />
+              <span className="text-ink-muted hidden sm:inline">Credits</span>
+              <span className="font-semibold text-ink tabular-nums">{credits}</span>
             </div>
           )}
         </div>
 
         {/* Toggle arrow */}
         <ChevronDown
-          className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200 ${
+          className={`h-4 w-4 text-ink-muted shrink-0 transition-transform duration-200 ${
             open ? "rotate-180" : ""
           }`}
         />
@@ -96,7 +96,7 @@ export function SubscriptionStatusBar({
 
       {/* ── Dropdown Panel ── */}
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-2 z-50 rounded-xl border border-border/60 bg-background shadow-xl p-3 animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col gap-3">
+        <div className="absolute left-0 right-0 top-full mt-2 z-50 rounded-card border border-hairline bg-canvas shadow-ab-card p-3 animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col gap-3">
           {subscription?.current_period_end && (
             <SubscriptionStatusCard
               subscription={{

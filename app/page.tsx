@@ -5,13 +5,9 @@ import { HeroButtons } from "@/components/hero-animations";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { SocialProofBar } from "@/components/social-proof-bar";
 import { Shield, Trash2, Zap } from "lucide-react";
-
-// 折叠屏下方组件延迟加载
-const PhotoDiagnosis = dynamic(() =>
-  import("@/components/photo-diagnosis").then((m) => ({
-    default: m.PhotoDiagnosis,
-  }))
-);
+import Link from "next/link";
+import { createClient } from "@/utils/supabase/server";
+import { PhotoDiagnosis } from "@/components/photo-diagnosis";
 
 const FeaturesGrid = dynamic(() =>
   import("@/components/features-grid").then((m) => ({
@@ -19,115 +15,111 @@ const FeaturesGrid = dynamic(() =>
   }))
 );
 
-/**
- * ✅ HeroButtons 的静态占位骨架
- * 尺寸与真实按钮完全一致，避免 CLS
- * 纯服务端 HTML，零 JS
- */
-function HeroButtonsFallback() {
-  return (
-    <div className="mt-6 flex flex-col items-center gap-4">
-      {/* CTA 按钮骨架 — 同 h-14 rounded-full 渐变 */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-        <div className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-600 to-orange-500 px-8 h-14 w-[270px] opacity-90" />
-      </div>
-      {/* 信任标签骨架 */}
-      <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3">
-        <div className="h-5 w-[160px] rounded bg-slate-800/50" />
-        <div className="h-5 w-[170px] rounded bg-slate-800/50" />
-      </div>
-    </div>
-  );
-}
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function Home() {
-  return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 selection:bg-red-500/30 pb-24 md:pb-0">
-      {/* 1. Hero Section */}
-      <section className="relative min-h-[85vh] md:min-h-[90vh] flex flex-col justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-slate-950" />
-        <PhotoWallLazy />
-        <div className="absolute inset-0 bg-slate-950/50 z-[1]" />
+  let buttonText = "Get 1 Free Photo";
+  if (user) {
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("free_enhance_used")
+      .eq("user_id", user.id)
+      .single();
 
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-end text-center px-4 md:px-6 pb-[2vh] md:pb-[4vh]">
-          {/* ✅ 纯文本区域，零 JS 依赖，服务端直出立即 paint → LCP 元素 */}
-          <div className="flex flex-col items-center gap-3">
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter max-w-3xl leading-[1.1]">
-              Your Photos Are
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
-                Costing You Matches
-              </span>
-            </h1>
-            <p className="text-lg md:text-2xl text-white font-medium max-w-lg">
-              Get 30+ matches in seconds with one AI fix.
-            </p>
+    if (customer?.free_enhance_used) {
+      buttonText = "Instant Glow-Up";
+    }
+  }
+
+  return (
+    <main className="flex flex-col min-h-screen bg-canvas text-ink font-cereal selection:bg-rausch/15 pb-24 md:pb-0">
+      {/* 1. Hero — Airbnb 白底 · 克制标题 · 单色 Rausch CTA */}
+      <section className="bg-canvas pt-12 lg:pt-section pb-8 lg:pb-12">
+        <div className="container max-w-[760px] mx-auto px-6 text-center">
+          <h1 className="text-[28px] lg:text-[32px] font-bold leading-[1.18] tracking-[-0.5px] text-ink">
+            Your photos are costing you matches
+          </h1>
+          <p className="mt-4 text-base lg:text-[17px] text-ink-body leading-[1.5] max-w-[520px] mx-auto">
+            One AI fix on the photos you already have — better lighting, framing
+            and color. Same face, more matches.
+          </p>
+
+          <div className="mt-8 flex flex-col items-center gap-5">
+            <HeroButtons initialText={buttonText} />
+            <SocialProofBar />
           </div>
-
-          {/* ✅ Client 组件用 Suspense 隔离，不阻塞 h1 的 paint */}
-          <Suspense fallback={<HeroButtonsFallback />}>
-            <div className="mt-6 flex flex-col items-center gap-4">
-              <HeroButtons />
-              <SocialProofBar />
-            </div>
-          </Suspense>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent z-[1]" />
       </section>
 
-      {/* 2. Pain Point Diagnosis */}
+      {/* 1b. Photo wall band — 白底滚动展示 · Airbnb editorial photo strip 风格 */}
+      <section className="bg-canvas pb-12 lg:pb-section">
+        <PhotoWallLazy />
+      </section>
+
+      {/* 2. Diagnosis — Airbnb 标题 + 卡片化标注图 */}
       <PhotoDiagnosis />
 
-      {/* 3. Before & After Results */}
-      <section id="features" className="pt-6 pb-10">
-        <div className="container px-4 md:px-6 max-w-2xl mx-auto">
-          <div className="text-center mb-6">
-            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
-              Small fixes.{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
-                Real results.
-              </span>
+      {/* 3. Before & After Results — Airbnb 白底 case 卡片 */}
+      <section id="features" className="bg-canvas pt-12 lg:pt-section pb-12 lg:pb-section border-t border-hairline-soft">
+        <div className="container px-6 max-w-[640px] mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-[22px] lg:text-[28px] font-bold tracking-[-0.4px] text-ink leading-[1.18] mb-3">
+              Small fixes, real results.
             </h2>
+            <p className="text-ink-muted text-base leading-[1.5]">
+              Three guys. Same face. Different outcomes.
+            </p>
           </div>
           <FeaturesGrid />
         </div>
       </section>
 
-      {/* 4. Trust + Final CTA */}
-      <section className="pt-10 pb-8 border-t border-slate-800">
-        <div className="container px-4 md:px-6 max-w-2xl mx-auto">
-          <div className="grid grid-cols-3 gap-3 mb-10">
-            <div className="text-center space-y-2 p-4 rounded-xl border border-slate-800 bg-slate-900/50">
-              <Zap className="w-5 h-5 text-emerald-400 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-100">No sign-up</h3>
+      {/* 4. Trust + Final CTA — Airbnb 白底 amenity row + 单色 Rausch CTA */}
+      <section className="bg-canvas pt-12 lg:pt-section pb-12 lg:pb-section border-t border-hairline-soft">
+        <div className="container px-6 max-w-[640px] mx-auto">
+          {/* Trust row — 三个 ink 单色 amenity 卡片 */}
+          <div className="grid grid-cols-3 gap-3 mb-12">
+            <div className="text-center space-y-2 p-4 rounded-card border border-hairline bg-canvas">
+              <Zap className="w-5 h-5 text-ink mx-auto" />
+              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">No sign-up</h3>
             </div>
-            <div className="text-center space-y-2 p-4 rounded-xl border border-slate-800 bg-slate-900/50">
-              <Trash2 className="w-5 h-5 text-emerald-400 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-100">Auto-deleted</h3>
+            <div className="text-center space-y-2 p-4 rounded-card border border-hairline bg-canvas">
+              <Trash2 className="w-5 h-5 text-ink mx-auto" />
+              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">Auto-deleted</h3>
             </div>
-            <div className="text-center space-y-2 p-4 rounded-xl border border-slate-800 bg-slate-900/50">
-              <Shield className="w-5 h-5 text-emerald-400 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-100">First one free</h3>
+            <div className="text-center space-y-2 p-4 rounded-card border border-hairline bg-canvas">
+              <Shield className="w-5 h-5 text-ink mx-auto" />
+              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">First one free</h3>
             </div>
           </div>
 
-          <div className="text-center space-y-4 py-10 px-6 rounded-2xl bg-gradient-to-br from-red-950/60 via-slate-900 to-orange-950/40 border border-red-500/20">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
+          {/* Final CTA — 白底 ink 标题 + Rausch 实色按钮 */}
+          <div className="text-center space-y-5 py-10">
+            <h2 className="text-[22px] lg:text-[28px] font-bold tracking-[-0.4px] text-ink leading-[1.18]">
               Every day you wait,
               <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400">
-                you&apos;re swiped left on.
-              </span>
+              you&apos;re swiped left on.
             </h2>
-            <p className="text-slate-300 text-lg max-w-md mx-auto">
+            <p className="text-ink-body text-base leading-[1.5] max-w-[440px] mx-auto">
               The matches you&apos;re missing right now won&apos;t come back. One
-              upload. 30 seconds. See what&apos;s been holding you back.
+              upload. 30 seconds.
             </p>
+            <div className="pt-2 flex justify-center">
+              <Link
+                href="/subscribe/scanner"
+                className="inline-flex items-center justify-center gap-2 rounded-sm bg-rausch px-6 h-12 text-base font-medium text-white transition-colors hover:bg-rausch-active"
+              >
+                Get 1 Free Photo
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       <ScrollToTop />
-    </div>
+    </main>
   );
 }

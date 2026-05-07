@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { ArrowRight } from "lucide-react";
 
 const cases = [
   {
@@ -35,11 +36,11 @@ export function FeaturesGrid() {
       {cases.map((c, i) => (
         <div
           key={i}
-          className="border border-slate-800 rounded-2xl bg-slate-900 overflow-hidden hover:border-red-500/30 transition-colors"
+          className="border border-hairline rounded-card bg-canvas overflow-hidden transition-shadow hover:shadow-ab-card"
         >
-          <div className="flex gap-3 p-4">
+          <div className="flex items-center gap-3 p-4">
             {/* Before */}
-            <div className="relative flex-1 rounded-xl overflow-hidden aspect-[3/4]">
+            <div className="relative flex-1 rounded-card overflow-hidden aspect-[3/4] bg-surface-soft">
               <Image
                 src={c.beforeImg}
                 alt={`${c.name} before`}
@@ -48,19 +49,21 @@ export function FeaturesGrid() {
                 className="object-cover"
                 loading="lazy"
               />
-              <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-md z-10">
-                {c.scoreBefore}/100
+              {/* Score badge — 白底 ink，单层阴影 */}
+              <div className="absolute top-2 left-2 z-10 inline-flex items-center bg-canvas text-ink text-[11px] font-semibold px-2 py-0.5 rounded-pill shadow-ab-card">
+                {c.scoreBefore}
               </div>
-              <span className="absolute bottom-2 left-2 text-[9px] font-bold uppercase tracking-widest bg-slate-800/80 backdrop-blur-sm text-slate-300 px-2 py-0.5 rounded z-10">
+              {/* BEFORE label — 白底 ink uppercase */}
+              <span className="absolute bottom-2 left-2 z-10 bg-canvas text-ink text-[8px] font-bold uppercase tracking-[0.32px] px-2 py-0.5 rounded-pill">
                 Before
               </span>
             </div>
 
-            {/* Arrow */}
-            <div className="self-center text-slate-600 text-lg shrink-0">→</div>
+            {/* Arrow — ink-soft */}
+            <ArrowRight className="w-5 h-5 text-ink-soft shrink-0" />
 
-            {/* After */}
-            <div className="relative flex-1 rounded-xl overflow-hidden aspect-[3/4] ring-1 ring-emerald-500/30">
+            {/* After — ink solid badge 强化"对比终点" */}
+            <div className="relative flex-1 rounded-card overflow-hidden aspect-[3/4] bg-surface-soft">
               <Image
                 src={c.afterImg}
                 alt={`${c.name} after`}
@@ -69,27 +72,27 @@ export function FeaturesGrid() {
                 className="object-cover"
                 loading="lazy"
               />
-              <div className="absolute top-2 left-2 bg-emerald-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-md z-10">
-                {c.scoreAfter}/100
+              {/* Score badge — ink 实心白字（"高亮态"，类似 date-picker selected） */}
+              <div className="absolute top-2 left-2 z-10 inline-flex items-center bg-ink text-white text-[11px] font-semibold px-2 py-0.5 rounded-pill">
+                {c.scoreAfter}
               </div>
-              <span className="absolute bottom-2 left-2 text-[9px] font-bold uppercase tracking-widest bg-slate-800/80 backdrop-blur-sm text-slate-300 px-2 py-0.5 rounded z-10">
+              <span className="absolute bottom-2 left-2 z-10 bg-ink text-white text-[8px] font-bold uppercase tracking-[0.32px] px-2 py-0.5 rounded-pill">
                 After
               </span>
             </div>
           </div>
 
-          {/* Bottom bar */}
-          <div className="px-4 pb-4 flex items-center justify-between">
-            <span className="text-sm text-slate-400">{c.name}</span>
-            <span className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold px-2.5 py-1 rounded-lg">
+          {/* Bottom bar — ink-muted 名字，Rausch 单色 metric */}
+          <div className="px-4 pb-4 flex items-center justify-between border-t border-hairline-soft pt-3">
+            <span className="text-sm text-ink-muted">{c.name}</span>
+            <span className="inline-flex items-center gap-1 text-rausch text-[13px] font-semibold">
               ↑ {c.metric}
             </span>
           </div>
         </div>
       ))}
 
-      {/* Your turn CTA text */}
-      <p className="text-center text-slate-400 text-lg font-medium pt-2">
+      <p className="text-center text-ink-muted text-base font-medium pt-2">
         Your turn.
       </p>
     </div>

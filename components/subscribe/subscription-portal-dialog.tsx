@@ -53,7 +53,7 @@ export function SubscriptionPortalDialog({
     <div>
       <Button
         variant="outline"
-        className="w-full"
+        className="w-full h-11 bg-canvas text-ink border border-ink hover:bg-surface-soft hover:text-ink rounded-btn font-medium"
         disabled={isLoading}
         onClick={handleManageSubscription}
       >
@@ -61,7 +61,7 @@ export function SubscriptionPortalDialog({
         <ArrowRight className="ml-2 h-4 w-4" />
       </Button>
       {error && (
-        <p className="text-sm text-destructive mt-2">{error}</p>
+        <p className="text-sm text-destructive mt-2 leading-[1.43]">{error}</p>
       )}
     </div>
   );

@@ -14,6 +14,26 @@ const BLOCKED_PATH_PREFIXES = [
 const GSI_SRC = "https://accounts.google.com/gsi/client";
 const SCRIPT_READY_EVENT = "__one-tap-gsi-ready";
 
+// GSI logs `[GSI_LOGGER]: FedCM get() rejects with …` to console.error in
+// several harmless UX paths: AbortError (我们调用 .cancel() 切路由 / 模态登录)、
+// NetworkError (用户未登录 Google / 三方 cookie 被拦 / 冷却期)。Next.js dev
+// overlay 会把每条 console.error 弹成红框，所以这里把这一族日志统一吞掉。
+if (typeof window !== "undefined" && !(window as unknown as { __gsiNoiseFilter?: boolean }).__gsiNoiseFilter) {
+  (window as unknown as { __gsiNoiseFilter?: boolean }).__gsiNoiseFilter = true;
+  const origError = console.error;
+  console.error = (...args: unknown[]) => {
+    const first = args[0];
+    if (
+      typeof first === "string" &&
+      first.includes("[GSI_LOGGER]") &&
+      first.includes("FedCM get() rejects")
+    ) {
+      return;
+    }
+    origError.apply(console, args as []);
+  };
+}
+
 async function sha256Hex(input: string): Promise<string> {
   const buf = new TextEncoder().encode(input);
   const digest = await crypto.subtle.digest("SHA-256", buf);
