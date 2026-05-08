@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import {
   Loader2, Wand2, Download, Lock, ChevronLeft, ChevronRight,
   Image as ImageIcon, Upload, Copy, Check, Coins, Crown,
-  ShieldCheck, RefreshCw, Sparkles, XCircle, X, ZoomIn,
+  ShieldCheck, RefreshCw, Sparkles, XCircle, X,
   AlertCircle, Zap, Camera,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -338,6 +338,10 @@ export default function BoostScanner() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const lightboxTouchStartX = useRef<number | null>(null);
   const lightboxTouchEndX = useRef<number | null>(null);
+  // Lightbox compare-slider state — drag a vertical handle to reveal BEFORE under AFTER
+  const lightboxDragRef = useRef<HTMLDivElement | null>(null);
+  const lightboxDraggingRef = useRef(false);
+  const [lightboxComparePos, setLightboxComparePos] = useState(50);
 
   // [fusion] 融合开关 — 默认开启，用户可勾掉切回纯 retouch
   const [useFusion, setUseFusion] = useState(true);
@@ -1115,6 +1119,7 @@ export default function BoostScanner() {
     if (isGuestEnhanced) return;
     const idx = lightboxImages.findIndex(img => img.src === src);
     setLightboxIndex(idx >= 0 ? idx : 0);
+    setLightboxComparePos(50);
     setLightboxOpen(true);
   };
   const closeLightbox = () => { setLightboxOpen(false); };
@@ -1128,6 +1133,21 @@ export default function BoostScanner() {
     if (Math.abs(diff) > 40) { if (diff > 0) lightboxNext(); else lightboxPrev(); }
     lightboxTouchStartX.current = null; lightboxTouchEndX.current = null;
   };
+
+  // Lightbox compare-slider drag handlers
+  const updateLightboxComparePos = (clientX: number) => {
+    const el = lightboxDragRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const pct = ((clientX - rect.left) / rect.width) * 100;
+    setLightboxComparePos(Math.max(0, Math.min(100, pct)));
+  };
+  const handleCompareMouseDown = (e: React.MouseEvent) => { lightboxDraggingRef.current = true; updateLightboxComparePos(e.clientX); };
+  const handleCompareMouseMove = (e: React.MouseEvent) => { if (lightboxDraggingRef.current) updateLightboxComparePos(e.clientX); };
+  const handleCompareMouseEnd = () => { lightboxDraggingRef.current = false; };
+  const handleCompareTouchStart = (e: React.TouchEvent) => { lightboxDraggingRef.current = true; updateLightboxComparePos(e.touches[0].clientX); };
+  const handleCompareTouchMove = (e: React.TouchEvent) => { if (lightboxDraggingRef.current) updateLightboxComparePos(e.touches[0].clientX); };
+  const handleCompareTouchEnd = () => { lightboxDraggingRef.current = false; };
 
   // [v9.3] Showcase touch handlers
   const handleShowcaseTouchStart = (e: React.TouchEvent) => { showcaseTouchStartX.current = e.touches[0].clientX; };
@@ -1216,7 +1236,6 @@ export default function BoostScanner() {
               <div className="px-4 pb-4">
                 <div className={`relative w-full overflow-hidden rounded-card border border-hairline bg-surface-soft flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
                   <img src={preview} alt="Original" className={`w-full object-contain p-2 cursor-pointer ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'max-h-[300px] md:max-h-[360px]'}`} onClick={() => openLightbox(preview!)} />
-                  {isCompact && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
                   {isLoading && <ScanningOverlay />}
                 </div>
                 {!isLoading && !isEnhancing && !showEnhanced && (
@@ -1263,7 +1282,11 @@ export default function BoostScanner() {
                     <div className="relative h-full w-full">
                       <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isGuestEnhanced ? '' : 'cursor-pointer'} ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'max-h-[300px] md:max-h-[360px]'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && openLightbox(enhancedSrc)} />
                       <div className="absolute top-3 left-3 bg-canvas/95 backdrop-blur-sm text-ink text-xs font-bold px-2.5 py-1 rounded-pill border border-hairline shadow-ab-card flex items-center gap-1"><Sparkles className="size-3" /> AI Enhanced</div>
-                      {isCompact && !isGuestEnhanced && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
+                      {!isGuestEnhanced && (
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-pill text-[12px] font-medium flex items-center gap-1.5 pointer-events-none whitespace-nowrap text-white backdrop-blur-md" style={{ background: 'rgba(0,0,0,0.65)' }}>
+                          <Sparkles className="size-3" /> Tap to view full screen
+                        </div>
+                      )}
                       {isGuestEnhanced && <GuestLockOverlay />}
                     </div>
                   ) : isEnhancing ? (
@@ -1286,7 +1309,7 @@ export default function BoostScanner() {
                         }`}
                         title={v.matchedScene ?? `Variant ${i + 1}`}
                       >
-                        Look {i + 1}
+                        Look {i + 1}{v.matchedScene ? ` · ${v.matchedScene}` : ''}
                       </button>
                     ))}
                   </div>
@@ -1314,14 +1337,17 @@ export default function BoostScanner() {
                   <div style={{ display: sliderIndex === 0 ? 'block' : 'none' }} className="relative h-full w-full">
                     <img src={preview} alt="Original" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`} onClick={() => openLightbox(preview!)} />
                     {showEnhanced && <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-white/10">Original</div>}
-                    <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>
                   </div>
                   {showEnhanced && (
                     <div style={{ display: sliderIndex === 1 ? 'block' : 'none' }}>
                       <div className="relative h-full w-full">
                         <img src={enhancedSrc || preview!} alt="Enhanced" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`} style={isGuestEnhanced ? { filter: 'blur(6px)', transform: 'scale(1.02)' } : {}} onClick={() => enhancedSrc && !isGuestEnhanced && openLightbox(enhancedSrc)} />
                         <div className="absolute top-3 left-3 bg-canvas/95 backdrop-blur-sm text-ink text-xs font-bold px-2.5 py-1 rounded-pill border border-hairline shadow-ab-card flex items-center gap-1"><Sparkles className="size-3" /> AI Enhanced</div>
-                        {!isGuestEnhanced && <div className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-black/50 text-white/60 pointer-events-none"><ZoomIn className="size-3.5" /></div>}
+                        {!isGuestEnhanced && (
+                          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-pill text-[12px] font-medium flex items-center gap-1.5 pointer-events-none whitespace-nowrap text-white backdrop-blur-md" style={{ background: 'rgba(0,0,0,0.65)' }}>
+                            <Sparkles className="size-3" /> Tap to view full screen
+                          </div>
+                        )}
                         {isGuestEnhanced && <GuestLockOverlay />}
                       </div>
                     </div>
@@ -1345,7 +1371,7 @@ export default function BoostScanner() {
                             : 'bg-surface-soft text-ink-body border-hairline active:bg-surface-strong'
                         }`}
                       >
-                        Look {i + 1}
+                        Look {i + 1}{v.matchedScene ? ` · ${v.matchedScene}` : ''}
                       </button>
                     ))}
                   </div>
@@ -1426,37 +1452,198 @@ export default function BoostScanner() {
         )}
 
         {/* ═══ LIGHTBOX ═══ */}
-        {lightboxOpen && lightboxImages.length > 0 && (
-          <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center" onClick={closeLightbox}>
-            <button className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 z-10" onClick={closeLightbox}><X className="size-5" /></button>
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-              <span className={`text-sm font-bold px-3 py-1 rounded-full backdrop-blur-sm ${lightboxIndex === 0 ? 'text-rausch bg-rausch/10 border border-rausch/20' : 'text-ink bg-surface-soft border border-emerald-500/20'}`}>
-                {lightboxImages[lightboxIndex]?.label}
-              </span>
-            </div>
-            <div className="flex-1 flex items-center justify-center w-full px-4"
-              onTouchStart={handleLightboxTouchStart} onTouchMove={handleLightboxTouchMove} onTouchEnd={handleLightboxTouchEnd}>
-              <img src={lightboxImages[lightboxIndex]?.src} alt={lightboxImages[lightboxIndex]?.label}
-                className="max-w-full max-h-full object-contain" style={{ touchAction: 'pinch-zoom' }} onClick={e => e.stopPropagation()} />
-            </div>
-            {lightboxImages.length > 1 && (
-              <>
-                <button className="absolute left-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
-                  onClick={e => { e.stopPropagation(); lightboxPrev(); }} disabled={lightboxIndex === 0}><ChevronLeft className="size-5" /></button>
-                <button className="absolute right-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
-                  onClick={e => { e.stopPropagation(); lightboxNext(); }} disabled={lightboxIndex === lightboxImages.length - 1}><ChevronRight className="size-5" /></button>
-              </>
-            )}
-            {lightboxImages.length > 1 && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-                {lightboxImages.map((_, i) => (
-                  <button key={i} onClick={e => { e.stopPropagation(); setLightboxIndex(i); }}
-                    className={`rounded-full transition-all duration-200 ${lightboxIndex === i ? 'w-5 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/60'}`} />
-                ))}
+        {lightboxOpen && lightboxImages.length > 0 && (() => {
+          const isCompareMode = lightboxImages.length === 2 && !!preview && !!enhancedSrc && !isGuestEnhanced;
+          const showUnlockCTA = isCompareMode && !isDownloadFree;
+          const variantCount = variants?.length ?? 0;
+          return (
+            <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={closeLightbox}>
+              {/* Top bar — close + label */}
+              <button className="absolute top-4 left-4 z-20 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20" onClick={closeLightbox}><X className="size-5" /></button>
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
+                {isCompareMode ? (
+                  <span className="text-sm font-bold px-3 py-1 rounded-pill bg-canvas/95 text-ink flex items-center gap-1.5 shadow-ab-card">
+                    <Sparkles className="size-3.5 text-rausch" /> Drag to compare
+                  </span>
+                ) : (
+                  <span className={`text-sm font-bold px-3 py-1 rounded-full backdrop-blur-sm ${lightboxIndex === 0 ? 'text-rausch bg-rausch/10 border border-rausch/20' : 'text-ink bg-surface-soft border border-emerald-500/20'}`}>
+                    {lightboxImages[lightboxIndex]?.label}
+                  </span>
+                )}
               </div>
-            )}
-          </div>
-        )}
+
+              {isCompareMode ? (
+                <>
+                  {/* Compare image area */}
+                  <div className="flex-1 flex items-center justify-center w-full px-4 pt-16 pb-2 min-h-0" onClick={(e) => e.stopPropagation()}>
+                    <div
+                      ref={lightboxDragRef}
+                      className="relative select-none touch-none cursor-ew-resize"
+                      style={{ aspectRatio: '4 / 5', maxHeight: '100%', maxWidth: '92vw', height: '100%' }}
+                      onMouseDown={handleCompareMouseDown}
+                      onMouseMove={handleCompareMouseMove}
+                      onMouseUp={handleCompareMouseEnd}
+                      onMouseLeave={handleCompareMouseEnd}
+                      onTouchStart={handleCompareTouchStart}
+                      onTouchMove={handleCompareTouchMove}
+                      onTouchEnd={handleCompareTouchEnd}
+                    >
+                      {/* AFTER (base layer) */}
+                      <img src={enhancedSrc!} alt="AI Enhanced" className="absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
+                      {/* BEFORE (clipped from the right) */}
+                      <img
+                        src={preview!}
+                        alt="Original"
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                        style={{ clipPath: `inset(0 ${100 - lightboxComparePos}% 0 0)` }}
+                        draggable={false}
+                      />
+
+                      {/* Watermark — clipped to AFTER side, hidden after unlock */}
+                      {!isDownloadFree && (
+                        <div
+                          className="absolute inset-0 overflow-hidden pointer-events-none flex flex-col items-center justify-center gap-3"
+                          style={{ clipPath: `inset(0 0 0 ${lightboxComparePos}%)` }}
+                          aria-hidden="true"
+                        >
+                          {[0, 1, 2, 3].map((i) => (
+                            <div
+                              key={i}
+                              className="text-[14px] font-bold text-white/30 -rotate-12 whitespace-nowrap tracking-wider"
+                              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.45)' }}
+                            >
+                              matchfix · matchfix · matchfix
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* BEFORE / AFTER labels */}
+                      <div className="absolute top-3 left-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-black/60 text-white backdrop-blur-md pointer-events-none">BEFORE</div>
+                      <div className="absolute top-3 right-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-rausch text-white flex items-center gap-1 pointer-events-none">
+                        <Sparkles className="size-3" /> AFTER
+                      </div>
+
+                      {/* Drag handle */}
+                      <div
+                        className="absolute top-0 bottom-0 pointer-events-none"
+                        style={{ left: `calc(${lightboxComparePos}% - 1.5px)`, width: 3, background: '#fff', boxShadow: '0 0 16px rgba(0,0,0,0.45)' }}
+                      >
+                        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-11 rounded-full grid place-items-center bg-canvas shadow-ab-card">
+                          <div className="flex">
+                            <ChevronLeft className="size-3.5 text-ink" />
+                            <ChevronRight className="size-3.5 text-ink -ml-1" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom CTA panel */}
+                  <div
+                    className="shrink-0 px-4 pt-3 pb-5 flex flex-col items-center gap-2.5 relative z-10"
+                    style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.92) 100%)' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Variant chips */}
+                    {variants && variantCount > 1 && (
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        {variants.map((v, i) => (
+                          <button
+                            key={v.enhancementId}
+                            type="button"
+                            onClick={() => selectVariant(i)}
+                            className={`px-4 py-1.5 rounded-pill text-[13px] font-semibold border transition-all ${
+                              i === selectedVariantIndex
+                                ? 'bg-canvas text-ink border-canvas shadow-ab-card'
+                                : 'bg-transparent text-white/70 border-white/25 hover:text-white hover:border-white/50'
+                            }`}
+                            title={v.matchedScene ?? `Variant ${i + 1}`}
+                          >
+                            Look {i + 1}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {showUnlockCTA && (
+                      <>
+                        {/* Scarcity */}
+                        <div
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill text-[11px] font-medium"
+                          style={{ background: 'rgba(255,170,85,0.16)', color: '#ffb47a' }}
+                        >
+                          🔥 47+ unlocked today · gone when you leave
+                        </div>
+
+                        {/* Main unlock CTA */}
+                        <button
+                          type="button"
+                          onClick={() => { setLightboxOpen(false); setShowResultShowcase(true); }}
+                          className="w-full max-w-sm h-14 rounded-[12px] font-bold text-[17px] flex items-center justify-center gap-2 relative overflow-hidden bg-rausch hover:bg-rausch-active text-white shadow-ab-card active:scale-[0.98] transition-transform"
+                        >
+                          <span
+                            className="absolute inset-0 pointer-events-none"
+                            style={{
+                              background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.22) 45%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0.22) 55%, transparent 65%)',
+                              animation: 'showcaseShimmer 2.5s ease-in-out infinite',
+                            }}
+                          />
+                          <Download className="size-5 relative z-10" />
+                          <span className="relative z-10">
+                            {variantCount > 1 ? `Unlock all ${variantCount} looks` : 'Unlock photo'} · $1.99
+                          </span>
+                        </button>
+
+                        {/* Trust row */}
+                        <div className="flex items-center justify-center gap-2.5 text-[10px] text-white/60 flex-wrap max-w-sm">
+                          <span className="flex items-center gap-1"><ShieldCheck className="size-3" /> 30-day refund</span>
+                          <span className="text-white/40">·</span>
+                          <span className="flex items-center gap-1"><Lock className="size-3" /> Secured checkout</span>
+                          <span className="text-white/40">·</span>
+                          <span>Instant download</span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Maybe later / close */}
+                    <button
+                      type="button"
+                      onClick={closeLightbox}
+                      className="text-[12px] text-white/55 hover:text-white/85 transition-colors py-1"
+                    >
+                      {showUnlockCTA ? 'Maybe later' : 'Close'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1 flex items-center justify-center w-full px-4"
+                    onTouchStart={handleLightboxTouchStart} onTouchMove={handleLightboxTouchMove} onTouchEnd={handleLightboxTouchEnd}>
+                    <img src={lightboxImages[lightboxIndex]?.src} alt={lightboxImages[lightboxIndex]?.label}
+                      className="max-w-full max-h-full object-contain" style={{ touchAction: 'pinch-zoom' }} onClick={e => e.stopPropagation()} />
+                  </div>
+                  {lightboxImages.length > 1 && (
+                    <>
+                      <button className="absolute left-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
+                        onClick={e => { e.stopPropagation(); lightboxPrev(); }} disabled={lightboxIndex === 0}><ChevronLeft className="size-5" /></button>
+                      <button className="absolute right-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
+                        onClick={e => { e.stopPropagation(); lightboxNext(); }} disabled={lightboxIndex === lightboxImages.length - 1}><ChevronRight className="size-5" /></button>
+                    </>
+                  )}
+                  {lightboxImages.length > 1 && (
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+                      {lightboxImages.map((_, i) => (
+                        <button key={i} onClick={e => { e.stopPropagation(); setLightboxIndex(i); }}
+                          className={`rounded-full transition-all duration-200 ${lightboxIndex === i ? 'w-5 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/60'}`} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ═══ [v9.4] RESULT SHOWCASE MODAL — watermarked preview + inline $1.99 CTA ═══ */}
         {showResultShowcase && showcaseCurrentSlide && !isGuestEnhanced && (
