@@ -471,6 +471,8 @@ export default function BoostScanner() {
         trackEvent('showcase_payment_auto_download', { count: ids.length });
         // 延迟一下,等 credits 状态更新到位
         setTimeout(() => {
+          skipExitWarningRef.current = true;
+          const lastIdx = ids.length - 1;
           ids.forEach((id, idx) => setTimeout(() => {
             const a = document.createElement('a');
             a.href = `/api/download/${id}`;
@@ -478,6 +480,9 @@ export default function BoostScanner() {
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            if (idx === lastIdx) {
+              setTimeout(() => { skipExitWarningRef.current = false; }, 200);
+            }
           }, idx * 250));
           dispatchCreditsUpdate();
         }, 800);
@@ -912,6 +917,8 @@ export default function BoostScanner() {
   // a popup.
   const triggerGroupDownloads = useCallback((ids: string[], opts?: { watermarked?: boolean }) => {
     const suffix = opts?.watermarked ? '?watermarked=1' : '';
+    skipExitWarningRef.current = true;
+    const lastIdx = ids.length - 1;
     ids.forEach((id, idx) => {
       setTimeout(() => {
         const a = document.createElement('a');
@@ -920,6 +927,9 @@ export default function BoostScanner() {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        if (idx === lastIdx) {
+          setTimeout(() => { skipExitWarningRef.current = false; }, 200);
+        }
       }, idx * 250);
     });
     dispatchCreditsUpdate();
@@ -1148,6 +1158,157 @@ export default function BoostScanner() {
   const handleCompareTouchStart = (e: React.TouchEvent) => { lightboxDraggingRef.current = true; updateLightboxComparePos(e.touches[0].clientX); };
   const handleCompareTouchMove = (e: React.TouchEvent) => { if (lightboxDraggingRef.current) updateLightboxComparePos(e.touches[0].clientX); };
   const handleCompareTouchEnd = () => { lightboxDraggingRef.current = false; };
+
+  // Shared compare-unlock modal UI — used by both the auto-popup after enhance
+  // (showResultShowcase) and the tap-to-fullscreen lightbox compare mode.
+  const renderUnlockCompareUI = (onClose: () => void): React.ReactNode => {
+    if (!preview || !enhancedSrc || isGuestEnhanced) return null;
+    const variantCount = variants?.length ?? 0;
+    const groupIds = variants?.map(v => v.enhancementId) ?? (enhancementId ? [enhancementId] : []);
+    return (
+      <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={onClose}>
+        {/* Close + label */}
+        <button className="absolute top-4 left-4 z-20 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20" onClick={onClose} aria-label="Close">
+          <X className="size-5" />
+        </button>
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
+          <span className="text-sm font-bold px-3 py-1 rounded-pill bg-canvas/95 text-ink flex items-center gap-1.5 shadow-ab-card">
+            <Sparkles className="size-3.5 text-rausch" /> Drag to compare
+          </span>
+        </div>
+
+        {/* Compare image area */}
+        <div className="flex-1 flex items-center justify-center w-full px-4 pt-16 pb-2 min-h-0" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={lightboxDragRef}
+            className="relative select-none touch-none cursor-ew-resize"
+            style={{ aspectRatio: '4 / 5', maxHeight: '100%', maxWidth: '92vw', height: '100%' }}
+            onMouseDown={handleCompareMouseDown}
+            onMouseMove={handleCompareMouseMove}
+            onMouseUp={handleCompareMouseEnd}
+            onMouseLeave={handleCompareMouseEnd}
+            onTouchStart={handleCompareTouchStart}
+            onTouchMove={handleCompareTouchMove}
+            onTouchEnd={handleCompareTouchEnd}
+          >
+            {/* AFTER (base layer) */}
+            <img src={enhancedSrc} alt="AI Enhanced" className="absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
+            {/* BEFORE clipped from the right */}
+            <img
+              src={preview}
+              alt="Original"
+              className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+              style={{ clipPath: `inset(0 ${100 - lightboxComparePos}% 0 0)` }}
+              draggable={false}
+            />
+
+            {/* Watermark — only when not yet unlocked */}
+            {!isDownloadFree && (
+              <div
+                className="absolute inset-0 overflow-hidden pointer-events-none flex flex-col items-center justify-center gap-3"
+                style={{ clipPath: `inset(0 0 0 ${lightboxComparePos}%)` }}
+                aria-hidden="true"
+              >
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="text-[14px] font-bold text-white/30 -rotate-12 whitespace-nowrap tracking-wider" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.45)' }}>
+                    matchfix · matchfix · matchfix
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* BEFORE / AFTER labels */}
+            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-black/60 text-white backdrop-blur-md pointer-events-none">BEFORE</div>
+            <div className="absolute top-3 right-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-rausch text-white flex items-center gap-1 pointer-events-none">
+              <Sparkles className="size-3" /> AFTER
+            </div>
+
+            {/* Drag handle */}
+            <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: `calc(${lightboxComparePos}% - 1.5px)`, width: 3, background: '#fff', boxShadow: '0 0 16px rgba(0,0,0,0.45)' }}>
+              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-11 rounded-full grid place-items-center bg-canvas shadow-ab-card">
+                <div className="flex">
+                  <ChevronLeft className="size-3.5 text-ink" />
+                  <ChevronRight className="size-3.5 text-ink -ml-1" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom CTA panel */}
+        <div
+          className="shrink-0 px-4 pt-3 pb-5 flex flex-col items-center gap-2.5 relative z-10"
+          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.92) 100%)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Variant chips */}
+          {variants && variantCount > 1 && (
+            <div className="flex items-center justify-center gap-2 mb-1">
+              {variants.map((v, i) => (
+                <button
+                  key={v.enhancementId}
+                  type="button"
+                  onClick={() => selectVariant(i)}
+                  className={`px-4 py-1.5 rounded-pill text-[13px] font-semibold border transition-all ${
+                    i === selectedVariantIndex
+                      ? 'bg-canvas text-ink border-canvas shadow-ab-card'
+                      : 'bg-transparent text-white/70 border-white/25 hover:text-white hover:border-white/50'
+                  }`}
+                  title={v.matchedScene ?? `Variant ${i + 1}`}
+                >
+                  Look {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Scarcity (unpaid only) */}
+          {!isDownloadFree && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill text-[11px] font-medium" style={{ background: 'rgba(255,170,85,0.16)', color: '#ffb47a' }}>
+              🔥 47+ unlocked today · gone when you leave
+            </div>
+          )}
+
+          {/* Main CTA — Download (paid) or Unlock (unpaid) */}
+          {isDownloadFree ? (
+            <button
+              type="button"
+              onClick={() => { onClose(); handleDownload(); }}
+              disabled={isDownloading}
+              className="w-full max-w-sm h-14 rounded-[12px] font-bold text-[17px] flex items-center justify-center gap-2 bg-rausch hover:bg-rausch-active text-white shadow-ab-card active:scale-[0.98] transition-transform disabled:opacity-60"
+            >
+              {isDownloading ? <Loader2 className="size-5 animate-spin" /> : <Download className="size-5" />}
+              <span>{downloadButtonText}</span>
+            </button>
+          ) : (
+            <div className="w-full max-w-sm">
+              <ShowcaseMicroPackButton
+                returnPath={pathname}
+                enhancementId={enhancementId}
+                groupIds={groupIds}
+              />
+            </div>
+          )}
+
+          {/* Trust row (unpaid only) */}
+          {!isDownloadFree && (
+            <div className="flex items-center justify-center gap-2.5 text-[10px] text-white/60 flex-wrap max-w-sm">
+              <span className="flex items-center gap-1"><ShieldCheck className="size-3" /> 30-day refund</span>
+              <span className="text-white/40">·</span>
+              <span className="flex items-center gap-1"><Lock className="size-3" /> Secured checkout</span>
+              <span className="text-white/40">·</span>
+              <span>Instant download</span>
+            </div>
+          )}
+
+          {/* Maybe later / Close */}
+          <button type="button" onClick={onClose} className="text-[12px] text-white/55 hover:text-white/85 transition-colors py-1">
+            {isDownloadFree ? 'Close' : 'Maybe later'}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // [v9.3] Showcase touch handlers
   const handleShowcaseTouchStart = (e: React.TouchEvent) => { showcaseTouchStartX.current = e.touches[0].clientX; };
@@ -1454,325 +1615,43 @@ export default function BoostScanner() {
         {/* ═══ LIGHTBOX ═══ */}
         {lightboxOpen && lightboxImages.length > 0 && (() => {
           const isCompareMode = lightboxImages.length === 2 && !!preview && !!enhancedSrc && !isGuestEnhanced;
-          const showUnlockCTA = isCompareMode && !isDownloadFree;
-          const variantCount = variants?.length ?? 0;
+          if (isCompareMode) return renderUnlockCompareUI(closeLightbox);
           return (
-            <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={closeLightbox}>
-              {/* Top bar — close + label */}
-              <button className="absolute top-4 left-4 z-20 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20" onClick={closeLightbox}><X className="size-5" /></button>
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-                {isCompareMode ? (
-                  <span className="text-sm font-bold px-3 py-1 rounded-pill bg-canvas/95 text-ink flex items-center gap-1.5 shadow-ab-card">
-                    <Sparkles className="size-3.5 text-rausch" /> Drag to compare
-                  </span>
-                ) : (
-                  <span className={`text-sm font-bold px-3 py-1 rounded-full backdrop-blur-sm ${lightboxIndex === 0 ? 'text-rausch bg-rausch/10 border border-rausch/20' : 'text-ink bg-surface-soft border border-emerald-500/20'}`}>
-                    {lightboxImages[lightboxIndex]?.label}
-                  </span>
-                )}
+            <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center" onClick={closeLightbox}>
+              <button className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 z-10" onClick={closeLightbox}><X className="size-5" /></button>
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                <span className={`text-sm font-bold px-3 py-1 rounded-full backdrop-blur-sm ${lightboxIndex === 0 ? 'text-rausch bg-rausch/10 border border-rausch/20' : 'text-ink bg-surface-soft border border-emerald-500/20'}`}>
+                  {lightboxImages[lightboxIndex]?.label}
+                </span>
               </div>
 
-              {isCompareMode ? (
+              <div className="flex-1 flex items-center justify-center w-full px-4"
+                onTouchStart={handleLightboxTouchStart} onTouchMove={handleLightboxTouchMove} onTouchEnd={handleLightboxTouchEnd}>
+                <img src={lightboxImages[lightboxIndex]?.src} alt={lightboxImages[lightboxIndex]?.label}
+                  className="max-w-full max-h-full object-contain" style={{ touchAction: 'pinch-zoom' }} onClick={e => e.stopPropagation()} />
+              </div>
+              {lightboxImages.length > 1 && (
                 <>
-                  {/* Compare image area */}
-                  <div className="flex-1 flex items-center justify-center w-full px-4 pt-16 pb-2 min-h-0" onClick={(e) => e.stopPropagation()}>
-                    <div
-                      ref={lightboxDragRef}
-                      className="relative select-none touch-none cursor-ew-resize"
-                      style={{ aspectRatio: '4 / 5', maxHeight: '100%', maxWidth: '92vw', height: '100%' }}
-                      onMouseDown={handleCompareMouseDown}
-                      onMouseMove={handleCompareMouseMove}
-                      onMouseUp={handleCompareMouseEnd}
-                      onMouseLeave={handleCompareMouseEnd}
-                      onTouchStart={handleCompareTouchStart}
-                      onTouchMove={handleCompareTouchMove}
-                      onTouchEnd={handleCompareTouchEnd}
-                    >
-                      {/* AFTER (base layer) */}
-                      <img src={enhancedSrc!} alt="AI Enhanced" className="absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
-                      {/* BEFORE (clipped from the right) */}
-                      <img
-                        src={preview!}
-                        alt="Original"
-                        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                        style={{ clipPath: `inset(0 ${100 - lightboxComparePos}% 0 0)` }}
-                        draggable={false}
-                      />
-
-                      {/* Watermark — clipped to AFTER side, hidden after unlock */}
-                      {!isDownloadFree && (
-                        <div
-                          className="absolute inset-0 overflow-hidden pointer-events-none flex flex-col items-center justify-center gap-3"
-                          style={{ clipPath: `inset(0 0 0 ${lightboxComparePos}%)` }}
-                          aria-hidden="true"
-                        >
-                          {[0, 1, 2, 3].map((i) => (
-                            <div
-                              key={i}
-                              className="text-[14px] font-bold text-white/30 -rotate-12 whitespace-nowrap tracking-wider"
-                              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.45)' }}
-                            >
-                              matchfix · matchfix · matchfix
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* BEFORE / AFTER labels */}
-                      <div className="absolute top-3 left-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-black/60 text-white backdrop-blur-md pointer-events-none">BEFORE</div>
-                      <div className="absolute top-3 right-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-rausch text-white flex items-center gap-1 pointer-events-none">
-                        <Sparkles className="size-3" /> AFTER
-                      </div>
-
-                      {/* Drag handle */}
-                      <div
-                        className="absolute top-0 bottom-0 pointer-events-none"
-                        style={{ left: `calc(${lightboxComparePos}% - 1.5px)`, width: 3, background: '#fff', boxShadow: '0 0 16px rgba(0,0,0,0.45)' }}
-                      >
-                        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-11 rounded-full grid place-items-center bg-canvas shadow-ab-card">
-                          <div className="flex">
-                            <ChevronLeft className="size-3.5 text-ink" />
-                            <ChevronRight className="size-3.5 text-ink -ml-1" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom CTA panel */}
-                  <div
-                    className="shrink-0 px-4 pt-3 pb-5 flex flex-col items-center gap-2.5 relative z-10"
-                    style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.92) 100%)' }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Variant chips */}
-                    {variants && variantCount > 1 && (
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        {variants.map((v, i) => (
-                          <button
-                            key={v.enhancementId}
-                            type="button"
-                            onClick={() => selectVariant(i)}
-                            className={`px-4 py-1.5 rounded-pill text-[13px] font-semibold border transition-all ${
-                              i === selectedVariantIndex
-                                ? 'bg-canvas text-ink border-canvas shadow-ab-card'
-                                : 'bg-transparent text-white/70 border-white/25 hover:text-white hover:border-white/50'
-                            }`}
-                            title={v.matchedScene ?? `Variant ${i + 1}`}
-                          >
-                            Look {i + 1}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {showUnlockCTA && (
-                      <>
-                        {/* Scarcity */}
-                        <div
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill text-[11px] font-medium"
-                          style={{ background: 'rgba(255,170,85,0.16)', color: '#ffb47a' }}
-                        >
-                          🔥 47+ unlocked today · gone when you leave
-                        </div>
-
-                        {/* Main unlock CTA */}
-                        <button
-                          type="button"
-                          onClick={() => { setLightboxOpen(false); setShowResultShowcase(true); }}
-                          className="w-full max-w-sm h-14 rounded-[12px] font-bold text-[17px] flex items-center justify-center gap-2 relative overflow-hidden bg-rausch hover:bg-rausch-active text-white shadow-ab-card active:scale-[0.98] transition-transform"
-                        >
-                          <span
-                            className="absolute inset-0 pointer-events-none"
-                            style={{
-                              background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.22) 45%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0.22) 55%, transparent 65%)',
-                              animation: 'showcaseShimmer 2.5s ease-in-out infinite',
-                            }}
-                          />
-                          <Download className="size-5 relative z-10" />
-                          <span className="relative z-10">
-                            {variantCount > 1 ? `Unlock all ${variantCount} looks` : 'Unlock photo'} · $1.99
-                          </span>
-                        </button>
-
-                        {/* Trust row */}
-                        <div className="flex items-center justify-center gap-2.5 text-[10px] text-white/60 flex-wrap max-w-sm">
-                          <span className="flex items-center gap-1"><ShieldCheck className="size-3" /> 30-day refund</span>
-                          <span className="text-white/40">·</span>
-                          <span className="flex items-center gap-1"><Lock className="size-3" /> Secured checkout</span>
-                          <span className="text-white/40">·</span>
-                          <span>Instant download</span>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Maybe later / close */}
-                    <button
-                      type="button"
-                      onClick={closeLightbox}
-                      className="text-[12px] text-white/55 hover:text-white/85 transition-colors py-1"
-                    >
-                      {showUnlockCTA ? 'Maybe later' : 'Close'}
-                    </button>
-                  </div>
+                  <button className="absolute left-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
+                    onClick={e => { e.stopPropagation(); lightboxPrev(); }} disabled={lightboxIndex === 0}><ChevronLeft className="size-5" /></button>
+                  <button className="absolute right-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
+                    onClick={e => { e.stopPropagation(); lightboxNext(); }} disabled={lightboxIndex === lightboxImages.length - 1}><ChevronRight className="size-5" /></button>
                 </>
-              ) : (
-                <>
-                  <div className="flex-1 flex items-center justify-center w-full px-4"
-                    onTouchStart={handleLightboxTouchStart} onTouchMove={handleLightboxTouchMove} onTouchEnd={handleLightboxTouchEnd}>
-                    <img src={lightboxImages[lightboxIndex]?.src} alt={lightboxImages[lightboxIndex]?.label}
-                      className="max-w-full max-h-full object-contain" style={{ touchAction: 'pinch-zoom' }} onClick={e => e.stopPropagation()} />
-                  </div>
-                  {lightboxImages.length > 1 && (
-                    <>
-                      <button className="absolute left-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
-                        onClick={e => { e.stopPropagation(); lightboxPrev(); }} disabled={lightboxIndex === 0}><ChevronLeft className="size-5" /></button>
-                      <button className="absolute right-3 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-20 border border-white/10"
-                        onClick={e => { e.stopPropagation(); lightboxNext(); }} disabled={lightboxIndex === lightboxImages.length - 1}><ChevronRight className="size-5" /></button>
-                    </>
-                  )}
-                  {lightboxImages.length > 1 && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-                      {lightboxImages.map((_, i) => (
-                        <button key={i} onClick={e => { e.stopPropagation(); setLightboxIndex(i); }}
-                          className={`rounded-full transition-all duration-200 ${lightboxIndex === i ? 'w-5 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/60'}`} />
-                      ))}
-                    </div>
-                  )}
-                </>
+              )}
+              {lightboxImages.length > 1 && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+                  {lightboxImages.map((_, i) => (
+                    <button key={i} onClick={e => { e.stopPropagation(); setLightboxIndex(i); }}
+                      className={`rounded-full transition-all duration-200 ${lightboxIndex === i ? 'w-5 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/60'}`} />
+                  ))}
+                </div>
               )}
             </div>
           );
         })()}
 
-        {/* ═══ [v9.4] RESULT SHOWCASE MODAL — watermarked preview + inline $1.99 CTA ═══ */}
-        {showResultShowcase && showcaseCurrentSlide && !isGuestEnhanced && (
-          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col animate-in fade-in duration-300">
-            {/* Close button */}
-            <button
-              className="absolute top-4 right-4 z-20 grid size-10 place-items-center rounded-full bg-canvas text-ink hover:bg-surface-soft transition-colors shadow-ab-card"
-              onClick={() => setShowResultShowcase(false)}
-              aria-label="Close"
-            >
-              <X className="size-5" />
-            </button>
-
-            {/* Top badge — dynamic per-slide label */}
-            <div className="flex justify-center pt-4 pb-2">
-              <span className="text-sm font-medium px-4 py-1.5 rounded-pill bg-canvas text-ink shadow-ab-card">
-                {showcaseCurrentSlide.label}
-              </span>
-            </div>
-
-            {/* Image area */}
-            <div
-              className="flex-1 flex items-center justify-center px-4 min-h-0 relative"
-              onTouchStart={handleShowcaseTouchStart}
-              onTouchMove={handleShowcaseTouchMove}
-              onTouchEnd={handleShowcaseTouchEnd}
-            >
-              <img
-                src={showcaseCurrentSlide.src}
-                alt={showcaseCurrentSlide.label}
-                className="max-w-full max-h-full object-contain rounded-card transition-opacity duration-300"
-                style={{ touchAction: 'pinch-zoom' }}
-              />
-              {/* Left/Right arrows */}
-              <button
-                className="absolute left-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-canvas text-ink hover:bg-surface-soft disabled:opacity-30 shadow-ab-card transition-colors"
-                onClick={() => setShowcaseSlideIndex(Math.max(0, showcaseSlideIndex - 1))}
-                disabled={showcaseSlideIndex === 0}
-                aria-label="Previous"
-              >
-                <ChevronLeft className="size-5" />
-              </button>
-              <button
-                className="absolute right-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-full bg-canvas text-ink hover:bg-surface-soft disabled:opacity-30 shadow-ab-card transition-colors"
-                onClick={() => setShowcaseSlideIndex(Math.min(showcaseSlides.length - 1, showcaseSlideIndex + 1))}
-                disabled={showcaseSlideIndex >= showcaseSlides.length - 1}
-                aria-label="Next"
-              >
-                <ChevronRight className="size-5" />
-              </button>
-            </div>
-
-            {/* Bottom CTA area */}
-            <div className="shrink-0 px-5 pb-6 pt-3 flex flex-col items-center gap-3">
-              {/* Dots — one per slide */}
-              <div className="flex gap-2 mb-1">
-                {showcaseSlides.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setShowcaseSlideIndex(i)}
-                    aria-label={`Slide ${i + 1}`}
-                    className={`rounded-full transition-all duration-200 ${showcaseSlideIndex === i ? 'w-6 h-2 bg-canvas' : 'w-2 h-2 bg-white/40 hover:bg-white/60'}`}
-                  />
-                ))}
-              </div>
-
-              {/* Privacy note */}
-              <p className="text-xs text-white/70 text-center flex items-center gap-1.5">
-                <ShieldCheck className="size-3 text-white/60 shrink-0" />
-                We don&apos;t store photos — save it now or lose it forever
-              </p>
-
-              {/* ─── Main CTA — downloads the slide currently in view ─── */}
-              {showcaseCurrentSlide.type === 'original' ? (
-                <button
-                  onClick={handleShowcaseDownloadCurrent}
-                  className="w-full max-w-sm h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2.5 text-ink bg-canvas hover:bg-surface-soft transition-colors shadow-ab-card"
-                >
-                  <Download className="size-5" />
-                  Save Original
-                </button>
-              ) : isDownloadFree ? (
-                <button
-                  onClick={handleShowcaseDownloadCurrent}
-                  className="showcase-download-btn w-full max-w-sm h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2.5 text-white bg-rausch hover:bg-rausch-active transition-colors shadow-ab-card relative overflow-hidden active:scale-[0.98]"
-                >
-                  <span
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.22) 45%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0.22) 55%, transparent 65%)',
-                      animation: 'showcaseShimmer 2.5s ease-in-out infinite',
-                    }}
-                  />
-                  <Download className="size-5 relative z-10" />
-                  <span className="relative z-10">Download This Look</span>
-                </button>
-              ) : (
-                <ShowcaseMicroPackButton
-                  returnPath={pathname}
-                  enhancementId={showcaseCurrentSlide.enhancementId}
-                  groupIds={showcaseCurrentSlide.enhancementId ? [showcaseCurrentSlide.enhancementId] : []}
-                />
-              )}
-
-              {/* Trust row — only show when payment is needed */}
-              {!isDownloadFree && (
-                <div className="flex items-center justify-center gap-3 text-[10px] text-white/60 flex-wrap max-w-sm">
-                  <span className="flex items-center gap-1">
-                    <ShieldCheck className="size-3" /> 30-day money-back
-                  </span>
-                  <span className="text-white/40">•</span>
-                  <span className="flex items-center gap-1">
-                    <Lock className="size-3" /> Secured by Creem
-                  </span>
-                  <span className="text-white/40">•</span>
-                  <span>Instant download</span>
-                </div>
-              )}
-
-              {/* Tertiary: try another */}
-              <button
-                onClick={() => { setShowResultShowcase(false); handleTryAnother(); }}
-                className="text-xs text-white/55 hover:text-white/80 transition-colors py-0.5"
-              >
-                Try another photo
-              </button>
-            </div>
-          </div>
-        )}
+        {/* ═══ RESULT SHOWCASE MODAL — drag-compare + watermark + unlock CTA ═══ */}
+        {showResultShowcase && !isGuestEnhanced && renderUnlockCompareUI(() => setShowResultShowcase(false))}
 
         <style>{`
           @keyframes progressIndeterminate {
