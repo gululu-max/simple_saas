@@ -411,6 +411,7 @@ export default function BoostScanner() {
     const savedDownloadFree = safeGetItem(sessionStorage, 'mf_isDownloadFree');
     const savedScanId = safeGetItem(sessionStorage, 'mf_scan_id');
     const savedVariants = safeGetItem(sessionStorage, 'mf_variants');
+    const savedVariantsMeta = safeGetItem(sessionStorage, 'mf_variants_meta');
     if (savedWatermarked && savedEnhancementId) {
       setWatermarkedImage(savedWatermarked); setEnhancementId(savedEnhancementId);
       if (savedMimeType) setEnhancedMimeType(savedMimeType);
@@ -418,10 +419,24 @@ export default function BoostScanner() {
       setSliderIndex(1); setSelectedPanel('enhanced');
     }
     if (savedScanId) setScanId(savedScanId);
+    // Prefer full variants payload; fall back to lightweight meta + per-variant
+    // image keys when iOS Safari quota dropped the combined blob.
     if (savedVariants) {
       try {
         const parsed = JSON.parse(savedVariants) as VariantData[];
         if (Array.isArray(parsed) && parsed.length > 0) setVariants(parsed);
+      } catch { /* ignore */ }
+    } else if (savedVariantsMeta) {
+      try {
+        const meta = JSON.parse(savedVariantsMeta) as Array<Omit<VariantData, 'image'>>;
+        if (Array.isArray(meta) && meta.length > 0) {
+          const restored: VariantData[] = meta.map((m, i) => {
+            const img = safeGetItem(sessionStorage, `mf_variant_image_${i}`) ?? '';
+            const fallbackImg = !img && m.enhancementId === savedEnhancementId ? (savedWatermarked ?? '') : img;
+            return { ...m, image: fallbackImg };
+          });
+          setVariants(restored);
+        }
       } catch { /* ignore */ }
     }
     if (guestFlag === 'true' && savedPreview) {
@@ -543,17 +558,45 @@ export default function BoostScanner() {
   // Switch which variant is currently shown. Updates derived display +
   // download state so the existing slider / lightbox / download paths
   // pick up the new variant without further changes.
-  const selectVariant = useCallback((idx: number) => {
+  const selectVariant = useCallback(async (idx: number) => {
     if (!variants || idx < 0 || idx >= variants.length) return;
     const v = variants[idx];
     setSelectedVariantIndex(idx);
-    setWatermarkedImage(v.image);
     setEnhancementId(v.enhancementId);
     setEnhancedMimeType(v.mimeType ?? 'image/png');
-    safeSetItem(sessionStorage, 'mf_watermarkedImage', v.image);
     safeSetItem(sessionStorage, 'mf_enhancementId', v.enhancementId);
     safeSetItem(sessionStorage, 'mf_enhancedMimeType', v.mimeType ?? 'image/png');
     trackEvent('variant_selected', { variantIndex: idx, matchedScene: v.matchedScene });
+
+    // Image present → swap immediately. Empty image means iOS Safari quota
+    // dropped the per-variant blob on a previous restore; fetch it back from
+    // /api/download?watermarked=1 and cache for next click.
+    if (v.image) {
+      setWatermarkedImage(v.image);
+      safeSetItem(sessionStorage, 'mf_watermarkedImage', v.image);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/download/${v.enhancementId}?watermarked=1`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1] ?? '');
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      if (!base64) return;
+      setVariants(prev => {
+        if (!prev) return prev;
+        const next = prev.slice();
+        next[idx] = { ...next[idx], image: base64 };
+        return next;
+      });
+      setWatermarkedImage(base64);
+      safeSetItem(sessionStorage, 'mf_watermarkedImage', base64);
+      safeSetItem(sessionStorage, `mf_variant_image_${idx}`, base64);
+    } catch { /* leave previous image visible */ }
   }, [variants]);
 
   const handleReset = useCallback(() => {
@@ -564,7 +607,8 @@ export default function BoostScanner() {
     // [v9.3] clear showcase state
     setShowResultShowcase(false); setShowcaseSlideIndex(1);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_scene_tags', 'mf_scan_id', 'mf_variants', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed', 'mf_showcase_pending_download'].forEach(k => safeRemoveItem(sessionStorage, k));
+    ['mf_preview', 'mf_visibleText', 'mf_analysisJSON', 'mf_scene_tags', 'mf_scan_id', 'mf_variants', 'mf_variants_meta', 'mf_pending_enhance', 'mf_watermarkedImage', 'mf_enhancementId', 'mf_enhancedMimeType', 'mf_isFreeGeneration', 'mf_isDownloadFree', 'mf_payment_just_completed', 'mf_showcase_pending_download'].forEach(k => safeRemoveItem(sessionStorage, k));
+    for (let i = 0; i < 4; i++) safeRemoveItem(sessionStorage, `mf_variant_image_${i}`);
     ['mf_pending_enhance', 'mf_guest_enhanced', 'mf_preview', 'mf_analysisJSON', 'mf_visibleText'].forEach(k => safeRemoveItem(localStorage, k));
     trackEvent('boost_image_reset');
     const hero = document.getElementById('scanner-hero');
@@ -688,11 +732,28 @@ export default function BoostScanner() {
       setWatermarkedImage(data.watermarkedImage); setEnhancementId(data.enhancementId); setEnhancedMimeType(data.mimeType ?? 'image/png'); setIsFreeGeneration(data.isFreeTrial); setIsDownloadFree(data.downloadFree ?? false);
       safeSetItem(sessionStorage, 'mf_watermarkedImage', data.watermarkedImage); safeSetItem(sessionStorage, 'mf_enhancementId', data.enhancementId); safeSetItem(sessionStorage, 'mf_enhancedMimeType', data.mimeType ?? 'image/png'); safeSetItem(sessionStorage, 'mf_isFreeGeneration', String(data.isFreeTrial)); safeSetItem(sessionStorage, 'mf_isDownloadFree', String(data.downloadFree ?? false));
       if (variantsFromServer) {
-        // Persist the array (best-effort — 3× ~500KB base64 PNG can hit
-        // sessionStorage quotas on iOS Safari; safeSetItem swallows quota errors).
+        // Persist a lightweight meta blob unconditionally (small, always fits)
+        // so chips can re-render after reload even when iOS Safari drops the
+        // larger image payload due to ~5MB sessionStorage quota.
+        const meta = variantsFromServer.map(v => ({
+          enhancementId: v.enhancementId,
+          mimeType: v.mimeType,
+          matchedScene: v.matchedScene,
+          variantIndex: v.variantIndex,
+        }));
+        safeSetItem(sessionStorage, 'mf_variants_meta', JSON.stringify(meta));
+        // Per-variant image keys — independent writes so partial success still
+        // restores some images. Each ~500KB; the selected one is also mirrored
+        // in mf_watermarkedImage as a fallback during restore.
+        variantsFromServer.forEach((v, i) => {
+          safeSetItem(sessionStorage, `mf_variant_image_${i}`, v.image);
+        });
+        // Best-effort full blob (kept for legacy paths; harmless if it fails).
         safeSetItem(sessionStorage, 'mf_variants', JSON.stringify(variantsFromServer));
       } else {
         safeRemoveItem(sessionStorage, 'mf_variants');
+        safeRemoveItem(sessionStorage, 'mf_variants_meta');
+        for (let i = 0; i < 4; i++) safeRemoveItem(sessionStorage, `mf_variant_image_${i}`);
       }
       setIsGuestEnhanced(false); setSliderIndex(1); setSelectedPanel('enhanced'); dispatchCreditsUpdate(); router.refresh(); trackEvent('enhance_complete', { status: 'success' });
       // [v9.3] Auto-pop Result Showcase Modal
@@ -1201,21 +1262,6 @@ export default function BoostScanner() {
               style={{ clipPath: `inset(0 ${100 - lightboxComparePos}% 0 0)` }}
               draggable={false}
             />
-
-            {/* Watermark — only when not yet unlocked */}
-            {!isDownloadFree && (
-              <div
-                className="absolute inset-0 overflow-hidden pointer-events-none flex flex-col items-center justify-center gap-3"
-                style={{ clipPath: `inset(0 0 0 ${lightboxComparePos}%)` }}
-                aria-hidden="true"
-              >
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="text-[14px] font-bold text-white/30 -rotate-12 whitespace-nowrap tracking-wider" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.45)' }}>
-                    matchfix · matchfix · matchfix
-                  </div>
-                ))}
-              </div>
-            )}
 
             {/* BEFORE / AFTER labels */}
             <div className="absolute top-3 left-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-black/60 text-white backdrop-blur-md pointer-events-none">BEFORE</div>
