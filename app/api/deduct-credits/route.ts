@@ -7,6 +7,10 @@ const supabaseAdmin = createAdminClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// TODO[no-login]: 一次性生意改造 —— 整个 /api/deduct-credits 路由作废。
+// 一次性模型没有"扣积分"动作，付款 = 解锁单张图片。
+// 建议删除整文件。
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();

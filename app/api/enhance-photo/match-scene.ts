@@ -157,7 +157,106 @@ export function matchScene(
   };
 }
 
-// ─── Top-3 diverse match (used by 3-variant fusion mode) ───────────
+// ─── N-photo → N distinct scenes (used by N→N fusion mode) ────────
+// Each input tag set is matched to its own best scene, with the global
+// constraint that no two photos share the same scene_category. Uses a
+// simple greedy assignment over photos sorted by candidate-pool tightness
+// (photos with the fewest candidates pick first, so we don't starve them).
+//
+// Returns one MatchResult per input photo, aligned by index. If a photo's
+// candidate pool is empty after full relaxation, its slot in the output is
+// the corresponding MatchResult with `scene` taken from the global library
+// (last-resort) — never returns a short array.
+export function matchScenesForPhotos(
+  perPhotoTags: SceneTags[],
+  library: SceneEntry[],
+): MatchResult[] {
+  if (perPhotoTags.length === 0) return [];
+
+  // 1. Gather scored candidates per photo
+  type PhotoSlot = {
+    index: number;
+    tags: SceneTags;
+    candidates: SceneEntry[];
+    relaxation: number;
+    reasoning: string[];
+    scored: { scene: SceneEntry; score: number }[];
+  };
+  const slots: PhotoSlot[] = perPhotoTags.map((tags, index) => {
+    const { candidates, relaxation, reasoning } = gatherCandidates(tags, library);
+    const scored = candidates
+      .map(s => ({ scene: s, score: scoreScene(tags, s) + Math.random() * 0.01 }))
+      .sort((a, b) => b.score - a.score);
+    return { index, tags, candidates, relaxation, reasoning, scored };
+  });
+
+  // 2. Greedy assignment: tightest pools pick first, prefer unused categories
+  const order = [...slots].sort((a, b) => a.scored.length - b.scored.length);
+  const usedCategories = new Set<string>();
+  const usedSceneIds = new Set<string>();
+  const assignments = new Map<number, { scene: SceneEntry; score: number }>();
+
+  for (const slot of order) {
+    let pick: { scene: SceneEntry; score: number } | null = null;
+    for (const cand of slot.scored) {
+      if (usedSceneIds.has(cand.scene.id)) continue;
+      if (usedCategories.has(cand.scene.scene_category)) continue;
+      pick = cand;
+      break;
+    }
+    if (!pick) {
+      for (const cand of slot.scored) {
+        if (usedSceneIds.has(cand.scene.id)) continue;
+        pick = cand;
+        break;
+      }
+    }
+    if (!pick) {
+      // pool exhausted — fall back to any unused scene from the library
+      const anyScene = library.find(s => !usedSceneIds.has(s.id));
+      if (anyScene) {
+        pick = { scene: anyScene, score: 0 };
+        slot.reasoning.push(`Last-resort fallback: ${anyScene.id} (no compatible candidates left)`);
+      }
+    }
+    if (pick) {
+      assignments.set(slot.index, pick);
+      usedSceneIds.add(pick.scene.id);
+      usedCategories.add(pick.scene.scene_category);
+    }
+  }
+
+  // 3. Emit in original photo order, with per-photo reasoning
+  const summary = `N→N picks: [${slots
+    .map(s => {
+      const a = assignments.get(s.index);
+      return a ? `#${s.index}=${a.scene.id}(${a.score.toFixed(1)})` : `#${s.index}=∅`;
+    })
+    .join(', ')}]`;
+
+  return slots.map(slot => {
+    const a = assignments.get(slot.index);
+    if (!a) {
+      // Should be unreachable given the last-resort fallback, but keep types honest
+      return {
+        scene: library[0],
+        candidates_count: slot.candidates.length,
+        relaxation_level: slot.relaxation,
+        score: 0,
+        reasoning: [...slot.reasoning, `No scene could be assigned to photo ${slot.index}`],
+      };
+    }
+    return {
+      scene: a.scene,
+      candidates_count: slot.candidates.length,
+      relaxation_level: slot.relaxation,
+      score: Math.round(a.score),
+      reasoning: slot.index === 0 ? [...slot.reasoning, summary] : [summary],
+    };
+  });
+}
+
+// ─── Top-3 diverse match (legacy 1→3 fusion mode) ─────────────────
 // Returns up to 3 scenes prioritising different scene_category, falling
 // back to filling from the remaining pool if we can't get 3 distinct
 // categories. Each is wrapped in its own MatchResult so the caller can

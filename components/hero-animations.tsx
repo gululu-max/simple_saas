@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export function HeroButtons({ initialText = "Get 1 Free Photo" }: { initialText?: string }) {
+export function HeroButtons({ initialText = "Instant Glow-Up" }: { initialText?: string }) {
   const btnRef = useRef<HTMLDivElement>(null);
   const [showSticky, setShowSticky] = useState(false);
 

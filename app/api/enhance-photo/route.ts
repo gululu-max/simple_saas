@@ -1,6 +1,8 @@
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 import { randomUUID } from 'crypto';
-import { createClient } from "@/utils/supabase/server";
+// [DISABLED 2026-05-17 — no-login pivot] createClient (server) 给登录用户读 session，
+// 现在用不到。恢复登录时把下一行解开。
+// import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 import path from 'path';
@@ -8,7 +10,7 @@ import fs from 'fs';
 
 import type { SceneTags } from '@/app/api/scanner/tag-prompt';
 import { loadSceneLibrary, loadSceneImage } from './scene-utils';
-import { matchScenesTop3, type SceneEntry, type MatchResult } from './match-scene';
+import { matchScenesForPhotos, type SceneEntry, type MatchResult } from './match-scene';
 import { classifyUpstreamError, classifyGeminiNoImage } from '@/lib/upstream-errors';
 
 const ENHANCED_BUCKET = 'enhanced-photos';
@@ -44,21 +46,31 @@ interface DeductCreditsResult {
 
 // ─── Scan loader ─────────────────────────────────────────────────
 // Loads a photo_scans row and its original image buffer. Verifies
-// ownership (user_id match) and expiration. Returns null if anything
-// is wrong so the caller can fall back to legacy body params.
+// paid status and expiration. Returns null if anything is wrong so
+// the caller can fall back to legacy body params.
+//
+// [no-login pivot 2026-05-17] 旧版 user_id 校验已停用，改成 paid 校验。
+// 鉴权语义变了：访客无 user_id，"我有权 enhance 这个 scan" = "这个 scan
+// 的 paid=true"。旧的 userId 参数保留但忽略（只为兼容签名），未来恢复
+// 登录时把下面 paid 检查改成 paid OR user_id 匹配即可。
 interface LoadedScan {
+  // [multi-photo 2026-05-18] imageBase64 = 用户上传的主图 (index 0)
+  // imageBase64s = 全部 1-3 张原图（按上传顺序），含主图
+  // [N→N 2026-05-19] originalKeys = 与 imageBase64s 同序的 storage keys
   imageBase64: string;
+  imageBase64s: string[];
+  originalKeys: string[];
   mimeType: string;
   analysisResultString: string | null;
 }
 
 async function loadScanById(
   scanId: string,
-  userId: string,
+  _userId: string | null,
 ): Promise<LoadedScan | null> {
   const { data: scan, error } = await supabaseAdmin
     .from('photo_scans')
-    .select('id, user_id, original_storage_key, mime_type, analysis_json, scene_tags, expires_at')
+    .select('id, user_id, paid, original_storage_key, original_storage_keys, mime_type, analysis_json, scene_tags, expires_at')
     .eq('id', scanId)
     .maybeSingle();
 
@@ -70,31 +82,54 @@ async function loadScanById(
     console.warn(`[enhance] scan ${scanId} not found`);
     return null;
   }
-  if (scan.user_id !== userId) {
-    console.warn(`[enhance] scan ${scanId} owner mismatch (scan=${scan.user_id}, req=${userId})`);
+  // [no-login pivot] paid 校验取代 user_id 校验
+  if (!scan.paid) {
+    console.warn(`[enhance] scan ${scanId} not paid yet`);
     return null;
   }
+  // [DISABLED 2026-05-17 — no-login pivot]
+  // if (scan.user_id !== _userId) {
+  //   console.warn(`[enhance] scan ${scanId} owner mismatch (scan=${scan.user_id}, req=${_userId})`);
+  //   return null;
+  // }
   if (scan.expires_at && new Date(scan.expires_at).getTime() < Date.now()) {
     console.warn(`[enhance] scan ${scanId} expired at ${scan.expires_at}`);
     return null;
   }
-  if (!scan.original_storage_key) {
-    console.warn(`[enhance] scan ${scanId} has no original_storage_key`);
+
+  // [multi-photo] 优先用 original_storage_keys (数组)，没有就回退到单 key
+  let keys: string[] = Array.isArray(scan.original_storage_keys)
+    ? (scan.original_storage_keys as string[]).filter(Boolean)
+    : [];
+  if (keys.length === 0 && scan.original_storage_key) {
+    keys = [scan.original_storage_key];
+  }
+  if (keys.length === 0) {
+    console.warn(`[enhance] scan ${scanId} has no original keys`);
     return null;
   }
 
-  // Download original image from storage
-  const { data: blob, error: dlErr } = await supabaseAdmin.storage
-    .from(ORIGINAL_BUCKET)
-    .download(scan.original_storage_key);
-
-  if (dlErr || !blob) {
-    console.error(`[enhance] failed to download ${scan.original_storage_key}:`, dlErr?.message);
+  // 并行下载所有原图（保持 key↔base64 对齐，失败的整对剔除）
+  const downloads = await Promise.all(
+    keys.map(async (key) => {
+      const { data: blob, error: dlErr } = await supabaseAdmin.storage
+        .from(ORIGINAL_BUCKET)
+        .download(key);
+      if (dlErr || !blob) {
+        console.warn(`[enhance] download failed for ${key}:`, dlErr?.message);
+        return null;
+      }
+      const ab = await blob.arrayBuffer();
+      return { key, b64: Buffer.from(ab).toString('base64') };
+    }),
+  );
+  const okPairs = downloads.filter((d): d is { key: string; b64: string } => d !== null);
+  if (okPairs.length === 0) {
+    console.error(`[enhance] all originals failed to download for scan ${scanId}`);
     return null;
   }
-
-  const arrayBuffer = await blob.arrayBuffer();
-  const imageBase64 = Buffer.from(arrayBuffer).toString('base64');
+  const imageBase64s = okPairs.map(p => p.b64);
+  const originalKeys = okPairs.map(p => p.key);
 
   // Reconstruct analysisResult string (extractors expect string input)
   let analysisResultString: string | null = null;
@@ -107,7 +142,9 @@ async function loadScanById(
   }
 
   return {
-    imageBase64,
+    imageBase64: imageBase64s[0],
+    imageBase64s,
+    originalKeys,
     mimeType: scan.mime_type || 'image/jpeg',
     analysisResultString,
   };
@@ -206,171 +243,137 @@ function buildRetouchPrompt(fixPlan: FixPlan): string {
   return `You are an elite portrait retoucher. Your work should be invisible — viewers should think "great photo," never "edited photo."
 
 ══════════════════════════════════════════════
-THREE SUPREME RULES — READ BEFORE EVERYTHING ELSE
+THREE SUPREME RULES
 ══════════════════════════════════════════════
 
-RULE 1 — DO LESS WHEN IN DOUBT:
-An under-edited photo that looks real ALWAYS beats an over-edited photo that looks fake. If you are unsure whether an edit is needed, DO NOT make it.
+R1. DO LESS WHEN IN DOUBT. An under-edited real-looking photo always beats an over-edited fake-looking one. If unsure, don't edit.
 
-RULE 2 — NO ADDED LIGHT, NO ADDED EFFECTS:
-Do NOT add ANY visual element that is not present in the original photo. NO lens flare, NO bokeh orbs, NO rim lighting halos, NO film grain, NO vignettes, NO catchlights added to eyes.
+R2. NO ADDED ELEMENTS by default. Do NOT add lens flare, bokeh orbs, rim halos, film grain, or vignettes. The FIXPLAN OVERRIDES section below may explicitly enable specific edits (e.g. brighten_eyes); follow those, conservatively.
 
-RULE 3 — PRESERVE ORIGINAL COLOR:
-The output MUST match the original's color temperature by default. Do NOT shift warmer, cooler, oranger, or yellower unless fix_plan.color_grade EXPLICITLY specifies.
+R3. PRESERVE ORIGINAL COLOR. Match the original's color temperature unless FIXPLAN explicitly says warm_tone, cool_tone, or neutral_balance.
 
 ══════════════════════════════════════════════
-IDENTITY LOCK — HIGHEST PRIORITY
+IDENTITY LOCK
 ══════════════════════════════════════════════
 
-PIXEL-LEVEL FAITHFUL to the original: facial bone structure, feature shapes, skin color, body shape, hair.
+PIXEL-LEVEL FAITHFUL to the original: facial bone structure, feature shapes, skin color, body shape, hair, every clothing item.
 
 ══════════════════════════════════════════════
-FIX PLAN — EXECUTE ONLY WHAT IS SPECIFIED
+FIXPLAN OVERRIDES (active edits only)
 ══════════════════════════════════════════════
 
-${JSON.stringify(fixPlan, null, 2)}
+${buildActiveFixPlanLines(fixPlan)}
 
-If a field value is "no_change" or "none" → DO NOT touch that aspect AT ALL.
-
-Field instructions: framing (no_change keeps framing; crop_chest_up/crop_waist_up only if specified), background (keep = no alteration; blur = DOF on existing only; replace_* = match original focal length/light/time), lighting (no_change = don't touch; brighten_face = lift shadows only, no warmth added; soften_shadows = reduce contrast only), skin_retouch (none = no touch; minimal_smooth = active blemishes only; moderate_smooth_and_even = blemishes + tone only, keep texture), expression (no_change is default; enhance_smile/soften_smile = minimum adjustment or revert), color_grade (no_change = preserve exact; warm_tone/cool_tone = ≤300K shift), sharpness (no_change = no sharpen; sharpen_face = eyes/features only), eye_enhance (no_change default; brighten_eyes = subtle whites only).
+${fixPlan.background === 'blur' ? '- Background: apply subtle depth-of-field softening to the existing background; do NOT replace it.\n' : ''}${fixPlan.background?.startsWith('replace_') ? `- Background: replace with ${fixPlan.background.slice('replace_'.length).replace(/_/g, ' ')}. Match the original photo's focal length, light direction, and time of day.\n` : ''}${fixPlan.framing === 'crop_chest_up' ? '- Framing: crop to chest-up.\n' : ''}${fixPlan.framing === 'crop_waist_up' ? '- Framing: crop to waist-up.\n' : ''}${fixPlan.framing === 'zoom_out_slightly' ? '- Framing: zoom out slightly (extend canvas naturally).\n' : ''}
+Anything not listed above: leave untouched.
 
 ══════════════════════════════════════════════
 PROHIBITIONS
 ══════════════════════════════════════════════
 
-No added light effects / glow / halos / flares. No finger/teeth anomalies. No symmetry artifacts. No edge bleeding. No global LUT. No added makeup/accessories/tattoos. No body shape change. No plastic skin. No text/watermark overlay. No unrequested color temperature shift.
+No added glow/halos/flares (unless FIXPLAN specifies). No finger/teeth anomalies. No symmetry artifacts. No edge bleeding. No global LUT. No added makeup/accessories/tattoos. No body shape change. No plastic skin (preserve pores). No text/watermark overlay. No color temperature shift outside FIXPLAN.
 
 Return only the enhanced image.`;
 }
 
 // ═══════════════════════════════════════════════════════════
-// 融合 prompt（新，useFusion=true 时使用）
+// 融合 prompt
+//
+// Inputs to Gemini (order MUST match prompt indices):
+//   IMAGE 1 = user photo (PERSON)
+//   IMAGE 2 = scene photo (SCENE)
+//
+// Active fixPlan overrides are listed at the top so they take precedence
+// over generic rules. "no_change"/"none" fields are omitted entirely.
 // ═══════════════════════════════════════════════════════════
 function buildFusionPrompt(userTags: SceneTags, scene: SceneEntry, fixPlan: FixPlan): string {
+  const teethSection = (userTags.visible_body === 'face_only' || userTags.visible_body === 'upper_chest')
+    ? `══════════════════════════════════════════════
+TEETH (only if visible)
+══════════════════════════════════════════════
+
+If teeth are visible in IMAGE 1, gently brighten them to a natural off-white. Subtle only — "healthy teeth," not "veneers." If no teeth are visible, skip this entirely.
+
+`
+    : '';
+
   return `You are an elite portrait photographer reshooting a scene. You will receive TWO images and must produce ONE output.
 
 ══════════════════════════════════════════════
-IMAGE ROLES
+IMAGE ROLES — STRICT
 ══════════════════════════════════════════════
 
-IMAGE 1 (PERSON): Identity reference. Use for face, hair, skin, and clothing only.
-IMAGE 2 (SCENE): Target environment. The output photo should feel like it was shot in this location.
+IMAGE 1 (first attached image) = PERSON. Identity reference. Use for face, hair, skin, clothing.
+IMAGE 2 (second attached image) = SCENE. Target environment. The output should feel like it was shot in this location.
+
+There are exactly TWO input images. If you perceive more, you have miscounted — re-read.
 
 ══════════════════════════════════════════════
-CONTEXT (tag-matched, already compatible)
+ABSOLUTE RULES
 ══════════════════════════════════════════════
 
-User photo:
-  - Visible body: ${userTags.visible_body}
-  - Color temperature: ${userTags.color_temperature}
-  - Light direction: ${userTags.light_direction}
+R1. The PERSON from IMAGE 1 MUST appear in the output. A background-only output (IMAGE 2 with no person) is a TOTAL FAILURE. This holds regardless of whether IMAGE 1's face is sharp, blurred, in shadow, side-profile, or turned away.
 
-Target scene:
-  - Recommended person size: ${scene.recommended_person_size}
-  - Color temperature: ${scene.color_temperature}
-  - Light direction: ${scene.light_direction}
-  - Scale reference: ${scene.person_scale_reference}
+R2. PRESERVE IMAGE 1's VISIBLE EXTENT exactly:
+  - face_only → output shows head and shoulders only
+  - upper_chest → output shows chest up
+  - waist_up → output shows waist up
+  - full_body → output may show full body
+  IMAGE 1 here shows: ${userTags.visible_body.toUpperCase()}.
+  Inventing body parts that weren't in IMAGE 1 is a SEVERE FAILURE. If IMAGE 2 normally requires a different framing (e.g. seated furniture but IMAGE 1 is face_only), the PERSON WINS — crop or reframe IMAGE 2 to fit.
 
-══════════════════════════════════════════════
-ABSOLUTE RULE #0 — THE PERSON MUST BE IN THE OUTPUT
-══════════════════════════════════════════════
-
-The PERSON from IMAGE 1 MUST appear in the output. This is non-negotiable.
-
-A background-only output (IMAGE 2 with no person composited in) is a TOTAL, CATASTROPHIC FAILURE — worse than any other error in this prompt. If you produce IMAGE 2 with no person, you have failed completely.
-
-The person from IMAGE 1 must be present regardless of:
-- Whether their face is fully visible, partially visible, side profile, back of head, or facing away
-- Whether their face is sharp, blurred, in shadow, or partially obscured
-- Whether the photo is a casual selfie, candid shot, action shot, or any other style
-
-You are compositing a PERSON into a SCENE. Both elements must exist in the final image. If the person from IMAGE 1 is not clearly present in your output, you must redo the composition.
+R3. PRESERVE IMAGE 1's FACE ANGLE. If IMAGE 1 shows the back, a profile, or a turned-away angle, do NOT invent a front-facing face.
 
 ══════════════════════════════════════════════
-ABSOLUTE RULE #1 — PRESERVE VISIBLE EXTENT
+CORE PRINCIPLE
 ══════════════════════════════════════════════
 
-The person in IMAGE 1 has a SPECIFIC VISIBLE EXTENT — exactly what body parts are shown.
+You are NOT pasting IMAGE 1 onto IMAGE 2. You are RE-PHOTOGRAPHING the person as if they had walked into IMAGE 2's environment and the photographer took a new picture. The person's POSE, BODY ORIENTATION, HEAD ANGLE, and HAND POSITIONS should adapt to make sense in the new scene — but their identity layer (face, hair, skin, clothing) is locked.
 
-You MUST preserve this exact visible extent in the output:
-- If IMAGE 1 shows only the head → output shows only the head
-- If IMAGE 1 shows chest up → output shows chest up
-- If IMAGE 1 shows waist up → output shows waist up
-- If IMAGE 1 shows the full body → output shows the full body
+STRICTLY PRESERVE from IMAGE 1: facial bone structure, feature shapes (eyes/nose/mouth/ears), skin color and undertone, hair (style/color/length/texture), every clothing item (type/color/pattern/fit/logos).
 
-Inventing body parts that weren't in IMAGE 1 is a SEVERE FAILURE equivalent to changing the person's identity.
-
-If IMAGE 2 (the scene) seems to require a different body framing than IMAGE 1, the PERSON WINS — crop, reframe, or creatively interpret IMAGE 2 to match IMAGE 1's visible extent. Never force IMAGE 1's partial view into a full-body pose to "fit" the scene.
-══════════════════════════════════════════════
-CORE PRINCIPLE — READ TWICE
-══════════════════════════════════════════════
-
-You are NOT pasting IMAGE 1 onto IMAGE 2. You are RE-PHOTOGRAPHING the person from IMAGE 1 as if they had walked into IMAGE 2's environment and the photographer took a new picture.
-
-The person's POSE, BODY ORIENTATION, HEAD ANGLE, and HAND POSITIONS should ADAPT to make sense in the new scene.
+ADAPT to the scene: body pose, posture, orientation, arm/hand positions, head tilt, gaze direction.
 
 ══════════════════════════════════════════════
-LAYERED PRESERVATION
+SCENE COMPATIBILITY DATA
 ══════════════════════════════════════════════
 
-STRICTLY PRESERVE from IMAGE 1 (identity layer):
-- Facial bone structure (jawline, cheekbones, forehead)
-- Facial feature shapes (eyes, nose, mouth, ears)
-- Skin color and undertone
-- Hair style, color, length, texture
-- Every clothing item — garment type, color, pattern, fit, logos
+User photo tags: visible_body=${userTags.visible_body}, color_temperature=${userTags.color_temperature}, light_direction=${userTags.light_direction}, light_intensity=${userTags.light_intensity}.
 
-ADAPT to the scene:
-- Body pose (standing / sitting / leaning / walking)
-- Posture, body orientation, arm/hand positions
-- Head tilt and gaze direction
+Target scene: color_temperature=${scene.color_temperature}, light_direction=${scene.light_direction}, light_intensity=${scene.light_intensity}, background_complexity=${scene.background_complexity}, subject_slot=${scene.subject_slot}, recommended_person_size=${scene.recommended_person_size}, person_scale_reference=${scene.person_scale_reference}.
 
 ══════════════════════════════════════════════
-TEETH
+COMPOSITION — WHERE TO PLACE THE PERSON
 ══════════════════════════════════════════════
 
-If teeth are visible in IMAGE 1, gently brighten them to a natural off-white. Do NOT make them unnaturally bright, pure white, or fluorescent. The goal is "healthy teeth," not "veneers" — subtle only.
+${getSubjectSlotGuidance(scene.subject_slot)}
 
-══════════════════════════════════════════════
-RETOUCH INSTRUCTIONS (from analysis, apply conservatively)
-══════════════════════════════════════════════
+The person should occupy approximately ${getSizeGuidance(scene.recommended_person_size)} of the frame height. ${scene.person_scale_reference === 'no_reference'
+      ? 'This scene has no clear scale reference — use best judgment for natural size.'
+      : 'This scene has scale references (furniture / doorways / etc.) — use them to verify proportional correctness.'}
 
-- Skin retouch: ${fixPlan.skin_retouch} (none = no touch; minimal_smooth = active blemishes only, keep all texture; moderate_smooth_and_even = blemishes + tone evening, preserve pores)
-- Expression: ${fixPlan.expression} (no_change is default; any smile adjustment must be minimal — if result looks unnatural, revert)
-- Sharpness: ${fixPlan.sharpness} (no_change = don't sharpen; sharpen_face = subtle on eyes/features only)
-- Eye enhance: ${fixPlan.eye_enhance} (no_change = don't touch eyes; brighten_eyes = very subtle whites; anything that looks "glowing" has gone too far)
-
-══════════════════════════════════════════════
-PARTIAL VIEW HANDLING — IMAGE 1 SHOWS: ${userTags.visible_body}
-══════════════════════════════════════════════
+Scale anchors when references are present:
+- Standard chair seat: ~45cm high; seated adult's shoulders reach chair backrest top
+- Standard doorway: ~200cm tall; standing adult's head reaches ~85-90% of doorway height
+- Standard cafe table: ~75cm high; seated adult's arms rest on table surface
+- Adult head height ≈ 1/7 to 1/8 of total standing body height
 
 ${getPartialViewInstructions(userTags.visible_body)}
 
 ══════════════════════════════════════════════
-SCALE ANCHORING
+LIGHTING AND COLOR
 ══════════════════════════════════════════════
-
-Use visible reference objects in IMAGE 2 for scale:
-- Standard chair seat: ~45cm high, seated adult's shoulders reach chair backrest top
-- Standard doorway: ~200cm tall, standing adult's head reaches ~85-90% of doorway height
-- Standard cafe table: ~75cm high, seated adult's arms rest on table surface
-- Adult head height ≈ 1/7 to 1/8 of total standing body height
-
-The person should occupy approximately ${getSizeGuidance(scene.recommended_person_size)} of the frame height.
-
-${scene.person_scale_reference === 'no_reference'
-      ? 'NOTE: This scene has no clear scale reference. Use best judgment for natural size.'
-      : 'NOTE: This scene has scale references. Use them to verify proportional correctness.'}
-
-══════════════════════════════════════════════
-LIGHTING AND COLOR — CRITICAL FOR REALISM
-══════════════════════════════════════════════
-
-IMAGE 2's color temperature is ${scene.color_temperature.toUpperCase()}. Match the person's skin tones accordingly:
-${getColorTemperatureGuidance(scene.color_temperature)}
 
 IMAGE 2's main light direction is ${scene.light_direction.toUpperCase()}. Re-light the person to match:
 ${getLightDirectionGuidance(scene.light_direction)}
+
+IMAGE 2's light intensity is ${scene.light_intensity.toUpperCase()}.
+${getLightIntensityGuidance(scene.light_intensity)}
+
+IMAGE 2's color temperature is ${scene.color_temperature.toUpperCase()}. Bias the SKIN TONES accordingly:
+${getColorTemperatureGuidance(scene.color_temperature)}
+
+IDENTITY OVERRIDE: the bias above is for skin tone realism in the new light, NOT for changing the person's underlying skin color or undertone from IMAGE 1. Preserve the person's actual ethnicity and undertone; only adjust how that skin reads under the new light.
 
 Shadows on the person must fall in the same direction as shadows on objects in IMAGE 2.
 
@@ -378,54 +381,105 @@ Shadows on the person must fall in the same direction as shadows on objects in I
 BACKGROUND TREATMENT
 ══════════════════════════════════════════════
 
-Keep IMAGE 2's background clearly recognizable. Apply only slight, camera-natural depth-of-field softness — NOT heavy artistic blur.
+Background complexity in IMAGE 2 is ${scene.background_complexity.toUpperCase()}.
+${getBackgroundComplexityGuidance(scene.background_complexity)}
+
+Keep IMAGE 2's environment clearly recognizable. Apply only slight, camera-natural depth-of-field softness — NOT heavy artistic blur.
 
 ══════════════════════════════════════════════
-TEXTURE CONSISTENCY — CRITICAL FOR REALISM
+TEXTURE CONSISTENCY
 ══════════════════════════════════════════════
 
-IMAGE 2 is a professional photograph. IMAGE 1 is a casual smartphone photo.
+IMAGE 2 is likely a professional photograph; IMAGE 1 is a casual smartphone photo. Unify the textures toward the SMARTPHONE end so the person doesn't look "pasted on":
+- Soften IMAGE 2's professional sharpness and DOF drama toward a phone-camera look
+- Reduce IMAGE 2's highlight/shadow contrast range (phones have narrower dynamic range)
+- Match subtle grain/noise across the whole frame
+- Aim for "nice casual snapshot," not "magazine shoot"
 
-The final output must look like a CASUAL SMARTPHONE PHOTO — not a professional magazine photograph. The two images have different native textures, and if you preserve IMAGE 2's professional qualities while preserving IMAGE 1's casual qualities, the person will look "pasted on." You must unify the textures toward the SMARTPHONE end:
-
-- Reduce IMAGE 2's professional sharpness and depth-of-field drama — soften backgrounds slightly toward what a phone camera would capture
-- Reduce IMAGE 2's highlight/shadow contrast range — phones have narrower dynamic range
-- Match the subtle image grain/noise across the whole frame — if IMAGE 1 has phone-camera noise, IMAGE 2's background should have consistent noise too, not be ultra-clean
-- Avoid "magazine photo" aesthetic for the final output — aim for "nice casual snapshot"
-
-The goal: someone scrolling a dating app should think "nice photo he took" — not "this looks like a magazine shoot" (which reads as fake/edited).
-
-══════════════════════════════════════════════
-ABSOLUTE PROHIBITIONS
+${teethSection}══════════════════════════════════════════════
+FIXPLAN OVERRIDES (active edits only)
 ══════════════════════════════════════════════
 
-1. Do NOT output IMAGE 2 alone with no person from IMAGE 1 — this is the worst possible failure.
-2. Do NOT alter the person's face, hair, skin tone, or clothing.
-3. Do NOT invent a face when IMAGE 1 shows the back of the head, a side profile, or a turned-away angle — preserve that exact angle.
-4. Do NOT invent body parts that were not visible in IMAGE 1.
-5. Do NOT force IMAGE 1's original pose into a scene where it doesn't fit.
-6. Do NOT add lens flare, bokeh orbs, light leaks, film grain, vignettes.
-7. Do NOT produce compositing artifacts (edge halos, scale mismatches, floating subjects).
-8. Do NOT add any other person, silhouette, or human figure.
-9. Do NOT add text, watermark, logo, or overlay.
-10. Do NOT stylize — output must look like a real phone camera photograph.
+${buildActiveFixPlanLines(fixPlan)}
+
+These FIXPLAN overrides take precedence over generic rules above. If FIXPLAN explicitly enables an edit (e.g. brighten_eyes), apply it conservatively — but do not let the generic "no added effects" lines block it.
+
+══════════════════════════════════════════════
+PROHIBITIONS
+══════════════════════════════════════════════
+
+- Do NOT output IMAGE 2 alone with no person from IMAGE 1.
+- Do NOT alter the person's face, hair, skin tone (beyond light-adapt), or clothing.
+- Do NOT invent a face if IMAGE 1 shows the back/side/turned-away.
+- Do NOT invent body parts beyond IMAGE 1's visible extent.
+- Do NOT add lens flare, bokeh orbs, light leaks, film grain, vignettes, or any visual element not present in IMAGE 1 or implied by IMAGE 2.
+- Do NOT produce compositing artifacts (edge halos, scale mismatches, floating subjects).
+- Do NOT add any other person, silhouette, or figure.
+- Do NOT add text, watermark, logo, or overlay.
+- Do NOT stylize — output must read as a real phone camera photograph.
 
 ══════════════════════════════════════════════
 FINAL CHECK
 ══════════════════════════════════════════════
 
-1. Is the PERSON from IMAGE 1 visible in the output? (If output is background only → REDO, this is the #1 failure mode.)
-2. Identity preserved (hair + clothing + skin tone unchanged from IMAGE 1)?
-3. Face angle preserved (if IMAGE 1 shows back/side/blurred face, output must match — don't invent a front-facing face)?
-4. Framing matches IMAGE 1's visible extent (${userTags.visible_body})?
-5. No invented body parts?
-6. Person size matches scene scale references?
-7. Pose looks natural in IMAGE 2?
-8. Lighting direction matches IMAGE 2?
-9. Color temperature matches IMAGE 2 (${scene.color_temperature})?
-10. Looks like ONE photograph, not a collage?
+1. Person from IMAGE 1 visible? (background-only = REDO)
+2. Identity preserved (face / hair / clothing / underlying skin tone)?
+3. Face angle matches IMAGE 1 (no invented front face)?
+4. Framing matches ${userTags.visible_body} (no invented body parts)?
+5. Person placed per subject_slot=${scene.subject_slot}?
+6. Person size matches recommended_person_size=${scene.recommended_person_size}?
+7. Lighting direction and intensity match IMAGE 2?
+8. Looks like ONE phone photograph, not a collage or magazine shoot?
 
 Return only the final image.`;
+}
+
+// ─── Helper: emit only the active (non-default) fix_plan items ────
+// Returns natural-language bullets for edits that actually need to happen.
+// "no_change" / "none" / "keep" → omitted entirely. If nothing is active,
+// returns a single line saying so, so the section isn't empty.
+function buildActiveFixPlanLines(fixPlan: FixPlan): string {
+  const lines: string[] = [];
+  if (fixPlan.skin_retouch === 'minimal_smooth') {
+    lines.push('- Skin: remove only active blemishes; keep all pore texture and natural skin character.');
+  } else if (fixPlan.skin_retouch === 'moderate_smooth_and_even') {
+    lines.push('- Skin: remove blemishes and gently even skin tone; preserve pores and texture (no plastic skin).');
+  }
+  if (fixPlan.expression === 'enhance_smile') {
+    lines.push('- Expression: very subtly enhance the smile. If result looks forced or unnatural, REVERT to original expression.');
+  } else if (fixPlan.expression === 'soften_smile') {
+    lines.push('- Expression: very subtly soften an over-wide smile.');
+  } else if (fixPlan.expression === 'add_slight_smile') {
+    lines.push('- Expression: add the slightest hint of a closed-mouth smile. Stop the moment it looks forced.');
+  }
+  if (fixPlan.sharpness === 'sharpen_face') {
+    lines.push('- Sharpness: subtle sharpening of eyes and key facial features only — not the whole frame.');
+  } else if (fixPlan.sharpness === 'sharpen_overall') {
+    lines.push('- Sharpness: light overall sharpening; do not introduce halos.');
+  }
+  if (fixPlan.eye_enhance === 'brighten_eyes') {
+    lines.push('- Eyes: very subtly brighten the whites. Stop well before any "glow" appearance.');
+  } else if (fixPlan.eye_enhance === 'sharpen_eyes') {
+    lines.push('- Eyes: subtle sharpening of iris detail only.');
+  }
+  if (fixPlan.color_grade === 'warm_tone') {
+    lines.push('- Color grade: shift the OUTPUT toward warmer tones (≤300K). This OVERRIDES the scene\'s native color bias.');
+  } else if (fixPlan.color_grade === 'cool_tone') {
+    lines.push('- Color grade: shift the OUTPUT toward cooler tones (≤300K). This OVERRIDES the scene\'s native color bias.');
+  } else if (fixPlan.color_grade === 'increase_vibrance') {
+    lines.push('- Color grade: lightly increase vibrance; do not oversaturate skin.');
+  }
+  if (fixPlan.lighting === 'brighten_face') {
+    lines.push('- Lighting: lift face shadows only. Do NOT add warmth or new light sources.');
+  } else if (fixPlan.lighting === 'soften_shadows') {
+    lines.push('- Lighting: reduce face/skin contrast; gentler shadow falloff.');
+  } else if (fixPlan.lighting === 'add_directional_light') {
+    lines.push('- Lighting: add a single soft directional light consistent with the scene\'s light_direction.');
+  }
+  if (lines.length === 0) {
+    return '(no active fixPlan edits — use only the generic rules above)';
+  }
+  return lines.join('\n');
 }
 
 function getPartialViewInstructions(visibleBody: string): string {
@@ -516,6 +570,33 @@ function getLightDirectionGuidance(dir: string): string {
   return map[dir] ?? map.ambient;
 }
 
+function getLightIntensityGuidance(intensity: string): string {
+  const map: Record<string, string> = {
+    harsh: '- High-contrast shadows with crisp edges; bright highlights vs. deep shadows on the face — but no clipping.',
+    soft: '- Gentle, gradual shadow falloff; low contrast on the face; no hard shadow edges.',
+    dim: '- Overall low brightness; muted highlights; lift midtones slightly so the face stays readable, but keep the scene\'s native darkness.',
+  };
+  return map[intensity] ?? map.soft;
+}
+
+function getBackgroundComplexityGuidance(complexity: string): string {
+  const map: Record<string, string> = {
+    simple: '- Background should stay clean and uncluttered. Avoid adding visual noise. Slight DOF softening is fine.',
+    moderate: '- Background has some elements — keep them recognizable but not competing with the subject.',
+    busy: '- Background has many elements — apply slightly stronger DOF softening behind the subject so the person reads clearly, but the scene is still legible.',
+  };
+  return map[complexity] ?? map.moderate;
+}
+
+function getSubjectSlotGuidance(slot: string): string {
+  const map: Record<string, string> = {
+    center: 'Place the person CENTERED horizontally in the frame.',
+    left: 'Place the person in the LEFT third of the frame; leave the scene\'s right side visible as context.',
+    right: 'Place the person in the RIGHT third of the frame; leave the scene\'s left side visible as context.',
+  };
+  return map[slot] ?? map.center;
+}
+
 // ═══════════════════════════════════════════════════════════
 // Gemini 调用
 // ═══════════════════════════════════════════════════════════
@@ -548,6 +629,7 @@ async function callGeminiFusion(
   sceneMime: string,
   prompt: string,
 ) {
+  // [N→N 2026-05-19] Order matches prompt: IMAGE 1 = person, IMAGE 2 = scene
   const body = {
     contents: [{
       role: 'user',
@@ -611,6 +693,184 @@ async function callGeminiAPIOnce(body: any) {
     throw new Error(`Gemini API error: ${response.status} ${errText}`);
   }
   return response.json();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// [N→N 2026-05-19] Per-photo VLM tagger — 付费后跑一次
+// 输入: 1-N 张用户原图
+// 输出: { per_photo_tags: SceneTags[] }  长度与输入对齐
+//        失败时返回 null，调用方降级到 pre-pay 单张 tag 复用 N 次
+// 用 Gemini 2.5 Flash (text+image)，一次调用拿到所有图的 tag
+// ═══════════════════════════════════════════════════════════════
+interface PerPhotoTagResult {
+  per_photo_tags: SceneTags[];
+}
+
+async function runPerPhotoTagger(
+  base64s: string[],
+  mime: string,
+): Promise<PerPhotoTagResult | null> {
+  if (base64s.length === 0) return null;
+
+  const prompt = `You are tagging ${base64s.length} dating profile photos of the same person. For EACH photo (in input order, 0-indexed), output the four scene tags used by downstream fusion.
+
+For each photo:
+1. color_temperature: "warm" (yellow/orange/golden cast) | "neutral" (clean white) | "cool" (bluish)
+2. light_direction: "left" (shadows on right side of face) | "right" (shadows on left) | "front" (even frontal) | "top" (overhead, shadowed chin) | "back" (backlit, rim light) | "ambient" (diffuse, no direction)
+3. light_intensity: "harsh" (sharp high-contrast shadows) | "soft" (gradual low-contrast) | "dim" (dark overall)
+4. visible_body: "face_only" (head + shoulders only) | "upper_chest" (chest up) | "waist_up" (waist up with arms) | "full_body" (legs visible)
+
+Return ONLY this JSON (no markdown fences, no prose):
+{"per_photo_tags": [
+  {"color_temperature": "...", "light_direction": "...", "light_intensity": "...", "visible_body": "..."},
+  ... one object per input photo, in the same order
+]}`;
+
+  const parts: any[] = [{ text: prompt }];
+  for (const b64 of base64s) {
+    parts.push({ inlineData: { data: b64, mimeType: mime } });
+  }
+  const body = {
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.2,
+    },
+  };
+
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY!;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  let fetchFn: typeof fetch = fetch;
+  if (process.env.NODE_ENV === 'development') {
+    const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:30808';
+    const agent = new ProxyAgent(proxyUrl);
+    fetchFn = (u: any, opts: any) => undiciFetch(u, { ...opts, dispatcher: agent }) as any;
+  }
+
+  try {
+    const response = await fetchFn(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`[vlm-rerank] Gemini error ${response.status}: ${errText.slice(0, 200)}`);
+      return null;
+    }
+    const json: any = await response.json();
+    const text = json?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
+    if (!text) {
+      console.warn('[per-photo-tag] no text in response');
+      return null;
+    }
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      const m = text.match(/\{[\s\S]*\}/);
+      if (!m) return null;
+      try { parsed = JSON.parse(m[0]); } catch { return null; }
+    }
+    const arr = parsed?.per_photo_tags;
+    if (!Array.isArray(arr) || arr.length !== base64s.length) {
+      console.warn(`[per-photo-tag] bad shape: expected array of ${base64s.length}, got ${Array.isArray(arr) ? arr.length : typeof arr}`);
+      return null;
+    }
+    const VALID: Record<keyof SceneTags, readonly string[]> = {
+      color_temperature: ['warm', 'neutral', 'cool'],
+      light_direction: ['left', 'right', 'front', 'top', 'back', 'ambient'],
+      light_intensity: ['harsh', 'soft', 'dim'],
+      visible_body: ['face_only', 'upper_chest', 'waist_up', 'full_body'],
+    };
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if (!t || typeof t !== 'object') {
+        console.warn(`[per-photo-tag] photo ${i}: not an object`);
+        return null;
+      }
+      for (const [field, allowed] of Object.entries(VALID)) {
+        if (!allowed.includes(t[field])) {
+          console.warn(`[per-photo-tag] photo ${i}: invalid ${field}="${t[field]}"`);
+          return null;
+        }
+      }
+    }
+    return { per_photo_tags: arr as SceneTags[] };
+  } catch (err) {
+    console.warn('[per-photo-tag] threw:', (err as Error).message);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// [post-gen check 2026-05-18] 校验 Gemini 生图里有清晰可辨的人物
+//
+// 用 Gemini 2.5 Flash 做"是否包含人像"的二元判定。Flash Image 偶尔会
+// 输出纯背景 / 手部特写 / 没人的场景，需要后校验把这些当失败处理 →
+// fusion 重试循环会自动补一张正常的。
+//
+// 失败时 (Gemini 错误 / 网络异常) **fail open** 返回 true —— 宁可放过
+// 一张可疑结果，也别因为校验链路本身出问题挡掉所有合法用户。
+// ═══════════════════════════════════════════════════════════════
+async function validatePersonInImage(
+  imageBase64: string,
+  mimeType: string,
+): Promise<boolean> {
+  const prompt = `Look at this image. Does it clearly show a recognizable human person (face or upper body of a real-looking human)?
+
+Reject if any of:
+- No human visible at all (background only, food, animal, object)
+- Face heavily obscured, cropped out, or unrecognizable
+- Multiple people where target subject is ambiguous
+- Anime / cartoon / illustration only
+
+Reply with EXACTLY one word: YES or NO. No punctuation, no explanation.`;
+
+  const body = {
+    contents: [{ role: 'user', parts: [
+      { text: prompt },
+      { inlineData: { data: imageBase64, mimeType } },
+    ] }],
+    generationConfig: {
+      temperature: 0.0,
+      responseMimeType: 'text/plain',
+    },
+  };
+
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY!;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  let fetchFn: typeof fetch = fetch;
+  if (process.env.NODE_ENV === 'development') {
+    const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || 'http://127.0.0.1:30808';
+    const agent = new ProxyAgent(proxyUrl);
+    fetchFn = (u: any, opts: any) => undiciFetch(u, { ...opts, dispatcher: agent }) as any;
+  }
+
+  try {
+    const response = await fetchFn(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`[validate-person] Gemini ${response.status}: ${errText.slice(0, 200)} (fail open)`);
+      return true;
+    }
+    const json: any = await response.json();
+    const text: string =
+      json?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
+    const verdict = text.trim().toUpperCase();
+    const hasPerson = verdict.startsWith('YES');
+    console.log(`[validate-person] verdict: "${verdict.slice(0, 20)}" → ${hasPerson ? '✓' : '✗'}`);
+    return hasPerson;
+  } catch (err) {
+    console.warn('[validate-person] threw (fail open):', (err as Error).message);
+    return true;
+  }
 }
 
 // ─── 后端水印 ────────────────────────────────────────────
@@ -680,7 +940,8 @@ async function colorCorrectIfNeeded(
 
 interface VariantInput {
   geminiResult: any;
-  userId: string;
+  // [no-login pivot 2026-05-17] 改成 nullable，访客流程下传 null
+  userId: string | null;
   isFreeTrial: boolean;
   scanId: string | null;
   groupId: string;
@@ -688,8 +949,9 @@ interface VariantInput {
   mode: 'fusion' | 'retouch';
   engine: string;
   matchInfo: MatchResult | null;
+  // [N→N 2026-05-19] per-variant: 每个 variant 对应一张用户原图 + 一个 scene
   userImageBase64: string;
-  sharedOriginalKey: string | null;
+  originalStorageKey: string | null;
   ts: number;
   analysisResult?: string;
 }
@@ -736,7 +998,10 @@ async function processVariant(input: VariantInput): Promise<VariantOutput> {
   }
 
   // 4. Upload enhanced image
-  const storageKey = `${input.userId}/${input.ts}-v${input.variantIndex}.png`;
+  // [no-login pivot] storage prefix 改成 scan_id 优先（访客无 user_id）。
+  // 旧形式 `${userId}/...` 在恢复登录时自然回来，无须再改回。
+  const keyPrefix = input.userId ?? (input.scanId ? `scan-${input.scanId}` : 'guest');
+  const storageKey = `${keyPrefix}/${input.ts}-v${input.variantIndex}.png`;
   const { error: uploadErr } = await supabaseAdmin.storage
     .from(ENHANCED_BUCKET)
     .upload(storageKey, finalBuffer, { contentType: cleanMime, upsert: false });
@@ -750,7 +1015,7 @@ async function processVariant(input: VariantInput): Promise<VariantOutput> {
     .insert({
       user_id: input.userId,
       storage_key: storageKey,
-      original_storage_key: input.sharedOriginalKey,
+      original_storage_key: input.originalStorageKey,
       mime_type: cleanMime,
       is_free_trial: input.isFreeTrial,
       downloaded: false,
@@ -801,34 +1066,73 @@ export async function POST(req: Request) {
     let mimeType: string = body.mimeType ?? 'image/jpeg';
     let analysisResult: string | undefined = body.analysisResult;
 
-    // ── 鉴权 ──
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    // ═══════════════════════════════════════════════════════════
+    // [no-login pivot 2026-05-17] 鉴权 + 计费整段改写
+    //
+    // 新鉴权：scan.paid = true 即可生成图。访客无 user_id，paid 状态由
+    // /api/webhooks/creem 收到 checkout.completed 后写入。
+    //
+    // 计费：完全停用积分体系。一次性买卖按 scan 收费，付费 = 解锁 3 张。
+    // 旧的 customers / credits / deduct_credits / refund_credits 整段
+    // 保留在下方注释里，恢复登录时解开。
+    //
+    // 由于不再扣积分，refundOnFailure 也不需要了 —— 失败的 enhance 只是
+    // 不写 photo_enhancements 行，前端轮询超时后展示重试按钮，scan 仍是
+    // paid，重试无需再次付费。
+    // ═══════════════════════════════════════════════════════════
+    if (!rawScanId) {
+      // 新流程下必须走 scan_id 路径，legacy imageBase64 入参不再支持
       return new Response(
-        JSON.stringify({ error: "Unauthorized", code: "LOGIN_REQUIRED" }),
-        { status: 401 }
+        JSON.stringify({ error: 'scanId is required', code: 'SCAN_ID_REQUIRED' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // ── scan_id 路径：从 DB+storage 载入，覆盖 legacy 参数 ──
-    if (rawScanId) {
-      const loaded = await loadScanById(rawScanId, user.id);
-      if (!loaded) {
-        return new Response(
-          JSON.stringify({ error: 'Scan not found or expired', code: 'SCAN_NOT_FOUND' }),
-          { status: 410, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-      imageBase64 = loaded.imageBase64;
-      mimeType = loaded.mimeType;
-      if (loaded.analysisResultString) {
-        analysisResult = loaded.analysisResultString;
-      }
+    const loaded = await loadScanById(rawScanId, null);
+    if (!loaded) {
+      return new Response(
+        JSON.stringify({ error: 'Scan not found, not paid, or expired', code: 'SCAN_NOT_AVAILABLE' }),
+        { status: 410, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    imageBase64 = loaded.imageBase64;
+    mimeType = loaded.mimeType;
+    if (loaded.analysisResultString) {
+      analysisResult = loaded.analysisResultString;
     }
 
     if (!imageBase64) {
       return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // [N→N 2026-05-19] Per-photo tagger
+    // 付费后跑一次 Gemini 2.5 Flash，给每张图打独立 scene_tags。
+    // 后续每个 variant 用 (photo_i, tags_i) 配 1 个独立场景。
+    // 失败时降级：复用 pre-pay 主图 tags ×N（所有 variant 共用一份 tags，
+    // 但 photo 仍 per-variant，效果略弱但不会崩）
+    // ═══════════════════════════════════════════════════════════
+    const allUserImages = loaded.imageBase64s;
+    const allOriginalKeys = loaded.originalKeys;
+    const N = allUserImages.length;
+    console.log(`[enhance] N=${N} (scanId=${rawScanId}) | originalKeys=[${allOriginalKeys.join(', ')}]`);
+
+    let perPhotoTags: SceneTags[] | null = null;
+    if (N >= 2) {
+      const tagResult = await runPerPhotoTagger(allUserImages, mimeType);
+      if (tagResult) {
+        perPhotoTags = tagResult.per_photo_tags;
+        console.log(`🏷️  [per-photo-tag] ${N} photos tagged: ${perPhotoTags.map((t, i) => `#${i}:${t.visible_body}/${t.color_temperature}/${t.light_direction}`).join(' | ')}`);
+      } else {
+        console.log(`⚠️  [per-photo-tag] failed — falling back to pre-pay main tags ×${N}`);
+      }
+    }
+    // 降级 / 单图：所有 variant 共用 pre-pay 的主图 tags
+    if (!perPhotoTags) {
+      const fallback = extractSceneTags(analysisResult);
+      if (fallback) {
+        perPhotoTags = Array.from({ length: N }, () => fallback);
+      }
     }
 
     // ── 紧急回滚开关：强制走 retouch 路径 ──
@@ -837,102 +1141,147 @@ export async function POST(req: Request) {
       console.warn('⚠️  FORCE_RETOUCH_MODE active — fusion request routed to retouch');
     }
 
-    // ── 读客户信息 ──
-    const { data: customer, error: customerError } = await supabaseAdmin
-      .from("customers")
-      .select(`
-        id, credits, free_enhance_used,
-        subscriptions (status, current_period_end)
-      `)
-      .eq("user_id", user.id)
-      .single();
+    // [no-login pivot] 访客无 customer 概念，免费试用 / 订阅状态都不存在
+    const isFreeTrial = false;
+    const isSubscribed = false;
+    let creditsRemaining = 0;
+    const deducted = false;
+    void COST_SUBSCRIBED; void COST_NON_SUBSCRIBED; // 暂时保留常量
 
-    if (customerError || !customer) {
-      console.error("Supabase Error:", customerError);
-      return new Response(JSON.stringify({ error: "Failed to fetch customer data" }), { status: 500 });
-    }
+    console.log(`🔍 [paid scan] scanId: ${rawScanId} | useFusion: ${useFusion}`);
 
-    const isFreeTrial = !customer.free_enhance_used;
-    const now = new Date().toISOString();
-    const subs = (customer as any).subscriptions as any[] | null;
-    const subData = subs?.find((s: any) =>
-      s.status === 'active' ||
-      (s.status === 'canceled' && s.current_period_end && s.current_period_end > now)
-    ) ?? null;
-    const isSubscribed = !!subData;
+    // [no-login pivot] refund 无意义，留个 no-op 兼容 finally 块
+    const refundOnFailure = async (_reason: string) => { /* no-op: 不再扣积分 */ };
 
-    console.log(`🔍 user.id: ${user.id} | useFusion: ${useFusion} | scanId: ${rawScanId ?? 'none'}`);
-
-    // ── 扣费（统一 25/40）──
-    const costNeeded = isSubscribed ? COST_SUBSCRIBED : COST_NON_SUBSCRIBED;
-    const actionType = isSubscribed ? 'PhotoEnhance_Member' : 'PhotoEnhance_NonMember';
-    let creditsRemaining = customer.credits;
-    let deducted = false;
-
-    if (!isFreeTrial) {
-      if (customer.credits < costNeeded) {
-        return new Response(
-          JSON.stringify({
-            error: "Insufficient credits", code: "INSUFFICIENT_CREDITS",
-            needed: costNeeded, current: customer.credits, isSubscribed,
-          }),
-          { status: 402, headers: { "Content-Type": "application/json" } }
-        );
-      }
-
-      const { data: rpcResult, error: rpcError } = await supabaseAdmin
-        .rpc('deduct_credits', {
-          p_user_id: user.id,
-          p_amount: costNeeded,
-          p_description: actionType,
-          p_metadata: { source: 'system_deduction', action: actionType },
-        })
-        .returns<DeductCreditsResult[]>()
-        .single();
-
-      if (rpcError) {
-        console.error(`扣费RPC失败 (User: ${user.id}):`, rpcError);
-        return new Response(JSON.stringify({ error: "Failed to deduct credits" }), { status: 500 });
-      }
-
-      if (!rpcResult.success) {
-        return new Response(
-          JSON.stringify({
-            error: "Insufficient credits", code: "INSUFFICIENT_CREDITS",
-            needed: costNeeded, current: 0, isSubscribed,
-          }),
-          { status: 402, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      creditsRemaining = rpcResult.remaining;
-      deducted = true;
-    }
-
-    // ── 原子退款（走 RPC） ──
-    const refundOnFailure = async (reason: string) => {
-      if (!deducted) return;
-      try {
-        const { data: refundResult, error: refundErr } = await supabaseAdmin
-          .rpc('refund_credits', {
-            p_user_id: user.id,
-            p_amount: costNeeded,
-            p_description: `Refund: ${reason}`,
-            p_metadata: { action: reason },
-          })
-          .returns<RefundCreditsResult[]>()
-          .single();
-
-        if (refundErr || !refundResult?.success) {
-          console.error(`退款失败 (User: ${user.id}):`, refundErr ?? refundResult);
-          return;
-        }
-        creditsRemaining = refundResult.remaining;
-        deducted = false;  // prevent double-refund
-        console.log(`退款: ${costNeeded} credits, reason: ${reason}`);
-      } catch (err) {
-        console.error(`退款异常 (User: ${user.id}):`, err);
-      }
-    };
+    // ═══════════════════════════════════════════════════════════
+    // [DISABLED 2026-05-17 — no-login pivot] 旧版鉴权 + 计费整段
+    //
+    // const supabase = await createClient();
+    // const { data: { user } } = await supabase.auth.getUser();
+    // if (!user) {
+    //   return new Response(
+    //     JSON.stringify({ error: "Unauthorized", code: "LOGIN_REQUIRED" }),
+    //     { status: 401 }
+    //   );
+    // }
+    //
+    // if (rawScanId) {
+    //   const loaded = await loadScanById(rawScanId, user.id);
+    //   if (!loaded) {
+    //     return new Response(
+    //       JSON.stringify({ error: 'Scan not found or expired', code: 'SCAN_NOT_FOUND' }),
+    //       { status: 410, headers: { 'Content-Type': 'application/json' } }
+    //     );
+    //   }
+    //   imageBase64 = loaded.imageBase64;
+    //   mimeType = loaded.mimeType;
+    //   if (loaded.analysisResultString) {
+    //     analysisResult = loaded.analysisResultString;
+    //   }
+    // }
+    //
+    // if (!imageBase64) {
+    //   return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
+    // }
+    //
+    // const useFusion = FORCE_RETOUCH_MODE ? false : rawUseFusion;
+    // if (FORCE_RETOUCH_MODE && rawUseFusion) {
+    //   console.warn('⚠️  FORCE_RETOUCH_MODE active — fusion request routed to retouch');
+    // }
+    //
+    // const { data: customer, error: customerError } = await supabaseAdmin
+    //   .from("customers")
+    //   .select(`
+    //     id, credits, free_enhance_used,
+    //     subscriptions (status, current_period_end)
+    //   `)
+    //   .eq("user_id", user.id)
+    //   .single();
+    //
+    // if (customerError || !customer) {
+    //   console.error("Supabase Error:", customerError);
+    //   return new Response(JSON.stringify({ error: "Failed to fetch customer data" }), { status: 500 });
+    // }
+    //
+    // const isFreeTrial = !customer.free_enhance_used;
+    // const now = new Date().toISOString();
+    // const subs = (customer as any).subscriptions as any[] | null;
+    // const subData = subs?.find((s: any) =>
+    //   s.status === 'active' ||
+    //   (s.status === 'canceled' && s.current_period_end && s.current_period_end > now)
+    // ) ?? null;
+    // const isSubscribed = !!subData;
+    //
+    // console.log(`🔍 user.id: ${user.id} | useFusion: ${useFusion} | scanId: ${rawScanId ?? 'none'}`);
+    //
+    // const costNeeded = isSubscribed ? COST_SUBSCRIBED : COST_NON_SUBSCRIBED;
+    // const actionType = isSubscribed ? 'PhotoEnhance_Member' : 'PhotoEnhance_NonMember';
+    // let creditsRemaining = customer.credits;
+    // let deducted = false;
+    //
+    // if (!isFreeTrial) {
+    //   if (customer.credits < costNeeded) {
+    //     return new Response(
+    //       JSON.stringify({
+    //         error: "Insufficient credits", code: "INSUFFICIENT_CREDITS",
+    //         needed: costNeeded, current: customer.credits, isSubscribed,
+    //       }),
+    //       { status: 402, headers: { "Content-Type": "application/json" } }
+    //     );
+    //   }
+    //
+    //   const { data: rpcResult, error: rpcError } = await supabaseAdmin
+    //     .rpc('deduct_credits', {
+    //       p_user_id: user.id,
+    //       p_amount: costNeeded,
+    //       p_description: actionType,
+    //       p_metadata: { source: 'system_deduction', action: actionType },
+    //     })
+    //     .returns<DeductCreditsResult[]>()
+    //     .single();
+    //
+    //   if (rpcError) {
+    //     console.error(`扣费RPC失败 (User: ${user.id}):`, rpcError);
+    //     return new Response(JSON.stringify({ error: "Failed to deduct credits" }), { status: 500 });
+    //   }
+    //
+    //   if (!rpcResult.success) {
+    //     return new Response(
+    //       JSON.stringify({
+    //         error: "Insufficient credits", code: "INSUFFICIENT_CREDITS",
+    //         needed: costNeeded, current: 0, isSubscribed,
+    //       }),
+    //       { status: 402, headers: { "Content-Type": "application/json" } }
+    //     );
+    //   }
+    //   creditsRemaining = rpcResult.remaining;
+    //   deducted = true;
+    // }
+    //
+    // const refundOnFailure = async (reason: string) => {
+    //   if (!deducted) return;
+    //   try {
+    //     const { data: refundResult, error: refundErr } = await supabaseAdmin
+    //       .rpc('refund_credits', {
+    //         p_user_id: user.id,
+    //         p_amount: costNeeded,
+    //         p_description: `Refund: ${reason}`,
+    //         p_metadata: { action: reason },
+    //       })
+    //       .returns<RefundCreditsResult[]>()
+    //       .single();
+    //
+    //     if (refundErr || !refundResult?.success) {
+    //       console.error(`退款失败 (User: ${user.id}):`, refundErr ?? refundResult);
+    //       return;
+    //     }
+    //     creditsRemaining = refundResult.remaining;
+    //     deducted = false;
+    //     console.log(`退款: ${costNeeded} credits, reason: ${reason}`);
+    //   } catch (err) {
+    //     console.error(`退款异常 (User: ${user.id}):`, err);
+    //   }
+    // };
 
     // ═══════════════════════════════════════════════════════
     // 分支：融合 vs retouch
@@ -941,35 +1290,9 @@ export async function POST(req: Request) {
     // ═══════════════════════════════════════════════════════
     let success = false;
     try {
-    // ─── Resolve original_storage_key (shared across variants) ─────
-    // scan_id path: scanner already uploaded the original.
-    // Legacy path: upload now (non-blocking — DB row can have null key).
+    // [N→N 2026-05-19] originalKeys 来自 loadScanById，与 allUserImages 同序。
+    // 每个 variant 用自己对应的 key (不再 shared)。
     const ts = Date.now();
-    let originalStorageKey: string | null = null;
-
-    if (rawScanId) {
-      const { data: scanRow } = await supabaseAdmin
-        .from('photo_scans')
-        .select('original_storage_key')
-        .eq('id', rawScanId)
-        .maybeSingle();
-      originalStorageKey = scanRow?.original_storage_key ?? null;
-    } else {
-      try {
-        const candidateKey = `${user.id}/${ts}.jpg`;
-        const originalBuffer = Buffer.from(imageBase64, 'base64');
-        const { error: origUploadError } = await supabaseAdmin.storage
-          .from(ORIGINAL_BUCKET)
-          .upload(candidateKey, originalBuffer, { contentType: mimeType, upsert: false });
-        if (origUploadError) {
-          console.error('Original upload error (non-blocking):', origUploadError.message);
-        } else {
-          originalStorageKey = candidateKey;
-        }
-      } catch (origErr) {
-        console.error('Original upload exception (non-blocking):', origErr);
-      }
-    }
 
     // ─── Generate variants ─────────────────────────────────────────
     const groupId = randomUUID();
@@ -977,50 +1300,97 @@ export async function POST(req: Request) {
     let appliedMode: 'fusion' | 'retouch' = useFusion ? 'fusion' : 'retouch';
     let variants: VariantOutput[] = [];
 
+    // ─── Retouch top-up helper ────────────────────────────────────
+    // Runs a single retouch variant on photo[idx]. Used as a safety net to
+    // backfill missing slots when fusion can't produce N images, and as the
+    // primary loop when fusion is skipped entirely. Never throws — failures
+    // return null so callers can continue with whatever did succeed.
+    const runRetouchForVariant = async (idx: number): Promise<VariantOutput | null> => {
+      const photo = allUserImages[idx];
+      const key = allOriginalKeys[idx] ?? null;
+      if (!photo) {
+        console.warn(`[retouch variant ${idx}] no source photo`);
+        return null;
+      }
+      try {
+        const geminiResult = await callGeminiRetouch(photo, mimeType, analysisResult);
+        return await processVariant({
+          geminiResult,
+          userId: null,
+          isFreeTrial,
+          scanId: rawScanId ?? null,
+          groupId,
+          variantIndex: idx,
+          mode: 'retouch',
+          engine: ENGINE,
+          matchInfo: null,
+          userImageBase64: photo,
+          originalStorageKey: key,
+          ts,
+          analysisResult,
+        });
+      } catch (err) {
+        console.warn(`[retouch variant ${idx}] failed:`, (err as Error).message);
+        return null;
+      }
+    };
+
     if (appliedMode === 'fusion') {
-      const tags = extractSceneTags(analysisResult);
-      if (!tags) {
-        console.warn('⚠️ fusion requested but no scene_tags; falling back to retouch');
+      if (!perPhotoTags || perPhotoTags.length === 0) {
+        console.warn('⚠️ fusion requested but no scene_tags available; falling back to retouch');
         appliedMode = 'retouch';
       } else {
         const library = loadSceneLibrary();
-        const matches = matchScenesTop3(tags, library);
+        const matches = matchScenesForPhotos(perPhotoTags, library);
         if (matches.length === 0) {
-          console.warn('⚠️ matchScenesTop3 returned 0; falling back to retouch');
+          console.warn('⚠️ matchScenesForPhotos returned 0; falling back to retouch');
           appliedMode = 'retouch';
         } else {
-          console.log(`🎯 top-${matches.length} matched: ${matches.map(m => m.scene.id).join(', ')}`);
+          console.log(`🎯 N→N matched ${matches.length}: ${matches.map((m, i) => `#${i}=${m.scene.id}`).join(', ')}`);
           matches[0].reasoning.forEach(r => console.log(`   ${r}`));
 
           const rawFixPlan = extractFixPlan(analysisResult) ?? DEFAULT_FIX_PLAN;
           const fixPlan = sanitizeFixPlan(rawFixPlan);
-          const userBase64 = Buffer.from(imageBase64, 'base64').toString('base64');
 
-          // Fire all Gemini calls in parallel
-          const geminiPromises = matches.map(async (match) => {
+          // [N→N] Per-variant pair: (allUserImages[i], perPhotoTags[i], matches[i], allOriginalKeys[i])
+          const expectedCount = matches.length;
+          const geminiPromises = matches.map(async (match, idx) => {
             const { buffer: sceneBuffer, mime: sceneMime } = loadSceneImage(match.scene.file);
-            const fusionPrompt = buildFusionPrompt(tags, match.scene, fixPlan);
+            const fusionPrompt = buildFusionPrompt(perPhotoTags![idx], match.scene, fixPlan);
             return callGeminiFusion(
-              userBase64, 'image/jpeg',
+              allUserImages[idx], 'image/jpeg',
               sceneBuffer.toString('base64'), sceneMime,
               fusionPrompt,
             );
           });
           const settled = await Promise.allSettled(geminiPromises);
 
-          // Process each successful Gemini result through processVariant.
-          // Each variant has its own try/catch so a single bad output
-          // (safety block, upload error) doesn't sink the whole batch.
+          // First pass: process each Gemini result. Each variant has its
+          // own try/catch so one bad output doesn't sink the batch.
           const variantPromises = settled.map(async (result, idx) => {
             const sceneId = matches[idx].scene.id;
             if (result.status === 'rejected') {
-              console.warn(`[fusion] variant ${idx} (${sceneId}) gemini failed:`, result.reason?.message ?? result.reason);
+              console.warn(`[fusion] variant ${idx} (photo#${idx}→${sceneId}) gemini failed:`, result.reason?.message ?? result.reason);
+              return null;
+            }
+            const parts = result.value?.candidates?.[0]?.content?.parts ?? [];
+            const imagePart = parts.find((p: any) => p.inlineData);
+            if (!imagePart?.inlineData?.data) {
+              console.warn(`[fusion] variant ${idx} (photo#${idx}→${sceneId}) no image in result`);
+              return null;
+            }
+            const hasPerson = await validatePersonInImage(
+              imagePart.inlineData.data,
+              imagePart.inlineData.mimeType ?? 'image/png',
+            );
+            if (!hasPerson) {
+              console.warn(`[fusion] variant ${idx} (photo#${idx}→${sceneId}) rejected: no person detected`);
               return null;
             }
             try {
               return await processVariant({
                 geminiResult: result.value,
-                userId: user.id,
+                userId: null,
                 isFreeTrial,
                 scanId: rawScanId ?? null,
                 groupId,
@@ -1028,54 +1398,150 @@ export async function POST(req: Request) {
                 mode: 'fusion',
                 engine: ENGINE,
                 matchInfo: matches[idx],
-                userImageBase64: imageBase64,
-                sharedOriginalKey: originalStorageKey,
+                userImageBase64: allUserImages[idx],
+                originalStorageKey: allOriginalKeys[idx] ?? null,
                 ts,
                 analysisResult,
               });
             } catch (procErr) {
-              console.warn(`[fusion] variant ${idx} (${sceneId}) process failed:`, (procErr as Error).message);
+              console.warn(`[fusion] variant ${idx} (photo#${idx}→${sceneId}) process failed:`, (procErr as Error).message);
               return null;
             }
           });
           const variantResults = await Promise.all(variantPromises);
           variants = variantResults.filter((v): v is VariantOutput => v !== null);
-          console.log(`🖼️  fusion produced ${variants.length}/${matches.length} variants`);
+          console.log(`🖼️  fusion produced ${variants.length}/${expectedCount} variants on first pass`);
+
+          // ═══════════════════════════════════════════════════════════
+          // Retry: refill missing (photo_i, scene_i) pairs by variantIndex.
+          // ═══════════════════════════════════════════════════════════
+          const RETRY_ROUNDS = 2;
+          for (let round = 1; round <= RETRY_ROUNDS && variants.length < expectedCount; round++) {
+            const haveIndices = new Set(variants.map((v) => v.variantIndex));
+            const missingIndices: number[] = [];
+            for (let i = 0; i < expectedCount; i++) {
+              if (!haveIndices.has(i)) missingIndices.push(i);
+            }
+            if (missingIndices.length === 0) break;
+            console.log(`🔁 fusion retry round ${round}: refilling ${missingIndices.length} variant(s) [${missingIndices.join(',')}]`);
+
+            const retryPromises = missingIndices.map(async (idx) => {
+              const match = matches[idx];
+              try {
+                const { buffer: sceneBuffer, mime: sceneMime } = loadSceneImage(match.scene.file);
+                const fusionPrompt = buildFusionPrompt(perPhotoTags![idx], match.scene, fixPlan);
+                const geminiResult = await callGeminiFusion(
+                  allUserImages[idx], 'image/jpeg',
+                  sceneBuffer.toString('base64'), sceneMime,
+                  fusionPrompt,
+                );
+                const parts = geminiResult?.candidates?.[0]?.content?.parts ?? [];
+                const imagePart = parts.find((p: any) => p.inlineData);
+                if (!imagePart?.inlineData?.data) {
+                  console.warn(`[fusion retry r${round}] variant ${idx} (photo#${idx}→${match.scene.id}) no image in result`);
+                  return null;
+                }
+                const hasPerson = await validatePersonInImage(
+                  imagePart.inlineData.data,
+                  imagePart.inlineData.mimeType ?? 'image/png',
+                );
+                if (!hasPerson) {
+                  console.warn(`[fusion retry r${round}] variant ${idx} (photo#${idx}→${match.scene.id}) rejected: no person detected`);
+                  return null;
+                }
+                return await processVariant({
+                  geminiResult,
+                  userId: null,
+                  isFreeTrial,
+                  scanId: rawScanId ?? null,
+                  groupId,
+                  variantIndex: idx,
+                  mode: 'fusion',
+                  engine: ENGINE,
+                  matchInfo: match,
+                  userImageBase64: allUserImages[idx],
+                  originalStorageKey: allOriginalKeys[idx] ?? null,
+                  ts,
+                  analysisResult,
+                });
+              } catch (err) {
+                console.warn(`[fusion retry r${round}] variant ${idx} (photo#${idx}→${match.scene.id}) still failing:`, (err as Error).message);
+                return null;
+              }
+            });
+            const newOnes = (await Promise.all(retryPromises)).filter(
+              (v): v is VariantOutput => v !== null,
+            );
+            variants.push(...newOnes);
+            console.log(`🔁 fusion retry round ${round} added ${newOnes.length}/${missingIndices.length}; total now ${variants.length}/${expectedCount}`);
+          }
+
+          // ═══════════════════════════════════════════════════════════
+          // Retouch top-up: fusion 凑不齐时不再清空 partial，改成对仍缺
+          // 的 variantIndex 用 retouch 兜底（同一张原图 + 通用 retouch
+          // prompt）。保证用户上传 N 张就能拿到 N 张输出。
+          // 这些 top-up variant 的 mode 字段写 'retouch' 而非 'fusion'，
+          // 下游统计/分析可据此区分。
+          // ═══════════════════════════════════════════════════════════
+          if (variants.length < expectedCount) {
+            const haveIndices = new Set(variants.map((v) => v.variantIndex));
+            const stillMissing: number[] = [];
+            for (let i = 0; i < expectedCount; i++) {
+              if (!haveIndices.has(i)) stillMissing.push(i);
+            }
+            console.log(`🩹 fusion still missing ${stillMissing.length} after retries — retouch top-up for [${stillMissing.join(',')}]`);
+            const topupResults = await Promise.all(stillMissing.map(runRetouchForVariant));
+            const topupOk = topupResults.filter((v): v is VariantOutput => v !== null);
+            variants.push(...topupOk);
+            console.log(`🩹 retouch top-up filled ${topupOk.length}/${stillMissing.length}; total ${variants.length}/${expectedCount}`);
+          }
         }
       }
     }
 
     if (appliedMode === 'retouch') {
-      const geminiResult = await callGeminiRetouch(imageBase64, mimeType, analysisResult);
-      const v = await processVariant({
-        geminiResult,
-        userId: user.id,
-        isFreeTrial,
-        scanId: rawScanId ?? null,
-        groupId,
-        variantIndex: 0,
-        mode: 'retouch',
-        engine: ENGINE,
-        matchInfo: null,
-        userImageBase64: imageBase64,
-        sharedOriginalKey: originalStorageKey,
-        ts,
-        analysisResult,
-      });
-      variants = [v];
+      // Retouch fallback path: fusion 整体不可用（perPhotoTags 失败 /
+      // matches 为空）时走这里。对每张上传图各跑一次 retouch，保证
+      // 输出 N 张而不是 1 张。
+      const N = allUserImages.length;
+      const retouchResults = await Promise.all(
+        Array.from({ length: N }, (_, idx) => runRetouchForVariant(idx)),
+      );
+      variants = retouchResults.filter((v): v is VariantOutput => v !== null);
+      console.log(`🖼️  retouch fallback produced ${variants.length}/${N} variants`);
     }
 
     if (variants.length === 0) {
-      // All variants failed. Let finally refund and outer catch shape response.
+      // [multi-photo 2026-05-18] All variants failed. Mark enhance_failed_at
+      // so /api/scan-result returns 'failed' status → 前端展示重试按钮。
+      // scan 保持 paid，重试不再扣费。
+      // enhance_attempts 用一次 select+update 凑合做（不是高并发场景，OK）
+      try {
+        const { data: cur } = await supabaseAdmin
+          .from('photo_scans')
+          .select('enhance_attempts')
+          .eq('id', rawScanId)
+          .maybeSingle();
+        await supabaseAdmin
+          .from('photo_scans')
+          .update({
+            enhance_failed_at: new Date().toISOString(),
+            enhance_attempts: (cur?.enhance_attempts ?? 0) + 1,
+          })
+          .eq('id', rawScanId);
+      } catch (err) {
+        console.warn('[enhance] mark failure failed:', (err as Error).message);
+      }
       throw new Error('All variants failed to generate');
     }
 
-    if (isFreeTrial) {
-      await supabase
-        .from('customers')
-        .update({ free_enhance_used: true })
-        .eq('user_id', user.id);
-    }
+    // [DISABLED 2026-05-17 — no-login pivot] 旧的 free_enhance_used 标记
+    // if (isFreeTrial) {
+    //   await supabase
+    //     .from('customers')
+    //     .update({ free_enhance_used: true })
+    //     .eq('user_id', user.id);
+    // }
 
     success = true;
     const first = variants[0];

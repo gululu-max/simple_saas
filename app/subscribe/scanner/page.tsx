@@ -1,7 +1,6 @@
 "use client";
 
 import BoostScanner from "@/components/BoostScanner";
-import { ShieldCheck, Zap, Users } from "lucide-react";
 
 export default function ScannerPage() {
   return (
@@ -18,21 +17,7 @@ export default function ScannerPage() {
         {/* ── Core ── */}
         <BoostScanner />
 
-        {/* ── Trust Signals — 真实性 + 社会证明 ── */}
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-8 text-[13px] text-ink-muted">
-          <span className="flex items-center gap-1.5">
-            <ShieldCheck className="size-3.5 text-ink-muted" />
-            100% your real face — no AI generation
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Users className="size-3.5 text-ink-muted" />
-            2,847 enhanced this week
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Zap className="size-3.5 text-ink-muted" />
-            Auto-deleted after processing
-          </span>
-        </div>
+        {/* Trust Signals removed 2026-05-15 — moved into UploadHero per UI mock. */}
       </div>
     </div>
   );

@@ -21,18 +21,20 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let buttonText = "Get 1 Free Photo";
-  if (user) {
-    const { data: customer } = await supabase
-      .from("customers")
-      .select("free_enhance_used")
-      .eq("user_id", user.id)
-      .single();
-
-    if (customer?.free_enhance_used) {
-      buttonText = "Instant Glow-Up";
-    }
-  }
+  // [no-login pivot 2026-05-18] 一次性买卖统一用 "Instant Glow-Up"，
+  // free_enhance_used 不再用（登录态恢复时这段逻辑可解开复用）。
+  const buttonText = "Instant Glow-Up";
+  // if (user) {
+  //   const { data: customer } = await supabase
+  //     .from("customers")
+  //     .select("free_enhance_used")
+  //     .eq("user_id", user.id)
+  //     .single();
+  //   if (customer?.free_enhance_used) {
+  //     buttonText = "Instant Glow-Up";
+  //   }
+  // }
+  void user;
 
   return (
     <main className="flex flex-col min-h-screen bg-canvas text-ink font-cereal selection:bg-rausch/15 pb-24 md:pb-0">
@@ -112,7 +114,7 @@ export default async function Home() {
                 href="/subscribe/scanner"
                 className="inline-flex items-center justify-center gap-2 rounded-sm bg-rausch px-6 h-12 text-base font-medium text-white transition-colors hover:bg-rausch-active"
               >
-                Get 1 Free Photo
+                Instant Glow-Up
               </Link>
             </div>
           </div>

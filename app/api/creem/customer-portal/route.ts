@@ -2,6 +2,10 @@ import { createServiceRoleClient } from "@/utils/supabase/service-role";
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
+// TODO[no-login]: 一次性生意改造 —— 整个 customer-portal 路由作废。
+// 没有订阅就没有自营管理页，前端也不再调用这个端点。
+// 建议删除整文件。
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();

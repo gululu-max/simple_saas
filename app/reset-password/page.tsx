@@ -1,3 +1,15 @@
+// ═══════════════════════════════════════════════════════════
+// [DISABLED 2026-05-13 — no-login refactor]
+// 一次性生意改造：取消密码重置。直接渲染空页面。
+// 未来恢复时：删除下方 stub，把更下方注释里的原组件
+// 取消注释即可。
+// ═══════════════════════════════════════════════════════════
+
+export default function ResetPasswordPage() {
+  return null;
+}
+
+/*
 "use client";
 
 import { useState, useEffect } from "react";
@@ -162,7 +174,6 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
-        {/* ✅ 用 form 标签包裹，支持密码管理器和 Enter 提交 */}
         <form className="grid gap-4" onSubmit={handleSubmit} autoComplete="on">
           <div className="grid gap-1.5">
             <Label
@@ -252,3 +263,4 @@ export default function ResetPasswordPage() {
     </div>
   );
 }
+*/

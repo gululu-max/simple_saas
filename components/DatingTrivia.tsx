@@ -4,8 +4,11 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Sparkles } from 'lucide-react';
 import { TRIVIA_QUESTIONS, type TriviaQuestion, type TriviaOption } from '@/lib/trivia-questions';
 
-const FEEDBACK_HOLD_MS = 2000;
-const INTERRUPT_HOLD_MS = 1100;
+// FEEDBACK_HOLD_MS controls how long a picked answer's feedback shows before
+// the next question loads. Kept short (1000ms) because analysis windows can
+// be 5-8s in fast paths — at 2000ms users were only seeing one question.
+const FEEDBACK_HOLD_MS = 1000;
+const INTERRUPT_HOLD_MS = 700;
 const INTERRUPT_DEBOUNCE_MS = 350;
 
 type TrackFn = (event: string, params?: Record<string, any>) => void;
@@ -90,6 +93,14 @@ export default function DatingTrivia({ active, onTrack }: Props) {
     if (!currentRef.current || interrupting) return;
 
     if (interruptDebounceTimer.current) clearTimeout(interruptDebounceTimer.current);
+    // If the user just answered and a next-question advance is pending, give
+    // it room to fire first — otherwise they'd see "answer feedback → trivia
+    // vanished" with no second question (which felt buggy at FEEDBACK_HOLD_MS
+    // = 2s + fast 3-5s scans). Letting the advance run means they get one
+    // more question even if the paywall starts to cover it.
+    const debounce = advanceTimer.current
+      ? FEEDBACK_HOLD_MS + INTERRUPT_DEBOUNCE_MS
+      : INTERRUPT_DEBOUNCE_MS;
     interruptDebounceTimer.current = setTimeout(() => {
       interruptDebounceTimer.current = null;
       if (!currentRef.current) return;
@@ -108,7 +119,7 @@ export default function DatingTrivia({ active, onTrack }: Props) {
         setInterrupting(false);
         interruptTimer.current = null;
       }, INTERRUPT_HOLD_MS);
-    }, INTERRUPT_DEBOUNCE_MS);
+    }, debounce);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
@@ -127,6 +138,11 @@ export default function DatingTrivia({ active, onTrack }: Props) {
       question_id: current.id,
       option_id: opt.id,
     });
+    // [fix 2026-05-18] 点完立即 blur，避免下一题渲染时浏览器把焦点 ring 留在
+    // 上一题相同位置的按钮上（视觉上像"下一题默认选中上次的选项"）。
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     scheduleAdvance();
   }, [selected, current, scheduleAdvance]);
 
@@ -161,8 +177,10 @@ export default function DatingTrivia({ active, onTrack }: Props) {
           const isSelected = selected?.id === opt.id;
           const isOther = !!selected && !isSelected;
           return (
+            // [fix 2026-05-18] key 同时包含 question.id，让 React 每换题就
+            // remount 按钮 → 焦点自然消失，下一题不会"默认选中上次的位置"。
             <button
-              key={opt.id}
+              key={`${current.id}-${opt.id}`}
               type="button"
               disabled={!!selected}
               onClick={() => handleSelect(opt)}

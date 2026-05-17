@@ -16,7 +16,8 @@ import { randomUUID } from 'crypto';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText, generateText } from 'ai';
 import { ProxyAgent } from 'undici';
-import { createClient } from "@/utils/supabase/server";
+// [DISABLED 2026-05-17 — no-login pivot] 读 session 用，现在用不到
+// import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { TAG_PROMPT, parseSceneTags, type SceneTags } from './tag-prompt';
 import { classifyUpstreamError } from '@/lib/upstream-errors';
@@ -52,64 +53,84 @@ async function streamTextWithRetry(
 
 export async function POST(req: Request) {
   try {
-    const { imageBase64, mimeType: receivedMimeType } = await req.json();
-
-    if (!imageBase64) {
+    const body = await req.json();
+    // [multi-photo 2026-05-18] 兼容 imageBase64 (单图) 和 imageBase64s (1-3 张)
+    // 主图永远是 [0]，pre-pay 分析只跑主图（fast filter, 避免对不可用照片付款）
+    const receivedMimeType: string | undefined = body.mimeType;
+    let imageBase64s: string[] = Array.isArray(body.imageBase64s)
+      ? body.imageBase64s.filter((s: unknown): s is string => typeof s === 'string' && s.length > 0)
+      : [];
+    if (imageBase64s.length === 0 && typeof body.imageBase64 === 'string') {
+      imageBase64s = [body.imageBase64];
+    }
+    if (imageBase64s.length === 0) {
       return new Response(JSON.stringify({ error: 'No image provided' }), {
         status: 400, headers: { 'Content-Type': 'application/json' },
       });
     }
-
-    if (imageBase64.length > 6_000_000) {
-      return new Response(
-        JSON.stringify({ error: 'Image too large. Please upload an image smaller than 6MB.' }),
-        { status: 413, headers: { 'Content-Type': 'application/json' } }
-      );
+    if (imageBase64s.length > 3) {
+      imageBase64s = imageBase64s.slice(0, 3); // 上限保护
     }
-
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (user) {
-      const { data: customer, error: customerError } = await supabase
-        .from('customers')
-        .select('id, credits, free_enhance_used')
-        .eq('user_id', user.id)
-        .single();
-
-      if (customerError || !customer) {
-        console.error('Fetch customer error:', customerError);
-        return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), {
-          status: 500, headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
-      const isFirstFreeUser = !customer.free_enhance_used;
-
-      if (!isFirstFreeUser) {
-        const now = new Date().toISOString();
-        const { data: subData } = await supabaseAdmin
-          .from('subscriptions')
-          .select('status, current_period_end')
-          .eq('customer_id', customer.id)
-          .in('status', ['active', 'canceled'])
-          .maybeSingle();
-
-        const isSubscribed = !!subData && (
-          subData.status === 'active' ||
-          (subData.status === 'canceled' && !!subData.current_period_end && subData.current_period_end > now)
+    console.log(`[scanner] received ${imageBase64s.length} photo(s) | bodyHasArr=${Array.isArray(body.imageBase64s)} bodyHasSingle=${typeof body.imageBase64 === 'string'}`);
+    for (const b64 of imageBase64s) {
+      if (b64.length > 6_000_000) {
+        return new Response(
+          JSON.stringify({ error: 'Image too large. Please upload an image smaller than 6MB.' }),
+          { status: 413, headers: { 'Content-Type': 'application/json' } }
         );
-
-        const requiredCredits = isSubscribed ? 20 : 25;
-
-        if (customer.credits < requiredCredits) {
-          return new Response(
-            JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
-            { status: 402, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
       }
     }
+    const imageBase64 = imageBase64s[0]; // 主图（用于 pre-pay 分析）
+
+    // ═══════════════════════════════════════════════════════════
+    // [no-login pivot 2026-05-17] scanner 对所有访客无门槛跑分析。
+    // 旧版的 user / customer / credits / subscription / free_enhance_used
+    // 校验整段保留在下面注释里，恢复登录时解开 + 把下方 photo_scans
+    // insert 的 user_id 也改回 user.id。
+    // ═══════════════════════════════════════════════════════════
+    // const supabase = await createClient();
+    // const { data: { user } } = await supabase.auth.getUser();
+    //
+    // if (user) {
+    //   const { data: customer, error: customerError } = await supabase
+    //     .from('customers')
+    //     .select('id, credits, free_enhance_used')
+    //     .eq('user_id', user.id)
+    //     .single();
+    //
+    //   if (customerError || !customer) {
+    //     console.error('Fetch customer error:', customerError);
+    //     return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), {
+    //       status: 500, headers: { 'Content-Type': 'application/json' },
+    //     });
+    //   }
+    //
+    //   const isFirstFreeUser = !customer.free_enhance_used;
+    //
+    //   if (!isFirstFreeUser) {
+    //     const now = new Date().toISOString();
+    //     const { data: subData } = await supabaseAdmin
+    //       .from('subscriptions')
+    //       .select('status, current_period_end')
+    //       .eq('customer_id', customer.id)
+    //       .in('status', ['active', 'canceled'])
+    //       .maybeSingle();
+    //
+    //     const isSubscribed = !!subData && (
+    //       subData.status === 'active' ||
+    //       (subData.status === 'canceled' && !!subData.current_period_end && subData.current_period_end > now)
+    //     );
+    //
+    //     const requiredCredits = isSubscribed ? 20 : 25;
+    //
+    //     if (customer.credits < requiredCredits) {
+    //       return new Response(
+    //         JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
+    //         { status: 402, headers: { 'Content-Type': 'application/json' } }
+    //       );
+    //     }
+    //   }
+    // }
 
     let fetchOptions: Record<string, unknown> = {};
     if (process.env.NODE_ENV === 'development') {
@@ -126,39 +147,44 @@ export async function POST(req: Request) {
 
     const mimeType = receivedMimeType || 'image/jpeg';
 
-    // ─── Start photo_scans creation (logged-in only) ───────────────
-    // scanId is generated in app so we can return it in the response
-    // header immediately. Upload + insert fire in parallel with the
-    // analysis stream; onFinish updates the row once analysis lands.
+    // ─── Start photo_scans creation ────────────────────────────────
+    // [no-login pivot 2026-05-17] 所有访客都建 scan 行（无 user_id）。
+    // scanId 是付费墙 + 后续 enhance 的 bearer token (UUID 不可猜)。
+    // [multi-photo 2026-05-18] 上传 1-3 张原图，每张独立 key，写进
+    // original_storage_keys text[]。original_storage_key 保留指向主图
+    // (索引 0)，VLM rerank 后会被更新为选中的主图 key。
     let scanId: string | null = null;
-    let uploadPromise: Promise<string | null> = Promise.resolve(null);
-    let scanInsertPromise: Promise<boolean> = Promise.resolve(false);
+    let uploadPromise: Promise<string[]>;  // 改成返回 key 数组 (按上传顺序，失败的为 '')
+    let scanInsertPromise: Promise<boolean>;
 
-    if (user) {
+    {
       const newScanId = randomUUID();
       scanId = newScanId;
-      const originalKey = `${user.id}/scan-${newScanId}.jpg`;
-      const originalBuffer = Buffer.from(imageBase64, 'base64');
 
-      uploadPromise = supabaseAdmin.storage
-        .from(ORIGINAL_BUCKET)
-        .upload(originalKey, originalBuffer, { contentType: mimeType, upsert: false })
-        .then(({ error }) => {
-          if (error) {
-            console.warn('[scan] original upload failed:', error.message);
-            return null;
-          }
-          return originalKey;
-        })
-        .catch((err) => {
-          console.warn('[scan] original upload threw:', err);
-          return null;
-        });
+      const uploads = imageBase64s.map((b64, idx) => {
+        const key = `guest/scan-${newScanId}-${idx}.jpg`;
+        const buf = Buffer.from(b64, 'base64');
+        return supabaseAdmin.storage
+          .from(ORIGINAL_BUCKET)
+          .upload(key, buf, { contentType: mimeType, upsert: false })
+          .then(({ error }) => {
+            if (error) {
+              console.warn(`[scan] original[${idx}] upload failed:`, error.message);
+              return '';
+            }
+            return key;
+          })
+          .catch((err) => {
+            console.warn(`[scan] original[${idx}] upload threw:`, err);
+            return '';
+          });
+      });
+      uploadPromise = Promise.all(uploads);
 
       scanInsertPromise = (async () => {
         const { error } = await supabaseAdmin
           .from('photo_scans')
-          .insert({ id: newScanId, user_id: user.id, mime_type: mimeType });
+          .insert({ id: newScanId, user_id: null, mime_type: mimeType });
         if (error) {
           console.error('[scan] initial insert failed:', error.message);
           return false;
@@ -452,26 +478,26 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
           },
         ],
         async onFinish({ text, finishReason }) {
-          console.log(`🔔 onFinish fired — finishReason: ${finishReason}, textLen: ${text?.length ?? 0}, scanId: ${scanId}, hasUser: ${!!user}`);
-
-          if (!user) {
-            console.log('👤 Guest scan completed');
-            return;
-          }
-          console.log(`✅ Scan completed (User: ${user.id}, model: ${chosenModel})`);
+          // [no-login pivot 2026-05-17] 旧版只对 logged-in 用户落库；
+          // 现在所有访客都落 photo_scans，user_id 为 null。
+          console.log(`🔔 onFinish fired — finishReason: ${finishReason}, textLen: ${text?.length ?? 0}, scanId: ${scanId}`);
 
           // ── Persist analysis to photo_scans row ──
           if (!scanId) {
             console.warn('[scan] onFinish skipped — no scanId');
             return;
           }
+          console.log(`✅ Scan completed (scanId: ${scanId}, model: ${chosenModel})`);
           try {
-            const [scanOk, originalKey, tags] = await Promise.all([
+            const [scanOk, originalKeys, tags] = await Promise.all([
               scanInsertPromise,
               uploadPromise,
               tagPromise,
             ]);
-            console.log(`[scan] promises settled — scanOk: ${scanOk}, originalKey: ${originalKey}, hasTags: ${!!tags}`);
+            // [multi-photo] originalKeys 是数组（按上传顺序，主图在 [0]）
+            const validKeys = originalKeys.filter((k) => !!k);
+            const primaryKey = originalKeys[0] || null;
+            console.log(`[scan] promises settled — scanOk: ${scanOk}, validKeys: ${validKeys.length}/${originalKeys.length}, hasTags: ${!!tags}`);
             if (!scanOk) {
               console.warn('[scan] insert did not succeed, skipping update');
               return;
@@ -491,7 +517,8 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
               .update({
                 analysis_json: analysisJson,
                 scene_tags: tags ?? null,
-                original_storage_key: originalKey,
+                original_storage_key: primaryKey,        // 主图 (与旧 schema 兼容)
+                original_storage_keys: validKeys,         // [multi-photo] 全部上传 key
               })
               .eq('id', scanId);
 
@@ -510,11 +537,19 @@ Return ONLY this JSON object. No markdown fences, no prose before or after, no e
     );
 
     // --- 把 scan_id + tags 作为自定义 header 发给前端 ---
+    // tagPromise 是非流式 generateText，原先 `await tagPromise` 会把整个
+    // streamText 响应的 return 拖到 tag 调用完成后才发出，前端 useCompletion
+    // 长时间停在 isLoading=true → "上传后一直转圈"。改成短超时 race：
+    // tag 在 1.5s 内回来就带上 header；否则放弃 header（onFinish 内部仍会
+    // 把 tags 写入 photo_scans，登录用户后续 enhance 时从 DB 读）。
     const response = result.toDataStreamResponse();
     if (scanId) {
       response.headers.set('x-scan-id', scanId);
     }
-    const tags = await tagPromise;
+    const tags = await Promise.race([
+      tagPromise,
+      new Promise<null>(r => setTimeout(() => r(null), 1500)),
+    ]);
     if (tags) {
       response.headers.set('x-scene-tags', JSON.stringify(tags));
     }

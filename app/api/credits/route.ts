@@ -13,6 +13,11 @@ interface DeductCreditsResult {
   remaining: number;
   customer_id: string;
 }
+// TODO[no-login]: 一次性生意改造 —— 整个 /api/credits 路由作废。
+// 一次性模型没有"用户余额"概念，前端也不再调用这个端点。
+// 建议直接删除整文件，或保留 stub 返回 410 Gone。
+// 同时 hooks/use-credits.ts 和 hooks/use-subscription.ts 也可一并废弃。
+
 // GET - 获取用户积分 + 会员状态（单次查询，join subscriptions）
 export async function GET() {
   try {

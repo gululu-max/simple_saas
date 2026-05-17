@@ -24,71 +24,94 @@ interface AuthModalContextType {
 
 const AuthModalContext = createContext<AuthModalContextType | null>(null);
 
+// ═══════════════════════════════════════════════════════════
+// [DISABLED 2026-05-13 — no-login refactor]
+// 一次性生意改造：移除注册/登录。Provider 改成 no-op stub，
+// 保证 Header / PricingSection / BoostScanner 里残留的
+// useAuthModal() 调用不会因 context 缺失而崩溃。
+// 未来恢复时：删除下面这个 stub，把再下方注释里的原 Provider
+// 代码取消注释即可。
+// ═══════════════════════════════════════════════════════════
 export function AuthModalProvider({ children }: { children: ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [view, setView] = useState<AuthView>("sign-in");
-  const router = useRouter();
-
-  // ✅ 用 ref 稳定化，避免 effect 因引用变化而重复执行
-  const isOpenRef = useRef(isOpen);
-  isOpenRef.current = isOpen;
-
-  const openAuthModal = useCallback((v: AuthView = "sign-in") => {
-    setView(v);
-    setIsOpen(true);
-  }, []);
-
-  const closeAuthModal = useCallback(() => setIsOpen(false), []);
-
-  // ✅ 统一的跨标签页 session 监听，提升到 Provider 层级
-  // sign-up / sign-in 不再需要各自维护监听器
-  useEffect(() => {
-    const supabase = createClient();
-
-    const checkSession = async () => {
-      if (!isOpenRef.current) return; // modal 关着就不查
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) {
-        setIsOpen(false);
-        router.refresh();
-      }
-    };
-
-    // 1. Supabase 原生状态变化
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session && isOpenRef.current) {
-        setIsOpen(false);
-        router.refresh();
-      }
-    });
-
-    // 2. 页面可见性 + 焦点 — 兼容邮件验证场景
-    const onVisible = () => {
-      if (document.visibilityState === "visible") checkSession();
-    };
-
-    window.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", checkSession);
-
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", checkSession);
-    };
-  }, [router]);
-
+  const stub: AuthModalContextType = {
+    isOpen: false,
+    view: "sign-in",
+    openAuthModal: () => {},
+    closeAuthModal: () => {},
+    setView: () => {},
+  };
   return (
-    <AuthModalContext.Provider
-      value={{ isOpen, view, openAuthModal, closeAuthModal, setView }}
-    >
+    <AuthModalContext.Provider value={stub}>
       {children}
     </AuthModalContext.Provider>
   );
 }
+
+// export function AuthModalProvider({ children }: { children: ReactNode }) {
+//   const [isOpen, setIsOpen] = useState(false);
+//   const [view, setView] = useState<AuthView>("sign-in");
+//   const router = useRouter();
+//
+//   // ✅ 用 ref 稳定化，避免 effect 因引用变化而重复执行
+//   const isOpenRef = useRef(isOpen);
+//   isOpenRef.current = isOpen;
+//
+//   const openAuthModal = useCallback((v: AuthView = "sign-in") => {
+//     setView(v);
+//     setIsOpen(true);
+//   }, []);
+//
+//   const closeAuthModal = useCallback(() => setIsOpen(false), []);
+//
+//   // ✅ 统一的跨标签页 session 监听，提升到 Provider 层级
+//   // sign-up / sign-in 不再需要各自维护监听器
+//   useEffect(() => {
+//     const supabase = createClient();
+//
+//     const checkSession = async () => {
+//       if (!isOpenRef.current) return; // modal 关着就不查
+//       const {
+//         data: { session },
+//       } = await supabase.auth.getSession();
+//       if (session) {
+//         setIsOpen(false);
+//         router.refresh();
+//       }
+//     };
+//
+//     // 1. Supabase 原生状态变化
+//     const {
+//       data: { subscription },
+//     } = supabase.auth.onAuthStateChange((event, session) => {
+//       if (event === "SIGNED_IN" && session && isOpenRef.current) {
+//         setIsOpen(false);
+//         router.refresh();
+//       }
+//     });
+//
+//     // 2. 页面可见性 + 焦点 — 兼容邮件验证场景
+//     const onVisible = () => {
+//       if (document.visibilityState === "visible") checkSession();
+//     };
+//
+//     window.addEventListener("visibilitychange", onVisible);
+//     window.addEventListener("focus", checkSession);
+//
+//     return () => {
+//       subscription.unsubscribe();
+//       window.removeEventListener("visibilitychange", onVisible);
+//       window.removeEventListener("focus", checkSession);
+//     };
+//   }, [router]);
+//
+//   return (
+//     <AuthModalContext.Provider
+//       value={{ isOpen, view, openAuthModal, closeAuthModal, setView }}
+//     >
+//       {children}
+//     </AuthModalContext.Provider>
+//   );
+// }
 
 export function useAuthModal() {
   const ctx = useContext(AuthModalContext);

@@ -16,6 +16,18 @@ export default function Header() {
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const { openAuthModal } = useAuthModal();
 
+  // ═══════════════════════════════════════════════════════════
+  // [DISABLED 2026-05-13 — no-login refactor]
+  // 用户态 + 积分获取全部去掉。一次性生意不需要持久 user。
+  // 未来恢复时：删除下面的占位常量，把再下方注释里的原 hook 代码
+  // 取消注释即可。
+  // ═══════════════════════════════════════════════════════════
+  const user: any = null;
+  const credits = 0;
+  const loaded = true;
+  const fetchCredits = async () => {};
+
+  /*
   const [user, setUser] = useState<any>(null);
   const [credits, setCredits] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -88,6 +100,9 @@ export default function Header() {
     window.addEventListener('auth-changed', handleAuthChanged);
     return () => window.removeEventListener('auth-changed', handleAuthChanged);
   }, [fetchCredits]);
+  */
+  // 引用一下避免 unused-var：
+  void credits; void fetchCredits; void user;
 
   const featureLinks = [
     {
@@ -173,6 +188,12 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* ═══════════════════════════════════════════════════════════
+              [DISABLED 2026-05-13 — no-login refactor]
+              登录/登出/积分 UI 暂时移除。未来恢复时把下方整段
+              取消注释，并同步恢复 hooks 区块即可。
+              ═══════════════════════════════════════════════════════════ */}
+          {/*
           {!loaded ? (
             <div className="hidden md:flex gap-2">
               <div className="h-8 w-16 rounded-btn bg-surface-soft animate-pulse" />
@@ -226,6 +247,7 @@ export default function Header() {
               </Button>
             </>
           )}
+          */}
 
           <MobileNav
             items={[
@@ -234,7 +256,7 @@ export default function Header() {
               { label: "Pricing", href: "/subscribe#pricing" },
               { label: "Blog", href: "/blog" },
             ]}
-            user={isLoggedIn ? user : null}
+            user={null}
             isDashboard={isSubscribe ?? false}
           />
         </div>
