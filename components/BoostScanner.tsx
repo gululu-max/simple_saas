@@ -2299,6 +2299,82 @@ export default function BoostScanner() {
                       // [no-login pivot] 有真图就直接走 /api/download/{id}
                       // 拿无水印原图；没真图（不该发生）退回 filter mock。
                       if (paidVariants && paidVariants.length > 0) {
+                        // ── Mobile-friendly batch save via Web Share API ──
+                        // iOS Safari / Android Chrome 只允许一个用户手势触发
+                        // 一次下载，循环 a.click() 第二张起会被静默拦截。
+                        // navigator.share({ files }) 能把多张图一次性丢进
+                        // 系统 share sheet —— iOS 顶部默认就是"保存图像"，
+                        // 一次操作把 3 张全存进相册。
+                        // 桌面不支持 canShare(files) → fallback 到循环下载
+                        // （桌面无单手势限制）。
+                        const nav: any =
+                          typeof navigator !== 'undefined' ? navigator : null;
+                        const canWebShareFiles =
+                          !!nav?.canShare &&
+                          !!nav?.share;
+
+                        if (canWebShareFiles) {
+                          try {
+                            const files = await Promise.all(
+                              paidVariants.map(async (v, i) => {
+                                const resp = await fetch(
+                                  `/api/download/${v.enhancementId}`,
+                                );
+                                if (!resp.ok) {
+                                  throw new Error(
+                                    `download ${i} failed: ${resp.status}`,
+                                  );
+                                }
+                                const blob = await resp.blob();
+                                const ext = blob.type.includes('png')
+                                  ? 'png'
+                                  : 'jpg';
+                                return new File(
+                                  [blob],
+                                  `matchfix-${i + 1}-${ts}.${ext}`,
+                                  { type: blob.type || 'image/png' },
+                                );
+                              }),
+                            );
+
+                            // canShare 必须在拿到 files 后再判（不同浏览器对
+                            // 不同 mime 支持不一样，先实际构造 File 再测）
+                            if (nav.canShare({ files })) {
+                              try {
+                                await nav.share({
+                                  files,
+                                  title: 'matchfix · your 3 looks',
+                                });
+                                // 用户成功完成或取消都不会 throw 到这里
+                                // （取消是 AbortError，下面 catch 处理）
+                                setShowSaveToast(true);
+                                return;
+                              } catch (shareErr) {
+                                // 用户取消 share sheet → 不算失败、不 fallback、不报错
+                                if (
+                                  (shareErr as Error).name === 'AbortError'
+                                ) {
+                                  return;
+                                }
+                                console.warn(
+                                  '[delivery] navigator.share failed, falling back:',
+                                  shareErr,
+                                );
+                                // 其他错误 → 落到下面循环 fallback
+                              }
+                            }
+                          } catch (fetchErr) {
+                            console.warn(
+                              '[delivery] file prep for share failed, falling back to anchor loop:',
+                              fetchErr,
+                            );
+                            // 落到下面循环 fallback
+                          }
+                        }
+
+                        // Fallback (desktop / 不支持 web share / share 出错):
+                        // 桌面浏览器允许同手势多 download，循环 a.click() 有效。
+                        // 手机走到这里基本只能下成第 1 张，是已知降级路径。
                         for (let i = 0; i < paidVariants.length; i++) {
                           const v = paidVariants[i];
                           const a = document.createElement('a');
