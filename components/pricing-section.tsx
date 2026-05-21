@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthModal } from "@/components/auth/auth-modal-context";
 import { SUBSCRIPTION_TIERS, CREDITS_TIERS } from "@/config/subscriptions";
 import { ProductTier } from "@/types/subscriptions";
+import { useT } from "@/lib/i18n/provider";
 
 const parsePrice = (priceStr: string | number) => {
   if (typeof priceStr === 'number') return priceStr;
@@ -32,6 +33,7 @@ interface PricingSectionProps {
 }
 
 export function PricingSection({ className, hideHeader = false, defaultTab = 'subscription', onAfterPurchase }: PricingSectionProps) {
+  const t = useT().pricing;
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useUser();
@@ -117,8 +119,8 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
     } catch (error) {
       console.error('Payment error:', error);
       toast({
-        title: "Payment Failed",
-        description: "Failed to process payment. Please try again.",
+        title: t.paymentFailedTitle,
+        description: t.paymentFailedDesc,
         variant: "destructive",
       });
     } finally {
@@ -132,10 +134,10 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
         {!hideHeader && (
           <div className="text-center space-y-3 mb-8 sm:mb-12">
             <h2 className="text-[22px] sm:text-[28px] font-bold tracking-[-0.4px] text-ink leading-[1.18]">
-              Simple, transparent pricing
+              {t.sectionTitle}
             </h2>
             <p className="mx-auto max-w-2xl text-ink-body text-base leading-[1.5]">
-              Choose the perfect plan for your needs.
+              {t.sectionSubtitle}
             </p>
           </div>
         )}
@@ -146,13 +148,13 @@ export function PricingSection({ className, hideHeader = false, defaultTab = 'su
               value="subscription"
               className="data-[state=active]:bg-canvas data-[state=active]:text-ink data-[state=active]:shadow-ab-card text-ink-muted text-sm rounded-pill px-4 py-1.5"
             >
-              Subscriptions
+              {t.tabSubscriptions}
             </TabsTrigger>
             <TabsTrigger
               value="credits"
               className="data-[state=active]:bg-canvas data-[state=active]:text-ink data-[state=active]:shadow-ab-card text-ink-muted text-sm rounded-pill px-4 py-1.5"
             >
-              Credit Packs
+              {t.tabCredits}
             </TabsTrigger>
           </TabsList>
 
@@ -204,7 +206,8 @@ function PricingCard({
   onPurchase: (tier: ProductTier) => void;
   type: 'subscription' | 'credits';
 }) {
-  const buttonText = type === 'subscription' ? "Subscribe" : "Purchase";
+  const t = useT().pricing;
+  const buttonText = type === 'subscription' ? t.btnSubscribe : t.btnPurchase;
 
   return (
     <div className="relative h-full pt-4">
@@ -212,7 +215,7 @@ function PricingCard({
         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20">
           {/* Featured badge — Airbnb 标准 pill：单色 Rausch，无渐变无 glow */}
           <span className="inline-flex items-center bg-rausch text-white text-[11px] font-semibold px-3 py-1 rounded-pill leading-[1.18]">
-            {type === 'subscription' ? 'Most Popular' : 'Best Value'}
+            {type === 'subscription' ? t.badgeMostPopular : t.badgeBestValue}
           </span>
         </div>
       )}
@@ -235,7 +238,7 @@ function PricingCard({
               {tier.priceMonthly}
             </span>
             <span className="text-ink-muted ml-1 font-normal text-sm">
-              {type === 'subscription' ? '/month' : ' one-time'}
+              {type === 'subscription' ? t.perMonth : t.oneTime}
             </span>
           </div>
         </CardHeader>
@@ -259,7 +262,7 @@ function PricingCard({
               onClick={() => onPurchase(tier)}
               disabled={isProcessing === tier.id}
             >
-              {isProcessing === tier.id ? "Processing..." : buttonText}
+              {isProcessing === tier.id ? t.btnProcessing : buttonText}
             </Button>
           ) : (
             <Button
@@ -268,7 +271,7 @@ function PricingCard({
               onClick={() => onPurchase(tier)}
               disabled={isProcessing === tier.id}
             >
-              {isProcessing === tier.id ? "Processing..." : buttonText}
+              {isProcessing === tier.id ? t.btnProcessing : buttonText}
             </Button>
           )}
         </CardFooter>

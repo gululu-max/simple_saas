@@ -24,6 +24,7 @@ import SaveToast from '@/components/scanner/delivery/SaveToast';
 import { FAKE_LOOKS } from '@/components/scanner/FakeThumbnails';
 import DatingTrivia from '@/components/DatingTrivia';
 import GenerationProgress from '@/components/scanner/delivery/GenerationProgress';
+import { useT } from '@/lib/i18n/provider';
 
 // ═══════════════════════════════════════════════════════════════
 // components/BoostScanner.tsx — v9.3
@@ -165,6 +166,7 @@ function UploadHero({
   useFusion,
   setUseFusion,
 }: UploadHeroProps) {
+  const t = useT().uploadHero;
   const [phase, setPhase] = useState<'sweep' | 'upload'>('sweep');
   const [sliderPos, setSliderPos] = useState(0);
   const isUpload = phase === 'upload';
@@ -211,10 +213,10 @@ function UploadHero({
       {/* Headline */}
       <div className="text-center px-1">
         <h1 className="font-bold leading-[1.05] text-ink" style={{ fontSize: 26, letterSpacing: '-0.5px' }}>
-          Get more matches
+          {t.headline}
         </h1>
         <p className="mt-1.5 text-[13px] text-ink-muted">
-          Choose 1-3 photos · AI delivers in 15s
+          {t.subhead}
         </p>
       </div>
 
@@ -266,7 +268,7 @@ function UploadHero({
                 className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-bold text-white backdrop-blur-md"
                 style={{ background: 'rgba(0,0,0,0.6)' }}
               >
-                <Camera className="size-3" /> {photos.length} / {maxPhotos} selected
+                <Camera className="size-3" /> {photos.length} / {maxPhotos} {t.selected}
               </div>
               {/* Top-right clear-all */}
               <button
@@ -274,7 +276,7 @@ function UploadHero({
                 onClick={onClearAll}
                 className="absolute top-3 right-3 size-7 rounded-full grid place-items-center text-white backdrop-blur-md"
                 style={{ background: 'rgba(0,0,0,0.55)' }}
-                aria-label="Clear all photos"
+                aria-label={t.clearAll}
               >
                 <X className="size-3.5" />
               </button>
@@ -297,7 +299,7 @@ function UploadHero({
                             onRemovePhoto(i);
                           }}
                           className="absolute -top-1 -right-1 size-5 rounded-full grid place-items-center bg-ink text-white"
-                          aria-label="Remove photo"
+                          aria-label={t.removePhoto}
                         >
                           <X className="size-2.5" />
                         </button>
@@ -305,7 +307,7 @@ function UploadHero({
                           <div
                             className="absolute bottom-0 inset-x-0 text-center text-[8px] font-bold py-0.5 bg-rausch text-white"
                           >
-                            Main
+                            {t.mainBadge}
                           </div>
                         )}
                       </div>
@@ -335,7 +337,7 @@ function UploadHero({
                   className="ml-auto px-2.5 py-1.5 rounded-pill text-[10.5px] font-medium text-white backdrop-blur-md"
                   style={{ background: 'rgba(0,0,0,0.55)' }}
                 >
-                  {photos.length < maxPhotos ? `${maxPhotos - photos.length} more allowed` : 'Maxed out'}
+                  {photos.length < maxPhotos ? `${maxPhotos - photos.length} ${t.moreAllowed}` : t.maxedOut}
                 </div>
               </div>
             </>
@@ -373,7 +375,7 @@ function UploadHero({
                   transition: 'opacity 0.3s',
                 }}
               >
-                BEFORE
+                {t.beforeLabel}
               </div>
               {/* AFTER label — fades in as sweep progresses */}
               <div
@@ -383,7 +385,7 @@ function UploadHero({
                   transition: 'opacity 0.3s',
                 }}
               >
-                <Sparkles className="size-3" /> AFTER
+                <Sparkles className="size-3" /> {t.afterLabel}
               </div>
               {/* Sweep handle */}
               {!isUpload && (
@@ -411,7 +413,7 @@ function UploadHero({
                   style={{ background: 'rgba(0,0,0,0.65)' }}
                 >
                   <span className="size-1.5 rounded-full bg-rausch animate-pulse" />
-                  See what AI does in 15 seconds
+                  {t.sweepStatus}
                 </div>
               )}
               {/* Upload overlay — fades in after sweep */}
@@ -439,16 +441,16 @@ function UploadHero({
                   className="font-bold text-[20px] text-white"
                   style={{ textShadow: '0 2px 12px rgba(0,0,0,0.4)' }}
                 >
-                  Choose 1-3 photos
+                  {t.choosePhotos}
                 </div>
                 <div className="text-[12px] mt-1 text-white/85">
-                  Main + alts · more photos, better picks
+                  {t.uploadHint}
                 </div>
                 <div
                   className="mt-4 inline-flex items-center justify-center h-12 px-6 rounded-pill font-bold text-[15px] bg-canvas text-rausch"
                   style={{ boxShadow: '0 6px 18px rgba(0,0,0,0.25)' }}
                 >
-                  Upload photos
+                  {t.uploadCta}
                 </div>
               </div>
             </>
@@ -460,9 +462,9 @@ function UploadHero({
           Cells use a faint rausch-tinted background to match the design. */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { v: '2.3×', l: 'more matches' },
-          { v: '47K+', l: 'photos fixed' },
-          { v: '4.9★', l: 'avg rating' },
+          { v: t.stat1Value, l: t.stat1Label },
+          { v: t.stat2Value, l: t.stat2Label },
+          { v: t.stat3Value, l: t.stat3Label },
         ].map((s) => (
           <div
             key={s.l}
@@ -477,11 +479,11 @@ function UploadHero({
 
       <div className="flex items-center justify-center gap-3 text-[11px] text-ink-soft">
         <span className="inline-flex items-center gap-1">
-          <ShieldCheck className="size-3" /> No photos stored
+          <ShieldCheck className="size-3" /> {t.trustNoStored}
         </span>
         <span>·</span>
         <span className="inline-flex items-center gap-1">
-          <Lock className="size-3" /> Private & encrypted
+          <Lock className="size-3" /> {t.trustEncrypted}
         </span>
       </div>
 
@@ -509,7 +511,7 @@ function UploadHero({
                 }}
               />
               <Sparkles className="size-5 relative z-10" />
-              <span className="relative z-10">Enhance photo</span>
+              <span className="relative z-10">{t.enhanceCta}</span>
             </button>
           </div>
         </div>
@@ -519,6 +521,10 @@ function UploadHero({
 }
 
 export default function BoostScanner() {
+  const dict = useT();
+  const tCommon = dict.scannerCommon;
+  const tOverlay = dict.overlays;
+  const tToast = dict.toasts;
   const [preview, setPreview] = useState<string | null>(null);
   // [no-login refactor 2026-05-13] Alt photos for 1-3 photo upload (up to 2 alts).
   // preview = main (slot 0); altPhotos[0..1] = slots 1-2.
@@ -884,8 +890,8 @@ export default function BoostScanner() {
       }
       if (attempts >= MAX_ATTEMPTS) {
         toast({
-          title: 'Still working…',
-          description: 'Your photos are taking longer than usual. Refresh in a minute.',
+          title: tToast.stillWorkingTitle,
+          description: tToast.stillWorkingDesc,
         });
         trackEvent('post_payment_poll_timeout');
         return;
@@ -907,8 +913,8 @@ export default function BoostScanner() {
         const data = await res.json().catch(() => ({}));
         if (data.code === 'RETRY_LIMIT') {
           toast({
-            title: 'Too many retries',
-            description: 'Please contact support — your purchase is safe.',
+            title: tToast.tooManyRetriesTitle,
+            description: tToast.tooManyRetriesDesc,
             variant: 'destructive',
           });
           trackEvent('post_payment_retry_blocked', { reason: 'limit' });
@@ -921,8 +927,8 @@ export default function BoostScanner() {
     } catch (err) {
       console.error('[retry] failed:', err);
       toast({
-        title: 'Retry failed',
-        description: 'Please try again in a moment.',
+        title: tToast.retryFailedTitle,
+        description: tToast.retryFailedDesc,
         variant: 'destructive',
       });
     } finally {
@@ -1153,7 +1159,7 @@ export default function BoostScanner() {
       setShowResultShowcase(true);
       trackEvent('result_showcase_shown');
     } catch {
-      setEnhanceError('Network error. Please try again.');
+      setEnhanceError(tToast.networkErrorMsg);
       setSliderIndex(0);
       setSelectedPanel('original');
       setIsGuestEnhanced(false);
@@ -1210,8 +1216,8 @@ export default function BoostScanner() {
           // 是 needs_real_photo —— handleReset 会把 analyzingActive 也清零。
           handleReset();
           toast({
-            title: 'We need a real photo of you',
-            description: 'That one wasn\'t usable — try a clear photo with your face visible.',
+            title: tToast.needRealPhotoTitle,
+            description: tToast.needRealPhotoDesc,
           });
           return;
         }
@@ -1269,8 +1275,8 @@ export default function BoostScanner() {
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     const file = files?.[0]; if (!file) return;
-    if (!file.type.startsWith('image/')) { alert('We only boost images. Upload a valid photo.'); return; }
-    if (file.size > 10 * 1024 * 1024) { alert('File too large. (Max 10MB)'); return; }
+    if (!file.type.startsWith('image/')) { alert(tCommon.onlyBoostImages); return; }
+    if (file.size > 10 * 1024 * 1024) { alert(tCommon.fileTooLarge); return; }
     trackEvent('boost_image_selected', { file_size: Math.round(file.size / 1024), count: files?.length ?? 1 });
 
     // Reset prior alts + compress optional 2nd/3rd files in background.
@@ -1305,8 +1311,8 @@ export default function BoostScanner() {
   // Appends to altPhotos if there's room (max MAX_PHOTOS-1 alts).
   const handleAltPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (!file.type.startsWith('image/')) { alert('We only boost images. Upload a valid photo.'); return; }
-    if (file.size > 10 * 1024 * 1024) { alert('File too large. (Max 10MB)'); return; }
+    if (!file.type.startsWith('image/')) { alert(tCommon.onlyBoostImages); return; }
+    if (file.size > 10 * 1024 * 1024) { alert(tCommon.fileTooLarge); return; }
     if (altPhotos.length >= MAX_PHOTOS - 1) return;
     try {
       const compressed = await compressImage(file, { maxSize: 800, quality: 0.75 });
@@ -1346,7 +1352,7 @@ export default function BoostScanner() {
     // Without this, complete() would send imageBase64=undefined and the
     // analyze view would flash back to "no analysis" state, looking stuck.
     if (!preview.startsWith('data:')) {
-      toast({ title: 'Still processing your photo', description: 'Try again in a moment.' });
+      toast({ title: tToast.stillProcessingTitle, description: tToast.stillProcessingDesc });
       return;
     }
     // [no-login refactor 2026-05-13] 一次性买卖：分析免费且无 FREE_LIMIT 限流，
@@ -1595,7 +1601,7 @@ export default function BoostScanner() {
   const selectEnhanced = () => { setSelectedPanel('enhanced'); setSliderIndex(1); };
 
   const isOriginalSelected = selectedPanel === 'original';
-  const downloadButtonText = isDownloadFree ? 'Download Enhanced Photo' : isFreeGeneration ? 'Download Photo' : 'Download Enhanced Photo';
+  const downloadButtonText = isDownloadFree ? tCommon.downloadEnhanced : isFreeGeneration ? tCommon.downloadPhoto : tCommon.downloadEnhanced;
   // [v9.2] Preview area: always capped height. Before analysis: max-h to keep buttons visible.
   // After analysis (isCompact): smaller max-h. During initial display without results: also capped.
   const imgHeightClass = isCompact
@@ -1646,12 +1652,12 @@ export default function BoostScanner() {
     return (
       <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={onClose}>
         {/* Close + label */}
-        <button className="absolute top-4 left-4 z-20 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20" onClick={onClose} aria-label="Close">
+        <button className="absolute top-4 left-4 z-20 grid size-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20" onClick={onClose} aria-label={tCommon.close}>
           <X className="size-5" />
         </button>
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
           <span className="text-sm font-bold px-3 py-1 rounded-pill bg-canvas/95 text-ink flex items-center gap-1.5 shadow-ab-card">
-            <Sparkles className="size-3.5 text-rausch" /> Drag to compare
+            <Sparkles className="size-3.5 text-rausch" /> {tCommon.dragToCompare}
           </span>
         </div>
 
@@ -1670,20 +1676,20 @@ export default function BoostScanner() {
             onTouchEnd={handleCompareTouchEnd}
           >
             {/* AFTER (base layer) */}
-            <img src={enhancedSrc} alt="AI Enhanced" className="absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
+            <img src={enhancedSrc} alt={tCommon.aiEnhanced} className="absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
             {/* BEFORE clipped from the right */}
             <img
               src={preview}
-              alt="Original"
+              alt={tCommon.original}
               className="absolute inset-0 w-full h-full object-contain pointer-events-none"
               style={{ clipPath: `inset(0 ${100 - lightboxComparePos}% 0 0)` }}
               draggable={false}
             />
 
             {/* BEFORE / AFTER labels */}
-            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-black/60 text-white backdrop-blur-md pointer-events-none">BEFORE</div>
+            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-black/60 text-white backdrop-blur-md pointer-events-none">{tCommon.before}</div>
             <div className="absolute top-3 right-3 px-2.5 py-1 rounded-pill text-[11px] font-bold bg-rausch text-white flex items-center gap-1 pointer-events-none">
-              <Sparkles className="size-3" /> AFTER
+              <Sparkles className="size-3" /> {tCommon.after}
             </div>
 
             {/* Drag handle */}
@@ -1717,9 +1723,9 @@ export default function BoostScanner() {
                       ? 'bg-canvas text-ink border-canvas shadow-ab-card'
                       : 'bg-transparent text-white/70 border-white/25 hover:text-white hover:border-white/50'
                   }`}
-                  title={v.matchedScene ?? `Variant ${i + 1}`}
+                  title={v.matchedScene ?? `${tCommon.variant} ${i + 1}`}
                 >
-                  Look {i + 1}
+                  {tCommon.look} {i + 1}
                 </button>
               ))}
             </div>
@@ -1728,7 +1734,7 @@ export default function BoostScanner() {
           {/* Scarcity (unpaid only) */}
           {!isDownloadFree && (
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill text-[11px] font-medium" style={{ background: 'rgba(255,170,85,0.16)', color: '#ffb47a' }}>
-              🔥 47+ unlocked today · gone when you leave
+              {tCommon.scarcityToday}
             </div>
           )}
 
@@ -1756,17 +1762,17 @@ export default function BoostScanner() {
           {/* Trust row (unpaid only) */}
           {!isDownloadFree && (
             <div className="flex items-center justify-center gap-2.5 text-[10px] text-white/60 flex-wrap max-w-sm">
-              <span className="flex items-center gap-1"><ShieldCheck className="size-3" /> 30-day refund</span>
+              <span className="flex items-center gap-1"><ShieldCheck className="size-3" /> {tCommon.refund30}</span>
               <span className="text-white/40">·</span>
-              <span className="flex items-center gap-1"><Lock className="size-3" /> Secured checkout</span>
+              <span className="flex items-center gap-1"><Lock className="size-3" /> {tCommon.securedCheckout}</span>
               <span className="text-white/40">·</span>
-              <span>Instant download</span>
+              <span>{tCommon.instantDownload}</span>
             </div>
           )}
 
           {/* Maybe later / Close */}
           <button type="button" onClick={onClose} className="text-[12px] text-white/55 hover:text-white/85 transition-colors py-1">
-            {isDownloadFree ? 'Close' : 'Maybe later'}
+            {isDownloadFree ? tCommon.close : tCommon.maybeLater}
           </button>
         </div>
       </div>
@@ -1797,8 +1803,8 @@ export default function BoostScanner() {
         <Sparkles className="size-5 text-rausch" />
       </div>
       <div className="space-y-1">
-        <p className="text-base font-semibold text-ink">Generating your photo</p>
-        <p className="text-sm text-ink-muted">Usually done within 15 seconds</p>
+        <p className="text-base font-semibold text-ink">{tOverlay.scanningTitle}</p>
+        <p className="text-sm text-ink-muted">{tOverlay.scanningSubtitle}</p>
       </div>
     </div>
   );
@@ -1811,8 +1817,8 @@ export default function BoostScanner() {
         <Loader2 className="size-5 text-rausch animate-spin" />
       </div>
       <div className="space-y-1">
-        <p className="text-base font-semibold text-ink">Generating your photo</p>
-        <p className="text-sm text-ink-muted">Usually done within 12 seconds</p>
+        <p className="text-base font-semibold text-ink">{tOverlay.enhancingTitle}</p>
+        <p className="text-sm text-ink-muted">{tOverlay.enhancingSubtitle}</p>
       </div>
     </div>
   );
@@ -1822,15 +1828,15 @@ export default function BoostScanner() {
         <Lock className="size-5 text-ink" />
       </div>
       <div className="space-y-1">
-        <p className="text-base font-semibold text-ink">Your photo looks great</p>
-        <p className="text-sm text-ink-muted">Sign in to see the full result — takes 10 seconds</p>
+        <p className="text-base font-semibold text-ink">{tOverlay.guestLockTitle}</p>
+        <p className="text-sm text-ink-muted">{tOverlay.guestLockSubtitle}</p>
       </div>
       <button
         type="button"
         onClick={() => openAuthModal('sign-up')}
         className="inline-flex items-center justify-center h-12 px-7 rounded-pill bg-rausch hover:bg-rausch-active text-white font-medium text-base shadow-ab-card transition-colors"
       >
-        View My Photo
+        {tOverlay.viewMyPhoto}
       </button>
     </div>
   );
@@ -1878,8 +1884,8 @@ export default function BoostScanner() {
               trackEvent('paywall_unlock_click', { tier: expired ? 'regular' : 'promo' });
               if (!scanId) {
                 toast({
-                  title: 'Photo still uploading',
-                  description: 'Hang on a sec and try again.',
+                  title: tToast.photoUploadingTitle,
+                  description: tToast.photoUploadingDesc,
                 });
                 return;
               }
@@ -1888,8 +1894,8 @@ export default function BoostScanner() {
                 : process.env.NEXT_PUBLIC_PRODUCT_ID_BUNDLE_PROMO;
               if (!productId) {
                 toast({
-                  title: 'Checkout misconfigured',
-                  description: 'Missing product ID. Please contact support.',
+                  title: tToast.checkoutMisconfiguredTitle,
+                  description: tToast.checkoutMisconfiguredDesc,
                   variant: 'destructive',
                 });
                 return;
@@ -1921,8 +1927,8 @@ export default function BoostScanner() {
                 console.error('[paywall] checkout failed:', err);
                 trackEvent('paywall_unlock_failed', { reason: (err as Error).message });
                 toast({
-                  title: 'Couldn’t start checkout',
-                  description: 'Please try again in a moment.',
+                  title: tToast.checkoutFailedTitle,
+                  description: tToast.checkoutFailedDesc,
                   variant: 'destructive',
                 });
                 setIsUnlocking(false);
@@ -1937,7 +1943,7 @@ export default function BoostScanner() {
           <div className="hidden md:grid md:grid-cols-2 gap-5">
             <div onClick={showEnhanced ? selectOriginal : undefined}
               className={`rounded-card border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? 'cursor-pointer' : ''} ${showEnhanced ? isOriginalSelected ? 'border-rausch shadow-lg ' : 'border-hairline-soft opacity-60 hover:opacity-90' : 'border-hairline-soft'} bg-canvas`}>
-              {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${isOriginalSelected ? 'text-rausch bg-rausch/10' : 'text-ink-soft'}`}>ORIGINAL</div>}
+              {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${isOriginalSelected ? 'text-rausch bg-rausch/10' : 'text-ink-soft'}`}>{tCommon.originalTab}</div>}
               <div className="px-4 pb-4">
                 <div className={`relative w-full overflow-hidden rounded-card border border-hairline bg-surface-soft flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
                   <img src={preview} alt="Original" className={`w-full object-contain p-2 cursor-pointer ${isCompact ? 'max-h-[240px] md:max-h-[280px]' : 'max-h-[300px] md:max-h-[360px]'}`} onClick={() => openLightbox(preview!)} />
@@ -1952,7 +1958,7 @@ export default function BoostScanner() {
                       <button type="button" onClick={() => handleEnhance()} disabled={isEnhancing}
                         className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-ab-card disabled:opacity-40 transition-colors">
                         <RefreshCw className="w-5 h-5" /> Retry Enhancement
-                        <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-xs font-semibold">No charge</span>
+                        <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-xs font-semibold">{tCommon.noCharge}</span>
                       </button>
                     ) : autoStartChecking ? (
                       <button type="button" disabled
@@ -1977,7 +1983,7 @@ export default function BoostScanner() {
             </div>
             <div onClick={showEnhanced ? selectEnhanced : undefined}
               className={`rounded-card border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? !isOriginalSelected ? 'border-ink shadow-lg  cursor-pointer' : 'border-hairline-soft opacity-60 hover:opacity-90 cursor-pointer' : 'border-hairline-soft'} bg-canvas`}>
-              {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${!isOriginalSelected ? 'text-ink bg-surface-soft' : 'text-ink-soft'}`}>AI ENHANCED</div>}
+              {showEnhanced && <div className={`text-center py-2 text-sm font-bold tracking-wide transition-colors ${!isOriginalSelected ? 'text-ink bg-surface-soft' : 'text-ink-soft'}`}>{tCommon.aiEnhancedTab}</div>}
               <div className="px-4 pb-4">
                 <div className={`relative w-full overflow-hidden rounded-card border border-hairline bg-surface-soft flex items-center justify-center transition-all duration-500 ${imgHeightClass}`}>
                   {showEnhanced ? (
@@ -1994,7 +2000,7 @@ export default function BoostScanner() {
                   ) : isEnhancing ? (
                     <div className="relative w-full h-full min-h-[200px]"><EnhancingOverlay /></div>
                   ) : (
-                    <div className="flex flex-col items-center gap-4 text-center px-6 opacity-30"><div className="grid size-16 place-items-center rounded-card bg-surface-soft border border-hairline-soft"><Sparkles className="size-7 text-ink-soft" /></div><div className="text-base text-ink-muted">Your enhanced photo will appear here</div></div>
+                    <div className="flex flex-col items-center gap-4 text-center px-6 opacity-30"><div className="grid size-16 place-items-center rounded-card bg-surface-soft border border-hairline-soft"><Sparkles className="size-7 text-ink-soft" /></div><div className="text-base text-ink-muted">{tCommon.enhancedPhotoHere}</div></div>
                   )}
                 </div>
                 {showEnhanced && variants && variants.length > 1 && !isGuestEnhanced && (
@@ -2028,8 +2034,8 @@ export default function BoostScanner() {
             <div className="rounded-card border border-hairline bg-canvas overflow-hidden">
               {showEnhanced && (
                 <div className="grid grid-cols-2 border-b border-hairline-soft">
-                  <button onClick={selectOriginal} className={`py-2.5 text-sm font-bold tracking-wide transition-colors ${isOriginalSelected ? 'text-rausch bg-rausch/10 border-b-2 border-rausch' : 'text-ink-soft'}`}>ORIGINAL</button>
-                  <button onClick={selectEnhanced} className={`py-2.5 text-sm font-bold tracking-wide transition-colors ${!isOriginalSelected ? 'text-ink bg-surface-soft border-b-2 border-ink' : 'text-ink-soft'}`}>AI ENHANCED</button>
+                  <button onClick={selectOriginal} className={`py-2.5 text-sm font-bold tracking-wide transition-colors ${isOriginalSelected ? 'text-rausch bg-rausch/10 border-b-2 border-rausch' : 'text-ink-soft'}`}>{tCommon.originalTab}</button>
+                  <button onClick={selectEnhanced} className={`py-2.5 text-sm font-bold tracking-wide transition-colors ${!isOriginalSelected ? 'text-ink bg-surface-soft border-b-2 border-ink' : 'text-ink-soft'}`}>{tCommon.aiEnhancedTab}</button>
                 </div>
               )}
               <div className="px-4 pb-4 pt-3">
@@ -2038,7 +2044,7 @@ export default function BoostScanner() {
                   onTouchStart={showEnhanced ? handleTouchStart : undefined} onTouchMove={showEnhanced ? handleTouchMove : undefined} onTouchEnd={showEnhanced ? handleTouchEnd : undefined}>
                   <div style={{ display: sliderIndex === 0 ? 'block' : 'none' }} className="relative h-full w-full">
                     <img src={preview} alt="Original" className={`w-full object-contain p-2 ${isCompact ? 'max-h-[220px]' : 'max-h-[280px]'}`} onClick={() => openLightbox(preview!)} />
-                    {showEnhanced && <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-white/10">Original</div>}
+                    {showEnhanced && <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-lg border border-white/10">{tCommon.original}</div>}
                   </div>
                   {showEnhanced && (
                     <div style={{ display: sliderIndex === 1 ? 'block' : 'none' }}>
@@ -2107,7 +2113,7 @@ export default function BoostScanner() {
                     <button type="button" onClick={() => handleEnhance()} disabled={isEnhancing}
                       className="w-full h-12 rounded-btn font-medium text-base flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-ab-card disabled:opacity-40 transition-colors">
                       <RefreshCw className="w-5 h-5" /> Retry Enhancement
-                      <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-xs font-semibold">No charge</span>
+                      <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-xs font-semibold">{tCommon.noCharge}</span>
                     </button>
                   </div>
                 )}
@@ -2132,7 +2138,7 @@ export default function BoostScanner() {
               <UsageGuideCard analysisJSON={analysisJSON} />
             )}
             {enhanceError && !activeModal && (
-              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-card border border-destructive/20 bg-destructive/5"><span className="text-destructive text-sm">⚠️ Enhancement failed: {enhanceError}</span><Button size="sm" variant="outline" className="shrink-0 border-destructive/20 text-destructive hover:bg-destructive/10 rounded-lg text-xs" onClick={() => handleEnhance()}>Retry</Button></div>
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-card border border-destructive/20 bg-destructive/5"><span className="text-destructive text-sm">⚠️ {tCommon.enhanceFailed} {enhanceError}</span><Button size="sm" variant="outline" className="shrink-0 border-destructive/20 text-destructive hover:bg-destructive/10 rounded-lg text-xs" onClick={() => handleEnhance()}>{tCommon.retry}</Button></div>
             )}
           </div>
         )}
@@ -2262,11 +2268,11 @@ export default function BoostScanner() {
                   <div className="grid size-16 place-items-center rounded-full bg-amber-500/10 border border-amber-500/20 mb-4">
                     <AlertCircle className="size-8 text-amber-500" />
                   </div>
-                  <h2 className="text-xl font-semibold text-ink mb-2">We couldn’t finish your photos</h2>
+                  <h2 className="text-xl font-semibold text-ink mb-2">{tCommon.finishFailedTitle}</h2>
                   <p className="text-sm text-ink-muted mb-1 leading-relaxed max-w-sm">
-                    Our AI had trouble with this one. <span className="font-semibold text-ink">Your purchase is safe</span> — try generating again, free of charge.
+                    {tCommon.finishFailedBody}
                   </p>
-                  <p className="text-xs text-ink-muted mb-6">If retry keeps failing, please contact support and we’ll refund.</p>
+                  <p className="text-xs text-ink-muted mb-6">{tCommon.finishFailedRefund}</p>
                   <button
                     type="button"
                     onClick={handleRetryEnhance}
@@ -2404,8 +2410,8 @@ export default function BoostScanner() {
                     } catch (err) {
                       console.error('[delivery] save-all failed', err);
                       toast({
-                        title: 'Save failed',
-                        description: 'Your browser blocked the download. Try once more.',
+                        title: tToast.saveFailedTitle,
+                        description: tToast.saveFailedDesc,
                         variant: 'destructive',
                       });
                     } finally {
@@ -2478,8 +2484,8 @@ export default function BoostScanner() {
       </div>
 
       {/* ═══ MODALS ═══ */}
-      {activeModal === 'privacy_exit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><ShieldCheck className="size-8 text-emerald-500" /></div><h2 className="text-xl font-semibold text-ink mb-2">Your Privacy Matters</h2><p className="text-sm text-ink-muted mb-1 leading-relaxed">To protect your privacy, <span className="font-semibold text-ink">we never store any photos</span> on our servers.</p><p className="text-sm text-ink-muted mb-6 leading-relaxed">Once you leave this page, your current photo and results will be <span className="font-semibold text-ink">permanently deleted</span> and cannot be recovered.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={pendingNavigationRef.current ? handlePrivacyExitConfirm : handleTryAnotherConfirm}>{pendingNavigationRef.current ? 'Leave Anyway' : 'Start Over'}</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={handlePrivacyExitCancel}>Stay on Page</button></div></div></div>)}
-      {activeModal === 'free_limit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20"><Wand2 className="size-8 text-amber-500" /></div><h2 className="text-xl font-semibold text-ink mb-2">All 3 Free Analyses Used</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">Looks like you&apos;re enjoying Matchfix! Create a free account to keep going — it only takes 10 seconds.</p><p className="text-xs text-ink-muted mb-6">Plus, your first AI-enhanced photo is <span className="font-bold text-emerald-400">completely free</span> after sign-up.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>Maybe Later</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('free_limit_signup_click'); openAuthModal('sign-up'); }}>Sign Up Free</button></div></div></div>)}
+      {activeModal === 'privacy_exit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><ShieldCheck className="size-8 text-emerald-500" /></div><h2 className="text-xl font-semibold text-ink mb-2">{tCommon.privacyExitTitle}</h2><p className="text-sm text-ink-muted mb-1 leading-relaxed">{tCommon.privacyExitBody1Pre}<span className="font-semibold text-ink">{tCommon.privacyExitBody1Bold}</span>{tCommon.privacyExitBody1Post}</p><p className="text-sm text-ink-muted mb-6 leading-relaxed">{tCommon.privacyExitBody2Pre}<span className="font-semibold text-ink">{tCommon.privacyExitBody2Bold}</span>{tCommon.privacyExitBody2Post}</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={pendingNavigationRef.current ? handlePrivacyExitConfirm : handleTryAnotherConfirm}>{pendingNavigationRef.current ? tCommon.privacyExitLeave : tCommon.privacyExitStartOver}</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={handlePrivacyExitCancel}>{tCommon.privacyExitStay}</button></div></div></div>)}
+      {activeModal === 'free_limit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20"><Wand2 className="size-8 text-amber-500" /></div><h2 className="text-xl font-semibold text-ink mb-2">{tCommon.freeLimitTitle}</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">{tCommon.freeLimitBody1}</p><p className="text-xs text-ink-muted mb-6">{tCommon.freeLimitBody2Pre}<span className="font-bold text-emerald-400">{tCommon.freeLimitBody2Bold}</span>{tCommon.freeLimitBody2Post}</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>{tCommon.freeLimitMaybeLater}</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('free_limit_signup_click'); openAuthModal('sign-up'); }}>{tCommon.freeLimitSignUp}</button></div></div></div>)}
       {/* [DISABLED 2026-05-13 — no-login refactor]
           "Credits Needed" 弹窗已停用：一次性买卖不再有 credits 概念。
           未来恢复时取消下面整行注释即可。
@@ -2493,15 +2499,15 @@ export default function BoostScanner() {
             <div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20">
               <AlertCircle className="size-8 text-amber-500" />
             </div>
-            <h2 className="text-xl font-semibold text-ink mb-2">Enhancement Couldn&apos;t Complete</h2>
+            <h2 className="text-xl font-semibold text-ink mb-2">{tCommon.enhanceFailedTitle}</h2>
             <p className="text-sm text-ink-muted mb-2 leading-relaxed">
-              Our AI works best with <span className="font-semibold text-ink">clear portrait photos</span> — face visible, decent lighting, minimal obstruction.
+              {tCommon.enhanceFailedBody1Pre}<span className="font-semibold text-ink">{tCommon.enhanceFailedBody1Bold}</span>{tCommon.enhanceFailedBody1Post}
             </p>
             <p className="text-sm text-ink-muted mb-1 leading-relaxed">
-              Don&apos;t worry — if credits were used, they&apos;ve been <span className="font-semibold text-emerald-400">automatically refunded</span>.
+              {tCommon.enhanceFailedBody2Pre}<span className="font-semibold text-emerald-400">{tCommon.enhanceFailedBody2Bold}</span>{tCommon.enhanceFailedBody2Post}
             </p>
             <p className="text-xs text-ink-muted mb-6">
-              Try uploading a different photo with your face clearly visible.
+              {tCommon.enhanceFailedHint}
             </p>
             <div className="flex w-full gap-3">
               <Button
@@ -2513,7 +2519,7 @@ export default function BoostScanner() {
                   handleReset();
                 }}
               >
-                Try a New Photo
+                {tCommon.tryNewPhoto}
               </Button>
               <button
                 className="flex-1 h-11 rounded-btn bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
@@ -2522,7 +2528,7 @@ export default function BoostScanner() {
                   handleEnhance();
                 }}
               >
-                <RefreshCw className="w-4 h-4" /> Retry Now
+                <RefreshCw className="w-4 h-4" /> {tCommon.retryNowButton}
               </button>
             </div>
           </div>
@@ -2537,25 +2543,25 @@ export default function BoostScanner() {
             <div className="flex items-center justify-between px-5 pt-5 pb-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 text-emerald-400" />
-                <span className="text-sm font-semibold text-ink">Your photo is ready</span>
+                <span className="text-sm font-semibold text-ink">{tCommon.photoReady}</span>
               </div>
               <button onClick={() => setActiveModal(null)} className="grid size-7 place-items-center rounded-full hover:bg-surface-soft transition-colors text-ink-muted text-xs">✕</button>
             </div>
-            <p className="px-5 text-xs text-ink-muted mb-4">Choose how to save your enhanced photo:</p>
+            <p className="px-5 text-xs text-ink-muted mb-4">{tCommon.chooseHowSave}</p>
 
             <div className="px-4 pb-4 flex flex-col gap-2.5">
               {/* ── Option 1: $1.99 Micro Pack (Primary CTA) ── */}
               <div className="rounded-card border-2 border-rausch bg-rausch/5 overflow-hidden">
-                <div className="bg-rausch/10 text-rausch text-[10px] font-bold text-center py-1 tracking-widest uppercase">New User Special · One-Time Only</div>
+                <div className="bg-rausch/10 text-rausch text-[10px] font-bold text-center py-1 tracking-widest uppercase">{tCommon.newUserSpecial}</div>
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <div className="text-ink font-semibold text-base">{getDownloadIds().length > 1 ? `Save All ${getDownloadIds().length} Looks` : 'Save This Photo'}</div>
-                      <div className="text-ink-muted text-xs mt-0.5">Watermark-free · Instant download</div>
+                      <div className="text-ink font-semibold text-base">{getDownloadIds().length > 1 ? tCommon.saveAllLooks.replace('{n}', String(getDownloadIds().length)) : tCommon.saveThisPhoto}</div>
+                      <div className="text-ink-muted text-xs mt-0.5">{tCommon.watermarkFree}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-ink font-bold text-xl">$1.99</div>
-                      <div className="text-ink-muted text-[10px]">one-time</div>
+                      <div className="text-ink-muted text-[10px]">{tCommon.oneTime}</div>
                     </div>
                   </div>
                   <MicroPackCheckoutButton returnPath={pathname} groupIds={getDownloadIds()} />
@@ -2571,10 +2577,10 @@ export default function BoostScanner() {
                   <Crown className="size-4 text-amber-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-ink text-sm">Go Pro — $19.99/mo</div>
-                  <div className="text-xs text-ink-muted">All downloads free · 8 enhancements/mo</div>
+                  <div className="font-semibold text-ink text-sm">{tCommon.goPro}</div>
+                  <div className="text-xs text-ink-muted">{tCommon.goProDesc}</div>
                 </div>
-                <span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">BEST VALUE</span>
+                <span className="text-[10px] font-bold text-amber-500 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-full">{tCommon.bestValue}</span>
               </button>
 
               {/* ── Option 3: Credits Pack ── */}
@@ -2586,8 +2592,8 @@ export default function BoostScanner() {
                   <Coins className="size-4 text-ink-muted" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-ink text-sm">Buy Credits Pack</div>
-                  <div className="text-xs text-ink-muted">From $9.99 · Top up &amp; enhance more</div>
+                  <div className="font-semibold text-ink text-sm">{tCommon.buyCreditsPack}</div>
+                  <div className="text-xs text-ink-muted">{tCommon.buyCreditsPackDesc}</div>
                 </div>
               </button>
 
@@ -2619,14 +2625,13 @@ export default function BoostScanner() {
               <Loader2 className="size-8 text-amber-500 animate-spin" />
             </div>
             <h2 className="text-xl font-semibold text-ink mb-2">
-              High Demand Right Now
+              {tCommon.highDemandTitle}
             </h2>
             <p className="text-sm text-ink-muted mb-1 leading-relaxed">
-              Lots of people are enhancing photos at the moment!
-              This usually resolves within seconds.
+              {tCommon.highDemandBody1}
             </p>
             <p className="text-sm text-ink-muted mb-4 leading-relaxed">
-              We&apos;ll automatically retry for you — no need to refresh.
+              {tCommon.highDemandBody2}
             </p>
 
             {retryCountdown > 0 && (
@@ -2643,7 +2648,7 @@ export default function BoostScanner() {
                     {retryCountdown}
                   </span>
                 </div>
-                <span className="text-xs text-ink-muted">Retrying automatically...</span>
+                <span className="text-xs text-ink-muted">{tCommon.retryingAuto}</span>
               </div>
             )}
 
@@ -2652,14 +2657,14 @@ export default function BoostScanner() {
                 className="flex-1 h-11 rounded-btn border border-hairline text-ink-body hover:bg-surface-soft text-sm font-medium transition-colors"
                 onClick={handleRetryCancelAndReset}
               >
-                Cancel
+                {tCommon.cancelButton}
               </button>
               <button
                 className="flex-1 h-11 rounded-btn bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
                 onClick={handleRetrySubmit}
               >
                 <RefreshCw className="size-4" />
-                Retry Now
+                {tCommon.retryNowButton}
               </button>
             </div>
           </div>
@@ -2674,6 +2679,7 @@ export default function BoostScanner() {
 // ═══════════════════════════════════════════════════════════════
 
 function MembershipCheckoutButton({ returnPath }: { returnPath: string }) {
+  const tCommon = useT().scannerCommon;
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(false);
   const handleClick = async () => {
@@ -2692,14 +2698,15 @@ function MembershipCheckoutButton({ returnPath }: { returnPath: string }) {
     <div className="flex flex-col gap-1">
       <button onClick={handleClick} disabled={loading}
         className="w-full h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70">
-        {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Crown className="size-4" /> Get Pro — $19.99/mo</>}
+        {loading ? <><Loader2 className="size-4 animate-spin" /> {tCommon.redirectingCheckout}</> : <><Crown className="size-4" /> {tCommon.goPro}</>}
       </button>
-      {error && <p className="text-destructive text-xs text-center">Something went wrong. Please try again.</p>}
+      {error && <p className="text-destructive text-xs text-center">{tCommon.somethingWrong}</p>}
     </div>
   );
 }
 
 function CreditsCheckoutButton({ returnPath }: { returnPath: string }) {
+  const tCommon = useT().scannerCommon;
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(false);
   const handleClick = async () => {
@@ -2718,9 +2725,9 @@ function CreditsCheckoutButton({ returnPath }: { returnPath: string }) {
     <div className="flex flex-col gap-1">
       <button onClick={handleClick} disabled={loading}
         className="w-full h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70">
-        {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Coins className="size-4" /> Buy 75 Credits — $9.99</>}
+        {loading ? <><Loader2 className="size-4 animate-spin" /> {tCommon.redirectingCheckout}</> : <><Coins className="size-4" /> {tCommon.buyCreditsPack}</>}
       </button>
-      {error && <p className="text-destructive text-xs text-center">Something went wrong. Please try again.</p>}
+      {error && <p className="text-destructive text-xs text-center">{tCommon.somethingWrong}</p>}
     </div>
   );
 }
@@ -2729,6 +2736,7 @@ function CreditsCheckoutButton({ returnPath }: { returnPath: string }) {
 // `groupIds` carries the enhancementIds the user should be able to download
 // after payment. For fusion mode this is all 3 variants; for retouch it's 1.
 function MicroPackCheckoutButton({ returnPath, groupIds }: { returnPath: string; groupIds: string[] }) {
+  const tCommon = useT().scannerCommon;
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(false);
   const handleClick = async () => {
@@ -2749,20 +2757,21 @@ function MicroPackCheckoutButton({ returnPath, groupIds }: { returnPath: string;
       else { setError(true); setLoading(false); safeRemoveItem(sessionStorage, 'mf_showcase_pending_download_group'); }
     } catch (e) { setError(true); setLoading(false); safeRemoveItem(sessionStorage, 'mf_showcase_pending_download_group'); }
   };
-  const buttonLabel = groupIds.length > 1 ? `Get All ${groupIds.length} Looks — $1.99` : 'Get This Photo — $1.99';
+  const buttonLabel = groupIds.length > 1 ? tCommon.getAllLooks.replace('{n}', String(groupIds.length)) : tCommon.getThisPhoto;
   return (
     <div className="flex flex-col gap-1">
       <button onClick={handleClick} disabled={loading}
         className="w-full h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-lg ">
         {loading ? <><Loader2 className="size-4 animate-spin" /> Redirecting to checkout...</> : <><Zap className="size-4" /> {buttonLabel}</>}
       </button>
-      {error && <p className="text-destructive text-xs text-center">Something went wrong. Please try again.</p>}
+      {error && <p className="text-destructive text-xs text-center">{tCommon.somethingWrong}</p>}
     </div>
   );
 }
 // [v9.4] Showcase Micro Pack — stores group of enhancementIds so payment return
 // auto-downloads all of them (Plan B: $1.99 unlocks the whole 3-variant group)
 function ShowcaseMicroPackButton({ returnPath, enhancementId, groupIds }: { returnPath: string; enhancementId: string | null; groupIds: string[] }) {
+  const tCommon = useT().scannerCommon;
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(false);
 
@@ -2828,16 +2837,16 @@ function ShowcaseMicroPackButton({ returnPath, enhancementId, groupIds }: { retu
         {loading ? (
           <>
             <Loader2 className="size-5 animate-spin relative z-10" />
-            <span className="relative z-10">Redirecting to checkout...</span>
+            <span className="relative z-10">{tCommon.redirectingCheckout}</span>
           </>
         ) : (
           <>
             <Download className="size-5 relative z-10" />
-            <span className="relative z-10">{groupIds.length > 1 ? `Get All ${groupIds.length} Looks — $1.99` : 'Get This Photo — $1.99'}</span>
+            <span className="relative z-10">{groupIds.length > 1 ? tCommon.getAllLooks.replace('{n}', String(groupIds.length)) : tCommon.getThisPhoto}</span>
           </>
         )}
       </button>
-      {error && <p className="text-destructive text-xs text-center">Something went wrong. Please try again.</p>}
+      {error && <p className="text-destructive text-xs text-center">{tCommon.somethingWrong}</p>}
     </div>
   );
 }

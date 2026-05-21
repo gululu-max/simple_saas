@@ -2,35 +2,37 @@
 
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
-
-const cases = [
-  {
-    beforeImg: "/cases/kevin-before.webp",
-    afterImg: "/cases/kevin-after.webp",
-    name: "Kevin L., 26",
-    scoreBefore: 31,
-    scoreAfter: 89,
-    metric: "+312% matches in 7 days",
-  },
-  {
-    beforeImg: "/cases/ryan-before.webp",
-    afterImg: "/cases/ryan-after.webp",
-    name: "Ryan C., 28",
-    scoreBefore: 38,
-    scoreAfter: 85,
-    metric: "+204% more conversations",
-  },
-  {
-    beforeImg: "/cases/jason-before.webp",
-    afterImg: "/cases/jason-after.webp",
-    name: "Jason W., 31",
-    scoreBefore: 27,
-    scoreAfter: 91,
-    metric: "30+ matches in first week",
-  },
-];
+import { useT } from "@/lib/i18n/provider";
 
 export function FeaturesGrid() {
+  const t = useT().home;
+  const cases = [
+    {
+      beforeImg: "/cases/kevin-before.webp",
+      afterImg: "/cases/kevin-after.webp",
+      name: "Kevin L., 26",
+      scoreBefore: 31,
+      scoreAfter: 89,
+      metric: t.case1Metric,
+    },
+    {
+      beforeImg: "/cases/ryan-before.webp",
+      afterImg: "/cases/ryan-after.webp",
+      name: "Ryan C., 28",
+      scoreBefore: 38,
+      scoreAfter: 85,
+      metric: t.case2Metric,
+    },
+    {
+      beforeImg: "/cases/jason-before.webp",
+      afterImg: "/cases/jason-after.webp",
+      name: "Jason W., 31",
+      scoreBefore: 27,
+      scoreAfter: 91,
+      metric: t.case3Metric,
+    },
+  ];
+
   return (
     <div className="space-y-4">
       {cases.map((c, i) => (
@@ -55,7 +57,7 @@ export function FeaturesGrid() {
               </div>
               {/* BEFORE label — 白底 ink uppercase */}
               <span className="absolute bottom-2 left-2 z-10 bg-canvas text-ink text-[8px] font-bold uppercase tracking-[0.32px] px-2 py-0.5 rounded-pill">
-                Before
+                {t.resultsBefore}
               </span>
             </div>
 
@@ -77,7 +79,7 @@ export function FeaturesGrid() {
                 {c.scoreAfter}
               </div>
               <span className="absolute bottom-2 left-2 z-10 bg-ink text-white text-[8px] font-bold uppercase tracking-[0.32px] px-2 py-0.5 rounded-pill">
-                After
+                {t.resultsAfter}
               </span>
             </div>
           </div>
@@ -93,7 +95,7 @@ export function FeaturesGrid() {
       ))}
 
       <p className="text-center text-ink-muted text-base font-medium pt-2">
-        Your turn.
+        {t.resultsYourTurn}
       </p>
     </div>
   );

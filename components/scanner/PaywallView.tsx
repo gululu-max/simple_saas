@@ -4,6 +4,7 @@ import { Flame, Check, Sparkles, Lock, ShieldCheck, Download } from 'lucide-reac
 import CountdownDigits, { useFakeCountdown } from './CountdownDigits';
 import LiveMatchFeed from './LiveMatchFeed';
 import FakeThumbnails from './FakeThumbnails';
+import { useT } from '@/lib/i18n/provider';
 
 interface Props {
   mainPhoto: string;
@@ -26,31 +27,32 @@ const hideScroll: React.CSSProperties = {
 const BUNDLE_PROMO = '4.99';
 const BUNDLE_REGULAR = '12.99';
 
-const SAVINGS_PILLS: Array<{ label: string; bg: string; color: string; icon?: boolean }> = [
-  { label: 'First-time deal · save $8', bg: '#ff385c', color: '#fff', icon: true },
-  { label: `Back to $${BUNDLE_REGULAR} soon`, bg: '#FFEDD5', color: '#9A3412' },
-  { label: '3-photo bundle', bg: '#DCFCE7', color: '#166534' },
-  { label: 'Watermark-free', bg: '#EDE9FE', color: '#5B21B6' },
-  { label: 'HD download', bg: '#E0F2FE', color: '#075985' },
-];
-
-const PROMISES = [
-  'No login required',
-  'Auto-deleted · never stored',
-  'Free retry if unsatisfied',
-  '3-day refund · no questions',
-];
-
-const PROOF_PILLS: Array<{ label: string; bg: string; color: string }> = [
-  { label: '⭐ 375 reviews', bg: '#FFF7E6', color: '#B45309' },
-  { label: '♻️ 134 repeat buyers', bg: '#FCE7F3', color: '#9D174D' },
-  { label: '🔥 100+ bought this week', bg: '#FEE2E2', color: '#B91C1C' },
-  { label: '💕 Higher match rate', bg: '#DCFCE7', color: '#166534' },
-  { label: '🌹 59 started dating', bg: '#DBEAFE', color: '#1E40AF' },
-  { label: '2,467 sold', bg: '#F3F4F6', color: '#374151' },
-];
-
 export default function PaywallView({ mainPhoto, onUnlock, onReset, unlocking = false }: Props) {
+  const t = useT().paywall;
+  const SAVINGS_PILLS: Array<{ label: string; bg: string; color: string; icon?: boolean }> = [
+    { label: t.savingPill1, bg: '#ff385c', color: '#fff', icon: true },
+    { label: `${t.savingPill2Prefix}${BUNDLE_REGULAR}${t.savingPill2Suffix}`, bg: '#FFEDD5', color: '#9A3412' },
+    { label: t.savingPill3, bg: '#DCFCE7', color: '#166534' },
+    { label: t.savingPill4, bg: '#EDE9FE', color: '#5B21B6' },
+    { label: t.savingPill5, bg: '#E0F2FE', color: '#075985' },
+  ];
+
+  const PROMISES = [
+    t.promiseNoLogin,
+    t.promiseAutoDeleted,
+    t.promiseFreeRetry,
+    t.promiseRefund,
+  ];
+
+  const PROOF_PILLS: Array<{ label: string; bg: string; color: string }> = [
+    { label: t.proof1, bg: '#FFF7E6', color: '#B45309' },
+    { label: t.proof2, bg: '#FCE7F3', color: '#9D174D' },
+    { label: t.proof3, bg: '#FEE2E2', color: '#B91C1C' },
+    { label: t.proof4, bg: '#DCFCE7', color: '#166534' },
+    { label: t.proof5, bg: '#DBEAFE', color: '#1E40AF' },
+    { label: t.proof6, bg: '#F3F4F6', color: '#374151' },
+  ];
+
   const { remaining, expired } = useFakeCountdown();
   const bundlePrice = expired ? BUNDLE_REGULAR : BUNDLE_PROMO;
   const showStrikethrough = !expired;
@@ -127,7 +129,7 @@ export default function PaywallView({ mainPhoto, onUnlock, onReset, unlocking = 
             onClick={onReset}
             className="w-full py-2 text-[12px] font-medium text-ink-muted"
           >
-            Try a different photo
+            {t.tryDifferent}
           </button>
         </div>
       </div>
@@ -163,7 +165,7 @@ export default function PaywallView({ mainPhoto, onUnlock, onReset, unlocking = 
           {!expired ? (
             <>
               <div className="relative z-10 flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-[#FFE082]">
-                <Flame className="size-3" /> Price going up in
+                <Flame className="size-3" /> {t.priceGoingUp}
               </div>
               <div className="relative z-10 mt-1">
                 <CountdownDigits remaining={remaining} />
@@ -171,15 +173,15 @@ export default function PaywallView({ mainPhoto, onUnlock, onReset, unlocking = 
             </>
           ) : (
             <div className="relative z-10 flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-white/80">
-              <Flame className="size-3" /> Limited offer ended
+              <Flame className="size-3" /> {t.limitedEnded}
             </div>
           )}
           <div className="relative z-10 flex items-baseline gap-2 mt-2">
             {unlocking ? (
-              <span className="font-bold text-[17px] text-white">Redirecting to Creem…</span>
+              <span className="font-bold text-[17px] text-white">{t.redirectingCreem}</span>
             ) : (
               <>
-                <span className="font-bold text-[17px] text-white">Unlock all 3 ·</span>
+                <span className="font-bold text-[17px] text-white">{t.unlockAll3}</span>
                 <span
                   className="font-bold text-[22px] text-white"
                   style={{ letterSpacing: '-0.3px' }}
@@ -199,20 +201,28 @@ export default function PaywallView({ mainPhoto, onUnlock, onReset, unlocking = 
           </div>
         </button>
 
-        <div className="text-[10.5px] text-center mt-2 flex items-center justify-center gap-2 flex-wrap text-ink-soft">
-          <span className="inline-flex items-center gap-1">
-            <Lock className="size-2.5" /> Creem secured
-          </span>
-          <span>·</span>
-          <span className="inline-flex items-center gap-1">
-            <ShieldCheck className="size-2.5" /> 3-day refund
-          </span>
-          <span>·</span>
-          <span className="inline-flex items-center gap-1">
-            <Download className="size-2.5" /> Instant download
-          </span>
-        </div>
+        <TrustStrip />
       </div>
     </div>
   );
 }
+
+function TrustStrip() {
+  const t = useT().scannerCommon;
+  return (
+    <div className="text-[10.5px] text-center mt-2 flex items-center justify-center gap-2 flex-wrap text-ink-soft">
+      <span className="inline-flex items-center gap-1">
+        <Lock className="size-2.5" /> {t.creemSecured}
+      </span>
+      <span>·</span>
+      <span className="inline-flex items-center gap-1">
+        <ShieldCheck className="size-2.5" /> {t.refund3}
+      </span>
+      <span>·</span>
+      <span className="inline-flex items-center gap-1">
+        <Download className="size-2.5" /> {t.instantDownload}
+      </span>
+    </div>
+  );
+}
+

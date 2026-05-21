@@ -1,6 +1,7 @@
 'use client';
 
 import { Lock, Sparkles } from 'lucide-react';
+import { useT } from '@/lib/i18n/provider';
 
 // Three CSS-only "AI looks" generated from the user's photo.
 // No real enhance call happens before payment — this is the placeholder.
@@ -12,6 +13,9 @@ export interface FakeLook {
   filter: string;
 }
 
+// Filters are visual only; labels/tags resolved at render time via useT()
+// to follow the current locale. Keep this exported because BoostScanner
+// references the id/filter values for the post-payment delivery mocks.
 export const FAKE_LOOKS: FakeLook[] = [
   {
     id: 'natural',
@@ -39,7 +43,13 @@ interface Props {
 }
 
 export default function FakeThumbnails({ src, onTap }: Props) {
+  const t = useT().fakeThumbs;
   const interactive = !!onTap;
+  const labelFor: Record<FakeLook['id'], string> = {
+    natural: t.naturalLabel,
+    outdoor: t.outdoorLabel,
+    studio: t.studioLabel,
+  };
   return (
     <>
       <div className="grid grid-cols-3 gap-2">
@@ -84,7 +94,7 @@ export default function FakeThumbnails({ src, onTap }: Props) {
                 className="absolute inset-x-1.5 bottom-1 text-center text-[10.5px] font-bold tracking-wide text-white"
                 style={{ textShadow: '0 1px 4px rgba(0,0,0,0.65)' }}
               >
-                {look.label}
+                {labelFor[look.id]}
               </div>
             </>
           );
@@ -111,7 +121,7 @@ export default function FakeThumbnails({ src, onTap }: Props) {
       </div>
       <div className="text-[11px] text-center mt-1.5 flex items-center justify-center gap-1 text-ink-muted">
         <Sparkles className="size-3 text-rausch" />
-        3 styles ready · unlock to view
+        {t.threeReady}
       </div>
     </>
   );

@@ -2,37 +2,35 @@
 
 import { Logo } from "./logo";
 import Link from "next/link";
-
-const footerLinks = [
-  {
-    title: "Product",
-    links: [
-      { label: "Features", href: "/#features" },
-      { label: "Pricing", href: "/#pricing" },
-    ],
-  },
-  {
-    title: "Company",
-    links: [
-      { label: "About", href: "/about" },
-    ],
-  },
-  {
-    title: "Support",
-    links: [
-      { label: "Email Support", href: "mailto:gululumax01@gmail.com" },
-    ],
-  },
-  {
-    title: "Legal",
-    links: [
-      { label: "Privacy", href: "/privacy" },
-      { label: "Terms", href: "/terms" },
-    ],
-  },
-];
+import { useT } from "@/lib/i18n/provider";
 
 export function Footer() {
+  const t = useT().footer;
+  const footerLinks = [
+    {
+      title: t.groupProduct,
+      links: [
+        { label: t.linkFeatures, href: "/#features" },
+        { label: t.linkPricing, href: "/#pricing" },
+      ],
+    },
+    {
+      title: t.groupCompany,
+      links: [{ label: t.linkAbout, href: "/about" }],
+    },
+    {
+      title: t.groupSupport,
+      links: [{ label: t.linkEmailSupport, href: "mailto:gululumax01@gmail.com" }],
+    },
+    {
+      title: t.groupLegal,
+      links: [
+        { label: t.linkPrivacy, href: "/privacy" },
+        { label: t.linkTerms, href: "/terms" },
+      ],
+    },
+  ];
+
   return (
     <footer className="border-t border-hairline bg-canvas">
       <div className="container px-6 py-12 lg:py-section">
@@ -41,7 +39,7 @@ export function Footer() {
           <div className="col-span-full lg:col-span-2">
             <Logo />
             <p className="mt-4 text-sm text-ink-muted leading-[1.5] max-w-[260px]">
-              Stop guessing. Get a date tonight.
+              {t.tagline}
             </p>
           </div>
 
@@ -71,12 +69,12 @@ export function Footer() {
         {/* Legal band — caption-sm 13px muted，hairline-soft 上边分隔 */}
         <div className="mt-12 pt-6 border-t border-hairline-soft flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
           <p className="text-[13px] text-ink-muted leading-[1.23]">
-            © {new Date().getFullYear()} Matchfix · All rights reserved
+            © {new Date().getFullYear()} Matchfix · {t.copyright}
           </p>
 
           <div className="flex items-center gap-2">
             <span className="text-[13px] text-ink-muted leading-[1.23]">
-              Support:
+              {t.support}
             </span>
             <a
               href="mailto:gululumax01@gmail.com"

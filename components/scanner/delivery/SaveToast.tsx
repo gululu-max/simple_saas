@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import SparkleBurst from './SparkleBurst';
+import { useT } from '@/lib/i18n/provider';
 
 interface Props {
   onDone: () => void;
@@ -12,6 +13,7 @@ interface Props {
 const TOAST_PALETTE = ['#16a34a', '#86efac', '#FFD86B'];
 
 export default function SaveToast({ onDone, durationMs = 2400 }: Props) {
+  const t = useT().saveToast;
   const [burst, setBurst] = useState(false);
 
   useEffect(() => {
@@ -60,17 +62,17 @@ export default function SaveToast({ onDone, durationMs = 2400 }: Props) {
           className="font-bold text-[24px] text-ink"
           style={{ letterSpacing: '-0.4px' }}
         >
-          Saved!
+          {t.title}
         </div>
         <div className="text-[14px] mt-1.5 text-center leading-[1.4] text-ink-muted">
-          3 photos added to your album
+          {t.subtitle}
         </div>
         <div
           className="mt-3 px-2.5 py-1 rounded-pill text-[10.5px] font-bold flex items-center gap-1.5"
           style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}
         >
           <span className="size-1.5 rounded-full" style={{ background: '#16a34a' }} />
-          Look 1 · Look 2 · Look 3
+          {t.looksBadge}
         </div>
       </div>
     </div>

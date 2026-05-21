@@ -2,12 +2,14 @@
 
 import React, { useMemo } from "react";
 import { Rocket } from "lucide-react";
+import { useT } from "@/lib/i18n/provider";
 
 interface UsageGuideCardProps {
   analysisJSON: string | null;
 }
 
 export default function UsageGuideCard({ analysisJSON }: UsageGuideCardProps) {
+  const t = useT().usageGuide;
   const tips: string[] | null = useMemo(() => {
     if (!analysisJSON) return null;
     try {
@@ -25,7 +27,7 @@ export default function UsageGuideCard({ analysisJSON }: UsageGuideCardProps) {
     <div className="rounded-card border border-hairline bg-canvas shadow-ab-card overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-4 border-b border-hairline-soft">
         <Rocket className="size-4 text-rausch shrink-0" />
-        <h3 className="text-[16px] font-semibold text-ink">Next steps</h3>
+        <h3 className="text-[16px] font-semibold text-ink">{t.nextSteps}</h3>
       </div>
       <ol className="px-5 py-2">
         {tips.map((tip, i) => (

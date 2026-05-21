@@ -6,11 +6,15 @@ import { Menu, Home, Wand2, DollarSign, LogOut, X, BookOpen } from "lucide-react
 import Link from "next/link";
 import { signOutAction } from "@/app/actions";
 import type { LucideIcon } from "lucide-react";
+import { LanguageSwitcher } from "@/components/language-switcher";
+
+type IconKey = "home" | "enhancer" | "pricing" | "blog";
 
 interface MobileNavItem {
   label: string;
   href: string;
   icon?: LucideIcon;
+  iconKey?: IconKey;
 }
 
 interface MobileNavProps {
@@ -19,19 +23,12 @@ interface MobileNavProps {
   isDashboard: boolean;
 }
 
-function getIcon(label: string): LucideIcon {
-  if (label.toLowerCase().includes("home")) return Home;
-  if (label.toLowerCase().includes("photo") || label.toLowerCase().includes("enhancer")) return Wand2;
-  if (label.toLowerCase().includes("pricing")) return DollarSign;
-  if (label.toLowerCase().includes("blog")) return BookOpen;
-  return Home;
-}
-
-function stripLeadingEmoji(label: string): string {
-  return label.replace(/^[\uD800-\uDBFF][\uDC00-\uDFFF]\s*/, "").replace(/^\S{1,2}\s+/, (m) =>
-    /[a-zA-Z0-9]/.test(m.trim()) ? m : ""
-  ).trim();
-}
+const ICONS: Record<IconKey, LucideIcon> = {
+  home: Home,
+  enhancer: Wand2,
+  pricing: DollarSign,
+  blog: BookOpen,
+};
 
 export function MobileNav({ items, user }: MobileNavProps) {
   const [open, setOpen] = useState(false);
@@ -91,8 +88,7 @@ export function MobileNav({ items, user }: MobileNavProps) {
       >
         <nav className="flex flex-col px-3 py-3">
           {items.map((item) => {
-            const Icon = item.icon ?? getIcon(item.label);
-            const cleanLabel = stripLeadingEmoji(item.label);
+            const Icon = item.icon ?? (item.iconKey ? ICONS[item.iconKey] : Home);
             return (
               <Link
                 key={item.href}
@@ -103,10 +99,14 @@ export function MobileNav({ items, user }: MobileNavProps) {
                 <span className="flex h-8 w-8 items-center justify-center rounded-md bg-surface-soft group-hover:bg-surface-strong transition-colors">
                   <Icon className="h-4 w-4 text-ink-muted group-hover:text-ink" />
                 </span>
-                <span className="text-[15px] font-semibold">{cleanLabel}</span>
+                <span className="text-[15px] font-semibold">{item.label}</span>
               </Link>
             );
           })}
+
+          <div className="mt-2 pt-3 border-t border-hairline-soft px-3">
+            <LanguageSwitcher />
+          </div>
         </nav>
 
         {user && (

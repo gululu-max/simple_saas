@@ -2,6 +2,7 @@
 
 import { Coins } from "lucide-react";
 import { CreditTransaction } from "@/types/creem";
+import { useT } from "@/lib/i18n/provider";
 
 type CreditsBalanceCardProps = {
   credits: number;
@@ -12,6 +13,7 @@ export function CreditsBalanceCard({
   credits,
   recentHistory,
 }: CreditsBalanceCardProps) {
+  const t = useT().subscribeStatus;
   return (
     <div className="rounded-card border border-hairline bg-canvas p-6">
       <div className="flex items-center gap-4">
@@ -19,7 +21,7 @@ export function CreditsBalanceCard({
           <Coins className="h-6 w-6 text-rausch" />
         </div>
         <div>
-          <p className="text-sm text-ink-muted leading-[1.43]">Available Credits</p>
+          <p className="text-sm text-ink-muted leading-[1.43]">{t.availableCredits}</p>
           <h3 className="text-[22px] font-bold text-ink mt-1 tracking-[-0.4px] tabular-nums leading-[1.18]">
             {credits}
           </h3>
@@ -27,7 +29,7 @@ export function CreditsBalanceCard({
       </div>
       {recentHistory.length > 0 && (
         <div className="mt-4 space-y-2">
-          <p className="text-[13px] text-ink-muted leading-[1.23]">Recent Activity</p>
+          <p className="text-[13px] text-ink-muted leading-[1.23]">{t.recentActivity}</p>
           <div className="space-y-1">
             {recentHistory.map((history, index) => (
               <div

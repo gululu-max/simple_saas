@@ -8,6 +8,7 @@ import { Shield, Trash2, Zap } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import { PhotoDiagnosis } from "@/components/photo-diagnosis";
+import { getDictionary } from "@/lib/i18n/server";
 
 const FeaturesGrid = dynamic(() =>
   import("@/components/features-grid").then((m) => ({
@@ -20,10 +21,12 @@ export default async function Home() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const { dict } = await getDictionary();
+  const t = dict.home;
 
   // [no-login pivot 2026-05-18] 一次性买卖统一用 "Instant Glow-Up"，
   // free_enhance_used 不再用（登录态恢复时这段逻辑可解开复用）。
-  const buttonText = "Instant Glow-Up";
+  const buttonText = t.ctaInstantGlowUp;
   // if (user) {
   //   const { data: customer } = await supabase
   //     .from("customers")
@@ -42,11 +45,10 @@ export default async function Home() {
       <section className="bg-canvas pt-12 lg:pt-section pb-8 lg:pb-12">
         <div className="container max-w-[760px] mx-auto px-6 text-center">
           <h1 className="text-[28px] lg:text-[32px] font-bold leading-[1.18] tracking-[-0.5px] text-ink">
-            Your photos are costing you matches
+            {t.heroTitle}
           </h1>
           <p className="mt-4 text-base lg:text-[17px] text-ink-body leading-[1.5] max-w-[520px] mx-auto">
-            One AI fix on the photos you already have — better lighting, framing
-            and color. Same face, more matches.
+            {t.heroSubtitle}
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-5">
@@ -69,10 +71,10 @@ export default async function Home() {
         <div className="container px-6 max-w-[640px] mx-auto">
           <div className="text-center mb-8">
             <h2 className="text-[22px] lg:text-[28px] font-bold tracking-[-0.4px] text-ink leading-[1.18] mb-3">
-              Small fixes, real results.
+              {t.resultsTitle}
             </h2>
             <p className="text-ink-muted text-base leading-[1.5]">
-              Three guys. Same face. Different outcomes.
+              {t.resultsSubtitle}
             </p>
           </div>
           <FeaturesGrid />
@@ -86,35 +88,32 @@ export default async function Home() {
           <div className="grid grid-cols-3 gap-3 mb-12">
             <div className="text-center space-y-2 p-4 rounded-card border border-hairline bg-canvas">
               <Zap className="w-5 h-5 text-ink mx-auto" />
-              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">No sign-up</h3>
+              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">{t.trustNoSignup}</h3>
             </div>
             <div className="text-center space-y-2 p-4 rounded-card border border-hairline bg-canvas">
               <Trash2 className="w-5 h-5 text-ink mx-auto" />
-              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">Auto-deleted</h3>
+              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">{t.trustAutoDeleted}</h3>
             </div>
             <div className="text-center space-y-2 p-4 rounded-card border border-hairline bg-canvas">
               <Shield className="w-5 h-5 text-ink mx-auto" />
-              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">First one free</h3>
+              <h3 className="text-[13px] font-semibold text-ink leading-[1.25]">{t.trustFirstFree}</h3>
             </div>
           </div>
 
           {/* Final CTA — 白底 ink 标题 + Rausch 实色按钮 */}
           <div className="text-center space-y-5 py-10">
-            <h2 className="text-[22px] lg:text-[28px] font-bold tracking-[-0.4px] text-ink leading-[1.18]">
-              Every day you wait,
-              <br />
-              you&apos;re swiped left on.
+            <h2 className="text-[22px] lg:text-[28px] font-bold tracking-[-0.4px] text-ink leading-[1.18] whitespace-pre-line">
+              {t.finalCtaTitle}
             </h2>
             <p className="text-ink-body text-base leading-[1.5] max-w-[440px] mx-auto">
-              The matches you&apos;re missing right now won&apos;t come back. One
-              upload. 30 seconds.
+              {t.finalCtaSubtitle}
             </p>
             <div className="pt-2 flex justify-center">
               <Link
                 href="/subscribe/scanner"
                 className="inline-flex items-center justify-center gap-2 rounded-sm bg-rausch px-6 h-12 text-base font-medium text-white transition-colors hover:bg-rausch-active"
               >
-                Instant Glow-Up
+                {t.ctaInstantGlowUp}
               </Link>
             </div>
           </div>

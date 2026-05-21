@@ -9,30 +9,10 @@
 // progress 由 BoostScanner 控制（外部 setInterval 推 0→95，stream 结束跳 100）。
 // ═══════════════════════════════════════════════════════════════
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { TRIVIA_QUESTIONS } from '@/lib/trivia-questions';
-
-const STREAM_LINES = [
-  'Detecting face landmarks…',
-  '✓ Face clearly visible — top trust signal',
-  '✓ Warm smile detected — reads approachable',
-  'Reading lighting & color balance…',
-  '⚠ Slight cool color cast — fixable',
-  '⚠ Uneven shadow on left cheek — fixable',
-  'Matching background to dating-app norms…',
-  '✓ 3 best-performing scene options found',
-  'Composing your enhanced looks…',
-];
-
-// 给等待页轮播的轻量 trivia（取自现有题库，只展示题面 + 一条 "did you know" 文案）
-const TRIVIA_TIPS: Array<{ tag: string; body: string }> = [
-  { tag: 'Did you know?', body: 'Dating profiles with a clear, well-lit face photo get matched 2.3× more often than blurry or cropped ones.' },
-  { tag: 'Pro tip', body: 'Smiling with teeth visible boosts right-swipe rate by ~14% on most dating apps.' },
-  { tag: 'Science says', body: 'Outdoor backgrounds outperform indoor ones — they signal an active lifestyle in 0.3 seconds.' },
-  { tag: 'Fun fact', body: 'Profiles with 3+ photos get 2× more conversations than single-photo profiles.' },
-  { tag: 'Heads up', body: 'Sunglasses in your main photo cut profile views by 15%. Eyes are the #1 trust signal.' },
-];
+import { useT } from '@/lib/i18n/provider';
 
 interface Props {
   preview: string;
@@ -40,6 +20,22 @@ interface Props {
 }
 
 export default function AnalyzingFlow({ preview, progress }: Props) {
+  const t = useT().analyzing;
+  const STREAM_LINES = useMemo(
+    () => [t.line1, t.line2, t.line3, t.line4, t.line5, t.line6, t.line7, t.line8, t.line9],
+    [t],
+  );
+  const TRIVIA_TIPS = useMemo<Array<{ tag: string; body: string }>>(
+    () => [
+      { tag: t.triviaTag1, body: t.triviaBody1 },
+      { tag: t.triviaTag2, body: t.triviaBody2 },
+      { tag: t.triviaTag3, body: t.triviaBody3 },
+      { tag: t.triviaTag4, body: t.triviaBody4 },
+      { tag: t.triviaTag5, body: t.triviaBody5 },
+    ],
+    [t],
+  );
+
   const clamped = Math.max(0, Math.min(100, progress));
   const linesShown = Math.min(
     STREAM_LINES.length,
@@ -51,7 +47,7 @@ export default function AnalyzingFlow({ preview, progress }: Props) {
   useEffect(() => {
     const t = setInterval(() => setTipIdx((i) => (i + 1) % TRIVIA_TIPS.length), 3800);
     return () => clearInterval(t);
-  }, []);
+  }, [TRIVIA_TIPS.length]);
   void TRIVIA_QUESTIONS; // keep import alive — used by main DatingTrivia component elsewhere
   const tip = TRIVIA_TIPS[tipIdx];
 
@@ -105,13 +101,13 @@ export default function AnalyzingFlow({ preview, progress }: Props) {
               className="size-1.5 rounded-full bg-rausch"
               style={{ animation: 'pulse 1.2s ease-in-out infinite' }}
             />
-            Scanning your photo · {clamped}%
+            {t.scanningStatus} · {clamped}%
           </div>
           <div
             className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider text-ink"
             style={{ background: 'rgba(255,255,255,0.95)' }}
           >
-            ~15s
+            {t.eta}
           </div>
         </div>
 
@@ -123,7 +119,7 @@ export default function AnalyzingFlow({ preview, progress }: Props) {
               style={{ animation: 'pulse 1.2s infinite' }}
             />
             <div className="text-[11px] font-bold uppercase tracking-wider text-rausch">
-              Analyzing…
+              {t.analyzing}
             </div>
           </div>
           <div

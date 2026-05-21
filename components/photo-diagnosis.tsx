@@ -1,51 +1,28 @@
 "use client";
 
 import Image from "next/image";
-
-const issues = [
-  {
-    id: 1,
-    label: "Poor lighting on face",
-    anchorX: "62%",
-    anchorY: "35%",
-  },
-  {
-    id: 2,
-    label: "Distracting background",
-    anchorX: "30%",
-    anchorY: "22%",
-  },
-  {
-    id: 3,
-    label: "Bad cropping",
-    anchorX: "15%",
-    anchorY: "12%",
-  },
-  {
-    id: 4,
-    label: "Closed body language",
-    anchorX: "55%",
-    anchorY: "62%",
-  },
-  {
-    id: 5,
-    label: "No eye connection",
-    anchorX: "68%",
-    anchorY: "28%",
-  },
-];
+import { useT } from "@/lib/i18n/provider";
 
 export function PhotoDiagnosis() {
+  const t = useT().home;
+  const issues = [
+    { id: 1, label: t.diagnosisIssue1, anchorX: "62%", anchorY: "35%" },
+    { id: 2, label: t.diagnosisIssue2, anchorX: "30%", anchorY: "22%" },
+    { id: 3, label: t.diagnosisIssue3, anchorX: "15%", anchorY: "12%" },
+    { id: 4, label: t.diagnosisIssue4, anchorX: "55%", anchorY: "62%" },
+    { id: 5, label: t.diagnosisIssue5, anchorX: "68%", anchorY: "28%" },
+  ];
+
   return (
     <section className="bg-canvas pt-12 lg:pt-section pb-12 lg:pb-section">
       <div className="container px-6 max-w-[640px] mx-auto">
         {/* Header — 克制字号、ink 主色、ink-muted 副线 */}
         <div className="text-center mb-8">
           <h2 className="text-[22px] lg:text-[28px] font-bold tracking-[-0.4px] text-ink leading-[1.18] mb-3">
-            Think your photos are fine?
+            {t.diagnosisTitle}
           </h2>
           <p className="text-ink-muted text-base leading-[1.5]">
-            That&apos;s what 89% of guys with low matches believe.
+            {t.diagnosisSubtitle}
           </p>
         </div>
 
@@ -108,7 +85,7 @@ export function PhotoDiagnosis() {
         </div>
 
         <p className="text-center text-ink-muted text-sm mt-8 max-w-sm mx-auto leading-[1.5]">
-          The problems you can&apos;t see are the ones killing your matches.
+          {t.diagnosisFooter}
         </p>
       </div>
     </section>

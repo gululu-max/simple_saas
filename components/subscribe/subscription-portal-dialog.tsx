@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { useT } from "@/lib/i18n/provider";
 
 interface SubscriptionPortalDialogProps {
   creemCustomerId?: string | null;
@@ -11,6 +12,7 @@ interface SubscriptionPortalDialogProps {
 export function SubscriptionPortalDialog({
   creemCustomerId,
 }: SubscriptionPortalDialogProps) {
+  const t = useT().subscribeStatus;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,10 +43,7 @@ export function SubscriptionPortalDialog({
       }
     } catch (err: any) {
       console.error("Error getting portal link:", err);
-      setError(
-        err.message ||
-          "Failed to access subscription portal. Please try again later."
-      );
+      setError(err.message || t.portalFailed);
       setIsLoading(false);
     }
   };
@@ -57,7 +56,7 @@ export function SubscriptionPortalDialog({
         disabled={isLoading}
         onClick={handleManageSubscription}
       >
-        {isLoading ? "Redirecting..." : "Manage Plan"}
+        {isLoading ? t.redirecting : t.managePlan}
         <ArrowRight className="ml-2 h-4 w-4" />
       </Button>
       {error && (

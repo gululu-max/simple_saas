@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n/provider';
 
 // Resets every page load. 10-min countdown. Visual-only — no real
 // price change is gated on this. See PaywallView for $4.99 → $12.99
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export default function CountdownDigits({ remaining }: Props) {
+  const t = useT().countdown;
   const pad = (n: number) => String(n).padStart(2, '0');
   const h = Math.floor(remaining / 3600000);
   const m = Math.floor((remaining % 3600000) / 60000);
@@ -66,13 +68,13 @@ export default function CountdownDigits({ remaining }: Props) {
 
   return (
     <div className="flex items-start justify-center gap-1">
-      <Seg v={pad(h)} label="hr" />
+      <Seg v={pad(h)} label={t.hr} />
       {colon}
-      <Seg v={pad(m)} label="min" />
+      <Seg v={pad(m)} label={t.min} />
       {colon}
-      <Seg v={pad(s)} label="sec" />
+      <Seg v={pad(s)} label={t.sec} />
       {colon}
-      <Seg v={pad(cs)} label="ms" />
+      <Seg v={pad(cs)} label={t.ms} />
     </div>
   );
 }

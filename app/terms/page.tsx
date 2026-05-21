@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Scale, AlertTriangle, FileText, Gavel, CreditCard, Mail, CheckCircle, XCircle } from "lucide-react";
 import type { Metadata } from "next";
+import { getDictionary } from "@/lib/i18n/server";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -13,7 +14,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const { dict, locale } = await getDictionary();
+  const t = dict.legal.terms;
+  const tLegal = dict.legal;
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -23,13 +27,13 @@ export default function TermsPage() {
             <Button asChild variant="ghost" size="sm" className="gap-2">
               <Link href="/">
                 <ArrowLeft className="h-4 w-4" />
-                Back to Home
+                {tLegal.backToHome}
               </Link>
             </Button>
             <div>
-              <h1 className="text-xl font-bold">Terms of Service</h1>
+              <h1 className="text-xl font-bold">{t.headerTitle}</h1>
               <p className="text-sm text-muted-foreground">
-                The rules and guidelines for using Matchfix
+                {t.headerSubtitle}
               </p>
             </div>
           </div>
@@ -43,18 +47,22 @@ export default function TermsPage() {
           <div className="text-center space-y-6">
             <div className="inline-flex items-center rounded-full px-3 py-1 text-sm bg-primary/10 text-primary mb-4">
               <Scale className="mr-2 h-4 w-4" />
-              Legal Terms
+              {t.heroBadge}
             </div>
             <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-              Terms of Service
+              {t.heroTitle}
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              These terms govern your use of Matchfix, an AI-powered dating profile analysis service. 
-              By using our service, you agree to these terms and conditions.
+              {t.heroBody}
             </p>
             <p className="text-sm text-muted-foreground">
-              <strong>Effective Date:</strong> April 25, 2026
+              <strong>{t.effectiveDate}</strong> {t.effectiveDateValue}
             </p>
+            {locale !== "en" && (
+              <p className="mx-auto max-w-3xl text-xs text-muted-foreground bg-muted/40 border border-border rounded-lg px-4 py-2">
+                {tLegal.legalNotice}
+              </p>
+            )}
           </div>
 
           {/* Key Points */}

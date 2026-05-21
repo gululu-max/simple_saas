@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Check, Download } from 'lucide-react';
 import BeforeAfterSlider from './BeforeAfterSlider';
+import { useT } from '@/lib/i18n/provider';
 
 export interface DeliveryVariant {
   id: string;
@@ -31,6 +32,8 @@ export default function DeliveryScreen({
   onClose,
   saving = false,
 }: Props) {
+  const t = useT().delivery;
+  const tCommon = useT().scannerCommon;
   const [idx, setIdx] = useState(0);
   const current = variants[idx];
   const afterSrc = current.afterSrc ?? originalSrc;
@@ -41,7 +44,7 @@ export default function DeliveryScreen({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Back to home"
+          aria-label={t.backToHome}
           className="font-bold text-[20px] text-rausch -ml-1 px-1 py-1 rounded hover:opacity-80 transition-opacity"
           style={{ letterSpacing: '-0.5px' }}
         >
@@ -51,7 +54,7 @@ export default function DeliveryScreen({
           className="px-2.5 py-1 rounded-pill text-[10.5px] font-bold flex items-center gap-1"
           style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}
         >
-          <Check className="size-3" strokeWidth={3} /> Unlocked
+          <Check className="size-3" strokeWidth={3} /> {t.unlockedBadge}
         </div>
       </div>
 
@@ -61,10 +64,10 @@ export default function DeliveryScreen({
             className="font-bold text-[22px] leading-[1.1] text-ink"
             style={{ letterSpacing: '-0.4px' }}
           >
-            Your 3 looks
+            {t.title}
           </h1>
           <p className="mt-1 text-[12.5px] text-ink-muted">
-            Drag the slider to compare before & after.
+            {t.subtitle}
           </p>
         </div>
 
@@ -90,7 +93,7 @@ export default function DeliveryScreen({
         <div className="px-5 mt-3">
           <div className="flex items-baseline gap-2">
             <span className="font-bold text-[15px] text-ink">
-              Look {idx + 1} · {current.label}
+              {tCommon.look} {idx + 1} · {current.label}
             </span>
             <span className="text-[12px] text-ink-muted">· {current.tag}</span>
           </div>
@@ -155,7 +158,7 @@ export default function DeliveryScreen({
             onClick={onRegenerate}
             className="text-[11.5px] underline underline-offset-2 text-ink-soft"
           >
-            Generate new looks (costs another unlock)
+            {t.generateNew}
           </button>
         </div>
       </div>
@@ -181,11 +184,11 @@ export default function DeliveryScreen({
           />
           <Download className="size-5 relative z-10" />
           <span className="relative z-10">
-            {saving ? 'Saving…' : 'Save all 3 to Photos'}
+            {saving ? t.savingLabel : t.saveAllCta}
           </span>
         </button>
         <div className="text-[11px] text-center mt-2 text-ink-soft">
-          Saves directly to your camera roll
+          {t.savesDirect}
         </div>
       </div>
     </div>

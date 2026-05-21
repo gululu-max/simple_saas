@@ -7,6 +7,8 @@ import MetaPixel from "@/components/MetaPixel";
 import Script from "next/script";
 import type { Metadata } from "next";
 import { AuthModalProvider } from "@/components/auth/auth-modal-context";
+import { I18nProvider } from "@/lib/i18n/provider";
+import { getDictionary } from "@/lib/i18n/server";
 // ═══════════════════════════════════════════════════════════
 // [DISABLED 2026-05-13 — no-login refactor]
 // AuthModal + GoogleOneTap 不再渲染。AuthModalProvider 保留
@@ -119,13 +121,15 @@ const jsonLd = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { locale, dict } = await getDictionary();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         {/* JSON-LD 结构化数据 */}
         <script
@@ -153,27 +157,29 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <MetaPixel />
-        <AuthModalProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem={false}
-            disableTransitionOnChange
-          >
-            <div className="relative min-h-screen">
-              <Header />
-              <main className="flex-1">{children}</main>
-              <FooterGate />
-            </div>
-            <Toaster />
-          </ThemeProvider>
+        <I18nProvider locale={locale} dict={dict}>
+          <AuthModalProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="light"
+              enableSystem={false}
+              disableTransitionOnChange
+            >
+              <div className="relative min-h-screen">
+                <Header />
+                <main className="flex-1">{children}</main>
+                <FooterGate />
+              </div>
+              <Toaster />
+            </ThemeProvider>
           {/* ═══════════════════════════════════════════════════════════
               [DISABLED 2026-05-13 — no-login refactor]
               未来恢复时取消下面两行注释。
               ═══════════════════════════════════════════════════════════ */}
-          {/* <AuthModal /> */}
-          {/* <GoogleOneTap /> */}
-        </AuthModalProvider>
+            {/* <AuthModal /> */}
+            {/* <GoogleOneTap /> */}
+          </AuthModalProvider>
+        </I18nProvider>
 
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=GT-K4LBDZPB"

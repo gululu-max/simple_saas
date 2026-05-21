@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import SparkleBurst from './SparkleBurst';
+import { useT } from '@/lib/i18n/provider';
 
 interface Props {
   thumbs: string[];
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function RevealScreen({ thumbs, onContinue }: Props) {
+  const t = useT().reveal;
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
@@ -53,10 +55,10 @@ export default function RevealScreen({ thumbs, onContinue }: Props) {
           className="font-bold text-[28px] text-ink"
           style={{ letterSpacing: '-0.6px' }}
         >
-          Photos unlocked!
+          {t.title}
         </div>
         <div className="text-[14px] mt-1.5 text-ink-muted">
-          All 3 looks are yours · watermark-free
+          {t.subtitle}
         </div>
       </div>
 
@@ -96,7 +98,7 @@ export default function RevealScreen({ thumbs, onContinue }: Props) {
           className="size-1 rounded-full bg-rausch"
           style={{ animation: 'pulse 1.2s ease-in-out infinite' }}
         />
-        Loading your gallery…
+        {t.loading}
       </div>
     </div>
   );

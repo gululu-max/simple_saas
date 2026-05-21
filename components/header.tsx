@@ -9,12 +9,15 @@ import { MobileNav } from "./mobile-nav";
 import { useState, useEffect, useCallback } from "react";
 import { Zap, ChevronDown, Wand2 } from "lucide-react";
 import { useAuthModal } from "@/components/auth/auth-modal-context";
+import { useT } from "@/lib/i18n/provider";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 export default function Header() {
   const pathname = usePathname();
   const isSubscribe = pathname?.startsWith("/subscribe");
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const { openAuthModal } = useAuthModal();
+  const t = useT();
 
   // ═══════════════════════════════════════════════════════════
   // [DISABLED 2026-05-13 — no-login refactor]
@@ -106,8 +109,8 @@ export default function Header() {
 
   const featureLinks = [
     {
-      title: "AI Photo Enhancer",
-      description: "Unlock your best-looking photo with AI",
+      title: t.header.aiPhotoEnhancerTitle,
+      description: t.header.aiPhotoEnhancerDesc,
       icon: <Wand2 className="w-4 h-4 text-rausch" />,
       href: "/subscribe/scanner",
     },
@@ -134,7 +137,7 @@ export default function Header() {
 
         <nav className="hidden md:flex items-center gap-8 absolute left-1/2 transform -translate-x-1/2">
           <Link href="/" className={navLinkCls(isActive("/"))}>
-            Home
+            {t.header.home}
           </Link>
 
           <div
@@ -143,7 +146,7 @@ export default function Header() {
             onMouseLeave={() => setIsFeaturesOpen(false)}
           >
             <span className="flex items-center gap-1 text-base font-semibold text-ink-muted group-hover:text-ink transition-colors">
-              Features <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isFeaturesOpen ? "rotate-180" : ""}`} />
+              {t.header.features} <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isFeaturesOpen ? "rotate-180" : ""}`} />
             </span>
 
             <div
@@ -179,15 +182,16 @@ export default function Header() {
           </div>
 
           <Link href="/subscribe#pricing" className={navLinkCls(isActive("/subscribe#pricing") || pathname === "/subscribe")}>
-            Pricing
+            {t.header.pricing}
           </Link>
 
           <Link href="/blog" className={navLinkCls(isActive("/blog"))}>
-            Blog
+            {t.header.blog}
           </Link>
         </nav>
 
         <div className="flex items-center gap-2">
+          <LanguageSwitcher className="hidden md:block" />
           {/* ═══════════════════════════════════════════════════════════
               [DISABLED 2026-05-13 — no-login refactor]
               登录/登出/积分 UI 暂时移除。未来恢复时把下方整段
@@ -251,10 +255,10 @@ export default function Header() {
 
           <MobileNav
             items={[
-              { label: "Home", href: "/" },
-              { label: "AI Photo Enhancer", href: "/subscribe/scanner" },
-              { label: "Pricing", href: "/subscribe#pricing" },
-              { label: "Blog", href: "/blog" },
+              { label: t.header.home, href: "/", iconKey: "home" },
+              { label: t.header.aiPhotoEnhancerTitle, href: "/subscribe/scanner", iconKey: "enhancer" },
+              { label: t.header.pricing, href: "/subscribe#pricing", iconKey: "pricing" },
+              { label: t.header.blog, href: "/blog", iconKey: "blog" },
             ]}
             user={null}
             isDashboard={isSubscribe ?? false}

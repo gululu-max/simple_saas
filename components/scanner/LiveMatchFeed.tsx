@@ -1,22 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useT } from '@/lib/i18n/provider';
 
 const FEED_NAMES: [string, string][] = [
   ['Jenn**er', 'Mar*'], ['Em*ly', 'Da*id'], ['L*sa', 'T*m'], ['So**a', 'A*ex'],
   ['Mi**a', 'Ja*e'], ['Han**h', 'Ch*is'], ['Ol**ia', 'Br*'], ['Av*', 'No*h'],
   ['Mi*', 'Et**n'], ['Ch*e', 'Lia*'], ['Zo*', 'Lu*as'], ['Gr*ce', 'Be*'],
-];
-
-const FEED_STATUS = [
-  { text: 'Matched', emoji: '💘', color: '#ec4899' },
-  { text: 'Chatting', emoji: '💬', color: '#3b82f6' },
-  { text: 'Dating', emoji: '🌹', color: '#ef4444' },
-];
-
-const FEED_TIMES = [
-  '5 min ago', '23 min ago', '1 hr ago', '3 hr ago',
-  'Yesterday', '2 days ago', '2 days ago', '3 days ago',
 ];
 
 const PALETTES: [string, string][] = [
@@ -31,10 +21,16 @@ function avatarFor(name: string) {
   return { initial: name[0], background: `linear-gradient(135deg, ${c1}, ${c2})` };
 }
 
+interface FeedStatus {
+  text: string;
+  emoji: string;
+  color: string;
+}
+
 interface FeedItem {
   a: string;
   b: string;
-  status: typeof FEED_STATUS[number];
+  status: FeedStatus;
   time: string;
 }
 
@@ -74,6 +70,16 @@ function FeedRow({ item }: { item: FeedItem }) {
 }
 
 export default function LiveMatchFeed() {
+  const t = useT().liveFeed;
+  const FEED_STATUS = useMemo(() => [
+    { text: t.matched, emoji: '💘', color: '#ec4899' },
+    { text: t.chatting, emoji: '💬', color: '#3b82f6' },
+    { text: t.dating, emoji: '🌹', color: '#ef4444' },
+  ], [t]);
+  const FEED_TIMES = useMemo(() => [
+    t.time5min, t.time23min, t.time1hr, t.time3hr,
+    t.yesterday, t.days2, t.days2, t.days3,
+  ], [t]);
   const items = useMemo<FeedItem[]>(() => {
     return Array.from({ length: 14 }, (_, i) => {
       const [a, b] = FEED_NAMES[i % FEED_NAMES.length];
@@ -84,7 +90,7 @@ export default function LiveMatchFeed() {
         time: FEED_TIMES[i % FEED_TIMES.length],
       };
     });
-  }, []);
+  }, [FEED_STATUS, FEED_TIMES]);
   const doubled = [...items, ...items];
 
   return (
@@ -98,8 +104,8 @@ export default function LiveMatchFeed() {
             animation: 'pulse 1.4s ease-in-out infinite',
           }}
         />
-        <div className="text-[12px] font-bold text-ink">Live match activity</div>
-        <div className="ml-auto text-[10px] text-ink-muted">Last 3 days</div>
+        <div className="text-[12px] font-bold text-ink">{t.headerTitle}</div>
+        <div className="ml-auto text-[10px] text-ink-muted">{t.headerWindow}</div>
       </div>
       <div
         className="relative h-[150px] overflow-hidden"

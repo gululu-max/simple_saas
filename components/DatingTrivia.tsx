@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Sparkles } from 'lucide-react';
 import { TRIVIA_QUESTIONS, type TriviaQuestion, type TriviaOption } from '@/lib/trivia-questions';
+import { useT } from '@/lib/i18n/provider';
 
 // FEEDBACK_HOLD_MS controls how long a picked answer's feedback shows before
 // the next question loads. Kept short (1000ms) because analysis windows can
@@ -28,6 +29,7 @@ const pickRandom = (excludeId?: number): TriviaQuestion => {
 type Selection = { questionId: number; opt: TriviaOption };
 
 export default function DatingTrivia({ active, onTrack }: Props) {
+  const t = useT().trivia;
   const [current, setCurrent] = useState<TriviaQuestion | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [interrupting, setInterrupting] = useState(false);
@@ -152,7 +154,7 @@ export default function DatingTrivia({ active, onTrack }: Props) {
       <div className="rounded-card border border-hairline bg-canvas shadow-ab-card px-5 py-4 flex items-center justify-center gap-2 animate-in fade-in duration-300">
         <Sparkles className="size-4 text-rausch shrink-0" />
         <span className="text-sm font-medium text-ink">
-          Your result&apos;s ready — that matters more than the game
+          {t.interrupting}
         </span>
       </div>
     );
@@ -163,9 +165,9 @@ export default function DatingTrivia({ active, onTrack }: Props) {
     <div className="rounded-card border border-hairline bg-canvas shadow-ab-card px-5 py-5 animate-in fade-in duration-300">
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs uppercase tracking-[0.32px] text-ink-muted font-bold">
-          While you wait
+          {t.whileYouWait}
         </span>
-        <span className="text-xs text-ink-muted">Dating IQ</span>
+        <span className="text-xs text-ink-muted">{t.datingIq}</span>
       </div>
 
       <h4 className="text-[20px] font-semibold text-ink leading-[1.2] tracking-[-0.18px] mb-5">
@@ -222,7 +224,7 @@ export default function DatingTrivia({ active, onTrack }: Props) {
       {selected && (
         <div className="mt-4 flex items-center justify-center gap-2 text-xs text-ink-muted">
           <span className="inline-block size-1 rounded-full bg-ink-muted animate-pulse" />
-          <span>Next question loading…</span>
+          <span>{t.nextLoading}</span>
         </div>
       )}
     </div>

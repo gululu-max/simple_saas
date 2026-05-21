@@ -5,6 +5,7 @@ import { Zap, CalendarClock, ChevronDown, Crown } from "lucide-react";
 import { CreditsBalanceCard } from "@/components/subscribe/credits-balance-card";
 import { SubscriptionStatusCard } from "@/components/subscribe/subscription-status-card";
 import { CreditTransaction } from "@/types/creem";
+import { useT } from "@/lib/i18n/provider";
 
 interface SubscriptionStatusBarProps {
   subscription: {
@@ -25,6 +26,7 @@ export function SubscriptionStatusBar({
   hasActiveAccess,
   creemCustomerId,
 }: SubscriptionStatusBarProps) {
+  const t = useT().subscribeStatus;
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +64,7 @@ export function SubscriptionStatusBar({
               <div className="flex items-center gap-1.5 shrink-0">
                 <Crown className="h-4 w-4 text-rausch" />
                 <span className="inline-flex items-center rounded-pill bg-rausch/10 px-2 py-0.5 text-[11px] font-semibold text-rausch capitalize">
-                  Pro
+                  {t.proLabel}
                 </span>
               </div>
 
@@ -71,7 +73,7 @@ export function SubscriptionStatusBar({
                   <span className="h-3.5 w-px bg-hairline shrink-0" />
                   <div className="flex items-center gap-1.5 shrink-0">
                     <CalendarClock className="h-4 w-4 text-ink-muted" />
-                    <span className="text-ink-muted text-[13px] hidden sm:inline">Renews</span>
+                    <span className="text-ink-muted text-[13px] hidden sm:inline">{t.renews}</span>
                     <span className="font-medium text-ink">{periodEnd}</span>
                   </div>
                 </>
@@ -80,7 +82,7 @@ export function SubscriptionStatusBar({
           ) : (
             <div className="flex items-center gap-1.5 shrink-0">
               <Zap className="h-4 w-4 text-rausch" />
-              <span className="text-ink-muted hidden sm:inline">Credits</span>
+              <span className="text-ink-muted hidden sm:inline">{t.credits}</span>
               <span className="font-semibold text-ink tabular-nums">{credits}</span>
             </div>
           )}

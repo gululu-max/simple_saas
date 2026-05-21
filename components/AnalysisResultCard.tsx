@@ -6,6 +6,7 @@ import {
   AlertTriangle, ThumbsUp, Crosshair, Copy, Check, TrendingUp,
   ChevronRight, ImageOff, Sparkles,
 } from "lucide-react";
+import { useT } from "@/lib/i18n/provider";
 
 type Route = 'needs_real_photo' | 'already_great' | 'can_improve';
 type Authenticity = 'usable' | 'suspiciously_edited' | 'unusable';
@@ -62,16 +63,17 @@ function CircularGauge({ score, label }: { score: number; label: string }) {
 }
 
 // ── Diagnostic Row — amenity-row style ──
-const diagnosticConfig: { key: string; label: string; icon: React.ElementType }[] = [
-  { key: 'lighting', label: 'Lighting', icon: Sun },
-  { key: 'composition', label: 'Composition', icon: Camera },
-  { key: 'background', label: 'Background', icon: Mountain },
-  { key: 'eye_contact', label: 'Eye Contact', icon: Eye },
-  { key: 'expression', label: 'Expression', icon: Smile },
-  { key: 'color_grading', label: 'Color', icon: Palette },
-  { key: 'clothing', label: 'Clothing', icon: Shirt },
-  { key: 'sharpness', label: 'Sharpness', icon: Focus },
-];
+// Labels resolved at render time via useT().analysisCard to follow current locale.
+const diagnosticIcons: Record<string, React.ElementType> = {
+  lighting: Sun,
+  composition: Camera,
+  background: Mountain,
+  eye_contact: Eye,
+  expression: Smile,
+  color_grading: Palette,
+  clothing: Shirt,
+  sharpness: Focus,
+};
 
 function DiagnosticRow({ icon: Icon, label, score }: { icon: React.ElementType; label: string; score: number }) {
   const s = Math.max(0, Math.min(10, score));
@@ -115,6 +117,17 @@ function InsightRow({
 
 // ═══════════════════════════════════════════════════════════════
 export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, isCopied }: AnalysisResultCardProps) {
+  const t = useT().analysisCard;
+  const diagnosticConfig: { key: keyof typeof diagnosticIcons; label: string; icon: React.ElementType }[] = [
+    { key: 'lighting', label: t.diagLighting, icon: diagnosticIcons.lighting },
+    { key: 'composition', label: t.diagComposition, icon: diagnosticIcons.composition },
+    { key: 'background', label: t.diagBackground, icon: diagnosticIcons.background },
+    { key: 'eye_contact', label: t.diagEyeContact, icon: diagnosticIcons.eye_contact },
+    { key: 'expression', label: t.diagExpression, icon: diagnosticIcons.expression },
+    { key: 'color_grading', label: t.diagColor, icon: diagnosticIcons.color_grading },
+    { key: 'clothing', label: t.diagClothing, icon: diagnosticIcons.clothing },
+    { key: 'sharpness', label: t.diagSharpness, icon: diagnosticIcons.sharpness },
+  ];
   const data: AnalysisData | null = useMemo(() => {
     if (!analysisJSON) return null;
     try { return JSON.parse(analysisJSON); } catch { return null; }
@@ -125,12 +138,12 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
     return (
       <div className="rounded-card border border-hairline bg-canvas shadow-ab-card overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline-soft">
-          <h3 className="text-[16px] font-semibold text-ink">Photo Analysis</h3>
+          <h3 className="text-[16px] font-semibold text-ink">{t.title}</h3>
           <button
             type="button"
             onClick={onCopy}
             className="grid size-8 place-items-center rounded-full bg-surface-strong text-ink hover:bg-hairline-soft transition-colors"
-            aria-label={isCopied ? 'Copied' : 'Copy analysis'}
+            aria-label={isCopied ? t.copiedAria : t.copyAria}
           >
             {isCopied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
           </button>
@@ -144,19 +157,19 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
 
   // ── Route: needs_real_photo ──
   if (data.route === 'needs_real_photo') {
-    const headline = data.copy?.headline ?? "This doesn't look like a real photo of you.";
-    const cta = data.copy?.cta ?? "Upload a real photo of you. That's the one worth working with.";
+    const headline = data.copy?.headline ?? "";
+    const cta = data.copy?.cta ?? "";
     return (
       <div className="rounded-card border border-hairline bg-canvas shadow-ab-card overflow-hidden">
         <div className="px-5 py-4 border-b border-hairline-soft">
-          <h3 className="text-[16px] font-semibold text-ink">A quick note</h3>
+          <h3 className="text-[16px] font-semibold text-ink">{t.quickNote}</h3>
         </div>
         <div className="p-6 flex flex-col items-center text-center gap-3">
           <div className="grid size-12 place-items-center rounded-full bg-surface-soft">
             <ImageOff className="size-5 text-ink-muted" />
           </div>
-          <p className="text-base text-ink leading-relaxed max-w-md">{headline}</p>
-          <p className="text-sm text-ink-muted leading-relaxed max-w-md">{cta}</p>
+          {headline && <p className="text-base text-ink leading-relaxed max-w-md">{headline}</p>}
+          {cta && <p className="text-sm text-ink-muted leading-relaxed max-w-md">{cta}</p>}
         </div>
       </div>
     );
@@ -197,7 +210,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
         {isSuspicious && (
           <div className="flex items-start gap-2 text-xs text-ink-body bg-surface-soft border border-hairline-soft rounded-card px-3 py-2.5">
             <AlertTriangle className="size-3.5 text-amber-600 shrink-0 mt-0.5" />
-            <span>Heads up — this photo looks noticeably filtered. Analysis is based on what we can see.</span>
+            <span>{t.suspiciousFilter}</span>
           </div>
         )}
 
@@ -219,8 +232,8 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
             </div>
             {percentile != null && (
               <div className="text-right">
-                <div className="text-xs uppercase tracking-[0.32px] text-ink-muted font-bold">Percentile</div>
-                <div className="text-base font-semibold text-ink mt-0.5">Top {percentile}%</div>
+                <div className="text-xs uppercase tracking-[0.32px] text-ink-muted font-bold">{t.percentileLabel}</div>
+                <div className="text-base font-semibold text-ink mt-0.5">{t.percentileTopPrefix} {percentile}%</div>
               </div>
             )}
           </div>
@@ -228,9 +241,9 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
 
         {scores && (
           <div className="flex items-start justify-around gap-3 pb-1">
-            <CircularGauge score={scores.attractiveness ?? 0} label="Attractive" />
-            <CircularGauge score={scores.approachability ?? 0} label="Approachable" />
-            <CircularGauge score={scores.confidence ?? 0} label="Confident" />
+            <CircularGauge score={scores.attractiveness ?? 0} label={t.gaugeAttractive} />
+            <CircularGauge score={scores.approachability ?? 0} label={t.gaugeApproachable} />
+            <CircularGauge score={scores.confidence ?? 0} label={t.gaugeConfident} />
           </div>
         )}
 
@@ -239,13 +252,13 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
           <div className="border-t border-hairline-soft pt-5">
             <div className="flex items-center gap-1.5 mb-3">
               <TrendingUp className="size-4 text-ink-muted" />
-              <span className="text-sm font-semibold text-ink">Match rate prediction</span>
+              <span className="text-sm font-semibold text-ink">{t.matchRatePrediction}</span>
             </div>
             <div className="flex items-center gap-4">
               {match_prediction.current_rate && (
                 <div className="flex-1">
                   <div className="text-[22px] font-semibold text-ink-muted tabular-nums leading-[1.18]">{match_prediction.current_rate}</div>
-                  <div className="text-xs text-ink-muted mt-1">Current photo</div>
+                  <div className="text-xs text-ink-muted mt-1">{t.currentPhoto}</div>
                 </div>
               )}
               {match_prediction.current_rate && match_prediction.enhanced_rate && (
@@ -254,7 +267,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
               {match_prediction.enhanced_rate && (
                 <div className="flex-1">
                   <div className="text-[22px] font-semibold text-rausch tabular-nums leading-[1.18]">{match_prediction.enhanced_rate}</div>
-                  <div className="text-xs text-ink-muted mt-1">After enhancement</div>
+                  <div className="text-xs text-ink-muted mt-1">{t.afterEnhancement}</div>
                 </div>
               )}
             </div>
@@ -264,7 +277,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
         {/* Diagnostics — amenity-row list */}
         {diagnostics && (
           <div className="border-t border-hairline-soft pt-5">
-            <h4 className="text-sm font-semibold text-ink mb-1">Photo diagnostics</h4>
+            <h4 className="text-sm font-semibold text-ink mb-1">{t.photoDiagnostics}</h4>
             <div>
               {diagnosticConfig.map(({ key, label, icon }) => {
                 const val = (diagnostics as any)[key];
@@ -278,12 +291,12 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
         {/* Insights stack */}
         {(oneLinerIssue || oneLinerPositive || firstImpression || (red_flags && red_flags.length > 0) || fix_plan?.visual_outcome) && (
           <div className="border-t border-hairline-soft pt-5">
-            <h4 className="text-sm font-semibold text-ink mb-1">What we noticed</h4>
+            <h4 className="text-sm font-semibold text-ink mb-1">{t.whatWeNoticed}</h4>
             <div>
               {oneLinerIssue && oneLinerIssue !== "none" && !isAlreadyGreat && (
                 <InsightRow
                   icon={Crosshair}
-                  heading="#1 thing holding you back"
+                  heading={t.insightHoldingBack}
                   body={oneLinerIssue}
                   accent="rausch"
                 />
@@ -291,7 +304,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
               {oneLinerPositive && (
                 <InsightRow
                   icon={ThumbsUp}
-                  heading="What's working"
+                  heading={t.insightWhatsWorking}
                   body={oneLinerPositive}
                   accent="emerald"
                 />
@@ -299,14 +312,14 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
               {firstImpression && (
                 <InsightRow
                   icon={Eye}
-                  heading="First impression on a dating app"
+                  heading={t.insightFirstImpression}
                   body={firstImpression}
                 />
               )}
               {red_flags && red_flags.length > 0 && (
                 <InsightRow
                   icon={AlertTriangle}
-                  heading="Red flags"
+                  heading={t.insightRedFlags}
                   body={
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {red_flags.map((f, i) => (
@@ -322,7 +335,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
               {fix_plan?.visual_outcome && fix_plan.visual_outcome !== 'no edit needed' && (
                 <InsightRow
                   icon={Sparkles}
-                  heading="What enhancement will do"
+                  heading={t.insightWhatEnhanceDoes}
                   body={fix_plan.visual_outcome}
                   accent="rausch"
                 />
@@ -346,7 +359,7 @@ export default function AnalysisResultCard({ analysisJSON, visibleText, onCopy, 
           <details className="group border-t border-hairline-soft pt-4">
             <summary className="text-xs text-ink-muted cursor-pointer hover:text-ink-body transition-colors flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
               <ChevronRight className="size-3.5 transition-transform duration-200 group-open:rotate-90" />
-              <span>Full analysis</span>
+              <span>{t.fullAnalysis}</span>
             </summary>
             <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-body bg-surface-soft rounded-card border border-hairline-soft p-3">
               {visibleText}

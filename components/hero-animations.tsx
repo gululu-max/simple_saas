@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/lib/i18n/provider";
 
-export function HeroButtons({ initialText = "Instant Glow-Up" }: { initialText?: string }) {
+export function HeroButtons({ initialText }: { initialText?: string }) {
+  const t = useT().home;
+  const ctaText = initialText ?? t.ctaInstantGlowUp;
   const btnRef = useRef<HTMLDivElement>(null);
   const [showSticky, setShowSticky] = useState(false);
 
@@ -26,14 +29,14 @@ export function HeroButtons({ initialText = "Instant Glow-Up" }: { initialText?:
           href="/subscribe/scanner"
           className="inline-flex items-center justify-center gap-2 rounded-sm bg-rausch px-6 h-12 text-base font-medium text-white transition-colors hover:bg-rausch-active active:bg-rausch-active"
         >
-          {initialText}
+          {ctaText}
           <ArrowRight className="w-4 h-4" />
         </Link>
 
         <div className="flex items-center gap-2 text-sm text-ink-muted">
-          <span>No sign-up required</span>
+          <span>{t.noSignup}</span>
           <span aria-hidden className="text-hairline">·</span>
-          <span>Auto-deleted instantly</span>
+          <span>{t.autoDeleted}</span>
         </div>
       </div>
 
@@ -54,7 +57,7 @@ export function HeroButtons({ initialText = "Instant Glow-Up" }: { initialText?:
           href="/subscribe/scanner"
           className="flex items-center justify-center gap-2 w-full h-12 rounded-sm bg-rausch text-base font-medium text-white transition-colors active:bg-rausch-active"
         >
-          {initialText}
+          {ctaText}
           <ArrowRight className="w-4 h-4" />
         </Link>
       </div>

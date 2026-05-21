@@ -10,18 +10,13 @@
 // 这样可以避免"假进度跑完了 100% 但真图还在跑"的尴尬感。
 // ═══════════════════════════════════════════════════════════════
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check } from 'lucide-react';
+import { useT } from '@/lib/i18n/provider';
 
-const GEN_STEPS: Array<{ icon: string; label: string; duration: number }> = [
-  { icon: '🔍', label: 'Analyzing your face & lighting', duration: 2500 },
-  { icon: '🎨', label: 'Picking dating-app color palette', duration: 2500 },
-  { icon: '🌅', label: 'Matching 3 background scenes', duration: 3000 },
-  { icon: '✨', label: 'Applying skin & smile retouch', duration: 3000 },
-  { icon: '📸', label: 'Composing your 3 final looks', duration: 2500 },
-  { icon: '🎉', label: 'Almost ready', duration: 1500 },
-];
-const GEN_TOTAL = GEN_STEPS.reduce((a, s) => a + s.duration, 0); // 15000
+const GEN_DURATIONS = [2500, 2500, 3000, 3000, 2500, 1500];
+const GEN_ICONS = ['🔍', '🎨', '🌅', '✨', '📸', '🎉'];
+const GEN_TOTAL = GEN_DURATIONS.reduce((a, s) => a + s, 0); // 15000
 
 // 真图未到时进度上限（90%）。13.5s 走到这里然后卡住。
 const CAP_BEFORE_READY = 90;
@@ -36,6 +31,18 @@ interface Props {
 }
 
 export default function GenerationProgress({ ready }: Props) {
+  const tGen = useT().generation;
+  const GEN_STEPS = useMemo<Array<{ icon: string; label: string; duration: number }>>(
+    () => [
+      { icon: GEN_ICONS[0], label: tGen.step1, duration: GEN_DURATIONS[0] },
+      { icon: GEN_ICONS[1], label: tGen.step2, duration: GEN_DURATIONS[1] },
+      { icon: GEN_ICONS[2], label: tGen.step3, duration: GEN_DURATIONS[2] },
+      { icon: GEN_ICONS[3], label: tGen.step4, duration: GEN_DURATIONS[3] },
+      { icon: GEN_ICONS[4], label: tGen.step5, duration: GEN_DURATIONS[4] },
+      { icon: GEN_ICONS[5], label: tGen.step6, duration: GEN_DURATIONS[5] },
+    ],
+    [tGen],
+  );
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -77,7 +84,7 @@ export default function GenerationProgress({ ready }: Props) {
           style={{ animation: 'pulse 1.1s ease-in-out infinite' }}
         />
         <div className="text-[11px] font-bold uppercase tracking-wider text-rausch">
-          Generating your photos
+          {tGen.headerLabel}
         </div>
         <div className="ml-auto text-[11px] tabular-nums font-semibold text-ink-muted">
           {Math.round(progress)}%

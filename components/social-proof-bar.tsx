@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/provider";
 
 /**
  * 头像命名：/public/hero/avatars/a1.webp, a2.webp, a3.webp
@@ -15,6 +16,7 @@ const AVATARS = [
 ];
 
 export function SocialProofBar() {
+  const t = useT().home;
   const [count, setCount] = useState(2847);
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export function SocialProofBar() {
         <span className="font-semibold text-ink tabular-nums">
           {count.toLocaleString()}
         </span>{" "}
-        photos enhanced this week
+        {t.photosEnhanced}
       </p>
     </div>
   );
