@@ -9,15 +9,9 @@ import type { Metadata } from "next";
 import { AuthModalProvider } from "@/components/auth/auth-modal-context";
 import { I18nProvider } from "@/lib/i18n/provider";
 import { getDictionary } from "@/lib/i18n/server";
-// ═══════════════════════════════════════════════════════════
-// [DISABLED 2026-05-13 — no-login refactor]
-// AuthModal + GoogleOneTap 不再渲染。AuthModalProvider 保留
-// (stub 状态)，因为下游组件还在调用 useAuthModal()。
-// 未来恢复时：取消下方两行 import 注释，并在 body 里把
-// <AuthModal /> 和 <GoogleOneTap /> 取消注释。
-// ═══════════════════════════════════════════════════════════
-// import { AuthModal } from "@/components/auth/auth-modal";
-// import GoogleOneTap from "@/components/auth/google-one-tap";
+// [RESTORED 2026-05-29 — login revert]
+import { AuthModal } from "@/components/auth/auth-modal";
+import GoogleOneTap from "@/components/auth/google-one-tap";
 
 const baseUrl = process.env.BASE_URL
   ? `${process.env.BASE_URL}`
@@ -172,12 +166,9 @@ export default async function RootLayout({
               </div>
               <Toaster />
             </ThemeProvider>
-          {/* ═══════════════════════════════════════════════════════════
-              [DISABLED 2026-05-13 — no-login refactor]
-              未来恢复时取消下面两行注释。
-              ═══════════════════════════════════════════════════════════ */}
-            {/* <AuthModal /> */}
-            {/* <GoogleOneTap /> */}
+            {/* [RESTORED 2026-05-29 — login revert] */}
+            <AuthModal />
+            <GoogleOneTap />
           </AuthModalProvider>
         </I18nProvider>
 

@@ -1,13 +1,12 @@
 // app/api/download/[id]/route.ts
-// [DISABLED 2026-05-17 — no-login pivot] createClient (server) 给登录用户读 session 用。
-// 恢复登录时下两行解开，并把 COST_DOWNLOAD_FREE_TRIAL / DeductCreditsResult 也解开。
-// import { createClient } from "@/utils/supabase/server";
+// [RESTORED 2026-05-29 — login revert] 登录鉴权 + 下载扣积分恢复。
+import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
 
-// const COST_DOWNLOAD_FREE_TRIAL = 5;
+const COST_DOWNLOAD_FREE_TRIAL = 5;
 const BUCKET = 'enhanced-photos';
 
 const supabaseAdmin = createAdminClient(
@@ -15,11 +14,11 @@ const supabaseAdmin = createAdminClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// interface DeductCreditsResult {
-//   success: boolean;
-//   remaining: number;
-//   customer_id: string;
-// }
+interface DeductCreditsResult {
+  success: boolean;
+  remaining: number;
+  customer_id: string;
+}
 
 // ─── 预加载水印瓦片 + 缓存尺寸 ──────────────
 let watermarkTileBuffer: Buffer | null = null;
@@ -69,21 +68,22 @@ export async function GET(
     }
 
     // ═══════════════════════════════════════════════════════════
-    // [no-login pivot 2026-05-17] 鉴权 = enhancement 所属 scan.paid。
-    // 1. enhancement_id 本身是 bearer token (UUID)
-    // 2. 用 join 查 scan.paid，paid=true 即放行
-    // 3. 旧的 customer / credits / is_free_trial 扣费整段废弃
-    // 旧版完整代码保留在文件末尾注释里。
+    // [RESTORED 2026-05-29 — login revert] 登录鉴权 + 归属校验 + 下载扣费。
+    // 一次性买卖的 scan.paid 版整段保留在文件末尾注释里。
     // ═══════════════════════════════════════════════════════════
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    // ── 查 enhancement 记录（归属校验）──
     const { data: record, error: recordError } = await supabaseAdmin
       .from('photo_enhancements')
-      .select(`
-        id, storage_key, mime_type, downloaded, expires_at, group_id,
-        scan_id,
-        photo_scans!inner ( paid )
-      `)
+      .select('id, user_id, storage_key, mime_type, is_free_trial, downloaded, expires_at, group_id')
       .eq('id', enhancementId)
-      .maybeSingle();
+      .eq('user_id', user.id)
+      .single();
 
     if (recordError || !record) {
       return new Response("Enhancement not found", { status: 404 });
@@ -94,16 +94,7 @@ export async function GET(
       return new Response("Enhancement expired", { status: 410 });
     }
 
-    // ── paid 校验 ──
-    const scanPaid = (record as any).photo_scans?.paid === true;
-    if (!scanPaid) {
-      return new Response(
-        JSON.stringify({ error: 'Not paid', code: 'NOT_PAID' }),
-        { status: 402, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // ── 带水印下载（免费）──
+    // ── 带水印下载（免费，不扣积分）──
     const url = new URL(req.url);
     const wantWatermarked = url.searchParams.get('watermarked') === '1';
 
@@ -128,7 +119,83 @@ export async function GET(
         },
       });
     }
-    // 无水印下载也走 paid 校验，已通过 = 直接返回原图，不再扣积分
+
+    // ── 查会员状态（单次查询 join subscriptions）──
+    const { data: customer, error: customerError } = await supabaseAdmin
+      .from("customers")
+      .select(`
+        id, credits,
+        subscriptions (status, current_period_end)
+      `)
+      .eq("user_id", user.id)
+      .single();
+
+    if (customerError || !customer) {
+      return new Response("Failed to fetch customer data", { status: 500 });
+    }
+
+    const now = new Date().toISOString();
+    const sub = (customer as any).subscriptions?.[0] ?? null;
+    const isSubscribed = !!sub && (
+      sub.status === "active" ||
+      (sub.status === "canceled" && !!sub.current_period_end && sub.current_period_end > now)
+    );
+
+    // ── 收费逻辑 ──
+    // Plan B: 5-credit fee unlocks the entire variant group, not just one
+    // photo. If any sibling variant in the same group_id has already been
+    // downloaded, the group is considered unlocked and we skip the charge.
+    let needsPayment = record.is_free_trial && !isSubscribed;
+    if (needsPayment && (record as any).group_id) {
+      const { data: sibling } = await supabaseAdmin
+        .from('photo_enhancements')
+        .select('id')
+        .eq('group_id', (record as any).group_id)
+        .eq('user_id', user.id)
+        .eq('downloaded', true)
+        .neq('id', record.id)
+        .limit(1);
+      if (sibling && sibling.length > 0) {
+        needsPayment = false;
+        console.log(`[download] group ${(record as any).group_id} already unlocked, skipping charge`);
+      }
+    }
+
+    if (needsPayment) {
+      const { data: rpcResult, error: rpcError } = await supabaseAdmin
+        .rpc('deduct_credits', {
+          p_user_id: user.id,
+          p_amount: COST_DOWNLOAD_FREE_TRIAL,
+          p_description: 'PhotoDownload (free trial conversion)',
+          p_metadata: {
+            source: 'system_deduction',
+            action: 'PhotoDownload',
+            enhancement_id: enhancementId,
+          },
+        })
+        .returns<DeductCreditsResult[]>()
+        .single();
+
+      if (rpcError) {
+        console.error("RPC deduct_credits error:", rpcError);
+        return new Response(
+          JSON.stringify({ error: "Failed to deduct credits" }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!rpcResult.success) {
+        return new Response(
+          JSON.stringify({
+            error: "Insufficient credits",
+            code: "INSUFFICIENT_CREDITS",
+            needed: COST_DOWNLOAD_FREE_TRIAL,
+            current: customer.credits,
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // ── 从 Storage 取无水印图 ──
     const { data: fileData, error: downloadError } = await supabaseAdmin.storage

@@ -7,7 +7,7 @@ import { Logo } from "./logo";
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./mobile-nav";
 import { useState, useEffect, useCallback } from "react";
-import { Zap, ChevronDown, Wand2 } from "lucide-react";
+import { Zap, ChevronDown, Wand2, Image as ImageIcon, MessageCircleHeart } from "lucide-react";
 import { useAuthModal } from "@/components/auth/auth-modal-context";
 import { useT } from "@/lib/i18n/provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -20,20 +20,23 @@ export default function Header() {
   const t = useT();
 
   // ═══════════════════════════════════════════════════════════
-  // [DISABLED 2026-05-13 — no-login refactor]
-  // 用户态 + 积分获取全部去掉。一次性生意不需要持久 user。
-  // 未来恢复时：删除下面的占位常量，把再下方注释里的原 hook 代码
-  // 取消注释即可。
+  // [RESTORED 2026-05-29 — login revert] 用户态 + 积分获取恢复。
   // ═══════════════════════════════════════════════════════════
-  const user: any = null;
-  const credits = 0;
-  const loaded = true;
-  const fetchCredits = async () => {};
-
-  /*
   const [user, setUser] = useState<any>(null);
   const [credits, setCredits] = useState(0);
+  const [photoCount, setPhotoCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
+
+  const fetchPhotoCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/my-photos?count=1");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (typeof data.count === "number") setPhotoCount(data.count);
+    } catch {
+      // silently fail — badge is a nicety
+    }
+  }, []);
 
   const fetchCredits = useCallback(async () => {
     try {
@@ -75,6 +78,7 @@ export default function Header() {
           if (!cancelled && data?.credits != null) {
             setCredits(data.credits);
           }
+          if (!cancelled) fetchPhotoCount();
         }
       } catch {
         // 失败时保持未登录状态
@@ -98,14 +102,12 @@ export default function Header() {
   useEffect(() => {
     const handleAuthChanged = () => {
       fetchCredits().then(() => setLoaded(true));
+      fetchPhotoCount();
     };
 
     window.addEventListener('auth-changed', handleAuthChanged);
     return () => window.removeEventListener('auth-changed', handleAuthChanged);
-  }, [fetchCredits]);
-  */
-  // 引用一下避免 unused-var：
-  void credits; void fetchCredits; void user;
+  }, [fetchCredits, fetchPhotoCount]);
 
   const featureLinks = [
     {
@@ -113,6 +115,12 @@ export default function Header() {
       description: t.header.aiPhotoEnhancerDesc,
       icon: <Wand2 className="w-4 h-4 text-rausch" />,
       href: "/subscribe/scanner",
+    },
+    {
+      title: "Opening Coach",
+      description: "Practice better first messages after a match",
+      icon: <MessageCircleHeart className="w-4 h-4 text-rausch" />,
+      href: "/subscribe/opening-coach",
     },
   ];
 
@@ -192,12 +200,7 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           <LanguageSwitcher className="hidden md:block" />
-          {/* ═══════════════════════════════════════════════════════════
-              [DISABLED 2026-05-13 — no-login refactor]
-              登录/登出/积分 UI 暂时移除。未来恢复时把下方整段
-              取消注释，并同步恢复 hooks 区块即可。
-              ═══════════════════════════════════════════════════════════ */}
-          {/*
+          {/* [RESTORED 2026-05-29 — login revert] 登录/登出/积分 UI 恢复 */}
           {!loaded ? (
             <div className="hidden md:flex gap-2">
               <div className="h-8 w-16 rounded-btn bg-surface-soft animate-pulse" />
@@ -210,6 +213,17 @@ export default function Header() {
                   {user.email}
                 </span>
               )}
+              <Button asChild size="sm" variant="outline" className="hidden md:inline-flex relative border-hairline bg-canvas text-ink hover:bg-surface-soft hover:text-ink rounded-btn">
+                <Link href="/subscribe/photos" aria-label={t.header.myPhotos}>
+                  <ImageIcon className="mr-1.5 h-4 w-4 text-ink-muted" />
+                  <span className="hidden sm:inline">{t.header.myPhotos}</span>
+                  {photoCount > 0 && (
+                    <span className="ml-1.5 min-w-[18px] h-[18px] px-1 rounded-full grid place-items-center text-[10px] font-bold bg-rausch text-white">
+                      {photoCount}
+                    </span>
+                  )}
+                </Link>
+              </Button>
               <Button asChild size="sm" variant="outline" className="border-hairline bg-canvas text-ink hover:bg-surface-soft hover:text-ink rounded-btn">
                 <Link href="/subscribe">
                   <Zap className="mr-1.5 h-4 w-4 text-rausch fill-rausch" />
@@ -251,16 +265,17 @@ export default function Header() {
               </Button>
             </>
           )}
-          */}
 
           <MobileNav
             items={[
               { label: t.header.home, href: "/", iconKey: "home" },
               { label: t.header.aiPhotoEnhancerTitle, href: "/subscribe/scanner", iconKey: "enhancer" },
+              { label: "Opening Coach", href: "/subscribe/opening-coach", iconKey: "coach" as const },
+              ...(isLoggedIn ? [{ label: t.header.myPhotos, href: "/subscribe/photos", iconKey: "photos" as const }] : []),
               { label: t.header.pricing, href: "/subscribe#pricing", iconKey: "pricing" },
               { label: t.header.blog, href: "/blog", iconKey: "blog" },
             ]}
-            user={null}
+            user={isLoggedIn ? user : null}
             isDashboard={isSubscribe ?? false}
           />
         </div>

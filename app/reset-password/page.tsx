@@ -1,15 +1,4 @@
-// ═══════════════════════════════════════════════════════════
-// [DISABLED 2026-05-13 — no-login refactor]
-// 一次性生意改造：取消密码重置。直接渲染空页面。
-// 未来恢复时：删除下方 stub，把更下方注释里的原组件
-// 取消注释即可。
-// ═══════════════════════════════════════════════════════════
-
-export default function ResetPasswordPage() {
-  return null;
-}
-
-/*
+// [RESTORED 2026-05-29 — login revert] 密码重置页恢复。
 "use client";
 
 import { useState, useEffect } from "react";
@@ -263,4 +252,3 @@ export default function ResetPasswordPage() {
     </div>
   );
 }
-*/

@@ -30,6 +30,16 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ scanId: string }> },
 ) {
+  // [DISABLED 2026-05-29 — login revert] 一次性买卖的付费回跳轮询端点。
+  // 登录门控/积分流程不再使用它（前端 BoostScanner 已移除轮询）。
+  // 恢复一次性 flow 时把下面这个守卫删掉即可，下方逻辑原样保留。
+  // 注：用 `: boolean` 标注让 TS 不把后续代码判成 unreachable，
+  // 否则会丢失 if-guard 的类型收窄、报一堆 "possibly null"。
+  const ONESHOT_DISABLED: boolean = true;
+  if (ONESHOT_DISABLED) {
+    return NextResponse.json({ error: 'Gone — one-shot flow disabled' }, { status: 410 });
+  }
+
   try {
     const { scanId } = await params;
     if (!scanId) {

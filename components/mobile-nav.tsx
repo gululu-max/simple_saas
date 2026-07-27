@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, Home, Wand2, DollarSign, LogOut, X, BookOpen } from "lucide-react";
+import { Menu, Home, Wand2, DollarSign, LogOut, X, BookOpen, Image as ImageIcon, MessageCircleHeart } from "lucide-react";
 import Link from "next/link";
 import { signOutAction } from "@/app/actions";
 import type { LucideIcon } from "lucide-react";
 import { LanguageSwitcher } from "@/components/language-switcher";
 
-type IconKey = "home" | "enhancer" | "pricing" | "blog";
+type IconKey = "home" | "enhancer" | "pricing" | "blog" | "photos" | "coach";
 
 interface MobileNavItem {
   label: string;
@@ -28,6 +28,8 @@ const ICONS: Record<IconKey, LucideIcon> = {
   enhancer: Wand2,
   pricing: DollarSign,
   blog: BookOpen,
+  photos: ImageIcon,
+  coach: MessageCircleHeart,
 };
 
 export function MobileNav({ items, user }: MobileNavProps) {

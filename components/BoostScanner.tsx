@@ -99,8 +99,10 @@ async function downloadFilteredImage(src: string, filter: string | undefined, fi
 }
 
 async function compressImage(file: File, options?: { maxSize?: number; quality?: number }): Promise<string> {
-  // [v9.2] maxSize 800 (was 1024) — reduces canvas memory ~40% for WebView stability
-  const { maxSize = 800, quality = 0.75 } = options || {};
+  // [v9.3] maxSize 1024 / q0.82 (was 800 / q0.75) — 800px starved the retouch/fusion
+  // model of facial detail (caused identity drift + soft output). 1024 was the
+  // pre-v9.2 value and ran fine in prod; if low-end WebViews OOM again, drop back to 800.
+  const { maxSize = 1024, quality = 0.82 } = options || {};
   const img = new Image();
   const url = URL.createObjectURL(file);
   img.src = url;
@@ -121,8 +123,27 @@ const isFacebookWebView = (): boolean => {
   if (typeof navigator === 'undefined') return false;
   return /FBAN|FBAV|FB_IAB|FBIOS|FBSS/i.test(navigator.userAgent || '');
 };
+// [ab:upload] Single-vs-multi upload experiment. The resolved variant is held
+// here at module scope so EVERY trackEvent call auto-carries an `ab_upload`
+// dimension — main metric (enhance_start_click) AND guardrails
+// (delivery_regenerate_click, paywall_gate, enhance_failed, payment_return_success)
+// all get split by variant in GA with zero per-call-site edits.
+let abUploadVariant: 'multi' | 'single' | null = null;
+const UPLOAD_AB_COOKIE = 'mf_ab_upload';
+// Sticky 50/50 assignment: read the cookie if present, otherwise roll once and
+// persist for 90d. Same person → same variant across reloads (the cardinal rule
+// of A/B). Cookie (not httpOnly) because assignment happens client-side.
+function resolveUploadVariant(): 'multi' | 'single' {
+  if (typeof document === 'undefined') return 'multi';
+  const m = document.cookie.match(/(?:^|; )mf_ab_upload=(single|multi)/);
+  if (m) return m[1] as 'multi' | 'single';
+  const v: 'multi' | 'single' = Math.random() < 0.5 ? 'single' : 'multi';
+  document.cookie = `${UPLOAD_AB_COOKIE}=${v}; path=/; max-age=${60 * 60 * 24 * 90}; samesite=lax`;
+  return v;
+}
 const trackEvent = (eventName: string, params?: Record<string, any>) => {
-  if (typeof window !== 'undefined' && window.gtag) window.gtag('event', eventName, params);
+  if (typeof window !== 'undefined' && window.gtag)
+    window.gtag('event', eventName, { ...(abUploadVariant ? { ab_upload: abUploadVariant } : {}), ...params });
 };
 const dispatchCreditsUpdate = () => {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'));
@@ -150,6 +171,7 @@ type UploadHeroProps = {
   maxPhotos: number;       // hard cap (currently 2)
   useFusion: boolean;
   setUseFusion: (v: boolean) => void;
+  isSelecting: boolean;    // [select-agent] true while the pick-best call runs
 };
 
 function UploadHero({
@@ -165,12 +187,15 @@ function UploadHero({
   maxPhotos,
   useFusion,
   setUseFusion,
+  isSelecting,
 }: UploadHeroProps) {
   const t = useT().uploadHero;
   const [phase, setPhase] = useState<'sweep' | 'upload'>('sweep');
   const [sliderPos, setSliderPos] = useState(0);
   const isUpload = phase === 'upload';
   const hasPhotos = photos.length > 0;
+  // [ab:upload] In the 'single' variant maxPhotos is 1 → no multi-select.
+  const allowMultiple = maxPhotos > 1;
 
   // Auto-sweep choreography on first mount (only runs in no-photos state)
   useEffect(() => {
@@ -228,7 +253,7 @@ function UploadHero({
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            multiple
+            {...(allowMultiple ? { multiple: true } : {})}
             onChange={onMainPhotoSelect}
             className="hidden"
           />
@@ -280,43 +305,44 @@ function UploadHero({
               >
                 <X className="size-3.5" />
               </button>
-              {/* Bottom thumb tray */}
+              {/* Bottom thumb tray — [select-agent] up to 9 photos: render the
+                  filled thumbs + a single "add" slot, horizontally scrollable so
+                  many thumbs don't overflow the hero. Count chip pinned at right. */}
               <div className="absolute inset-x-3 bottom-3 flex items-center gap-2">
-                {Array.from({ length: maxPhotos }).map((_, i) => {
-                  const filled = i < photos.length;
-                  if (filled) {
-                    return (
-                      <div
-                        key={i}
-                        className="relative size-14 rounded-[10px] overflow-hidden"
-                        style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.35), 0 0 0 2px #fff' }}
-                      >
-                        <img src={photos[i]} alt="" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemovePhoto(i);
-                          }}
-                          className="absolute -top-1 -right-1 size-5 rounded-full grid place-items-center bg-ink text-white"
-                          aria-label={t.removePhoto}
-                        >
-                          <X className="size-2.5" />
-                        </button>
-                        {i === 0 && (
-                          <div
-                            className="absolute bottom-0 inset-x-0 text-center text-[8px] font-bold py-0.5 bg-rausch text-white"
-                          >
-                            {t.mainBadge}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-                  return (
-                    <label
+                <div
+                  className="flex items-center gap-2 overflow-x-auto flex-1 py-1 -my-1"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {photos.map((src, i) => (
+                    <div
                       key={i}
-                      className="size-14 rounded-[10px] border-2 border-dashed grid place-items-center cursor-pointer"
+                      className="relative size-14 shrink-0 rounded-[10px] overflow-hidden"
+                      style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.35), 0 0 0 2px #fff' }}
+                    >
+                      <img src={src} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemovePhoto(i);
+                        }}
+                        className="absolute -top-1 -right-1 size-5 rounded-full grid place-items-center bg-ink text-white"
+                        aria-label={t.removePhoto}
+                      >
+                        <X className="size-2.5" />
+                      </button>
+                      {i === 0 && (
+                        <div
+                          className="absolute bottom-0 inset-x-0 text-center text-[8px] font-bold py-0.5 bg-rausch text-white"
+                        >
+                          {t.mainBadge}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {photos.length < maxPhotos && (
+                    <label
+                      className="size-14 shrink-0 rounded-[10px] border-2 border-dashed grid place-items-center cursor-pointer"
                       style={{
                         borderColor: 'rgba(255,255,255,0.7)',
                         background: 'rgba(255,255,255,0.15)',
@@ -326,15 +352,16 @@ function UploadHero({
                       <input
                         type="file"
                         accept="image/*"
+                        {...(allowMultiple ? { multiple: true } : {})}
                         onChange={onAltPhotoSelect}
                         className="hidden"
                       />
                       <Camera className="size-4 text-white" />
                     </label>
-                  );
-                })}
+                  )}
+                </div>
                 <div
-                  className="ml-auto px-2.5 py-1.5 rounded-pill text-[10.5px] font-medium text-white backdrop-blur-md"
+                  className="shrink-0 px-2.5 py-1.5 rounded-pill text-[10.5px] font-medium text-white backdrop-blur-md"
                   style={{ background: 'rgba(0,0,0,0.55)' }}
                 >
                   {photos.length < maxPhotos ? `${maxPhotos - photos.length} ${t.moreAllowed}` : t.maxedOut}
@@ -496,22 +523,34 @@ function UploadHero({
             <button
               type="button"
               onClick={onSubmit}
-              className="relative w-full h-14 rounded-[14px] overflow-hidden flex items-center justify-center gap-2 font-bold text-[17px] text-white"
+              disabled={isSelecting}
+              className="relative w-full h-14 rounded-[14px] overflow-hidden flex items-center justify-center gap-2 font-bold text-[17px] text-white disabled:opacity-80"
               style={{
                 background: '#ff385c',
                 boxShadow: '0 8px 24px rgba(255,56,92,0.4)',
               }}
             >
-              <span
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background:
-                    'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.3) 50%, transparent 65%)',
-                  animation: 'shimmer 2.4s ease-in-out infinite',
-                }}
-              />
-              <Sparkles className="size-5 relative z-10" />
-              <span className="relative z-10">{t.enhanceCta}</span>
+              {!isSelecting && (
+                <span
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background:
+                      'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.3) 50%, transparent 65%)',
+                    animation: 'shimmer 2.4s ease-in-out infinite',
+                  }}
+                />
+              )}
+              {isSelecting ? (
+                <>
+                  <Loader2 className="size-5 relative z-10 animate-spin" />
+                  <span className="relative z-10">{t.selectingCta}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-5 relative z-10" />
+                  <span className="relative z-10">{t.enhanceCta}</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -531,7 +570,23 @@ export default function BoostScanner() {
   // TODO[no-login]: when enhance is rewired post-payment, batch ALL uploaded
   // photos into the same paid run.
   const [altPhotos, setAltPhotos] = useState<string[]>([]);
-  const MAX_PHOTOS = 3;
+  // [2026-05-31] 恢复 1-3 张上传。后端 N→N 管线一直兼容多图；
+  // 2026-05-29 login revert 时曾临时锁成 1（单图），现改回 3。
+  // [select-agent 2026-06-18] 提到 9：引导用户上传社交主页全部照片，
+  // 由选片 agent 横向对比挑出最值得优化的一张。select-photo route 上限也是 9。
+  // [ab:upload] Experiment overrides this: 'single' caps at 1 photo (and drops
+  // the `multiple` attr below). Default 'multi' on first render/SSR; the cookie
+  // value resolves in the mount effect before the upload zone is interactive
+  // (the ~1.85s sweep demo gates it), so there's no hydration mismatch or flash.
+  const [uploadVariant, setUploadVariant] = useState<'multi' | 'single'>('multi');
+  useEffect(() => {
+    const v = resolveUploadVariant();
+    setUploadVariant(v);
+    abUploadVariant = v; // start tagging every gtag event with the variant
+    trackEvent('ab_upload_exposed', { variant: v }); // experiment-entry marker
+  }, []);
+  const MAX_PHOTOS = uploadVariant === 'single' ? 1 : 9;
+  const allowMultiple = MAX_PHOTOS > 1;
   // Latched once the user clicks Enhance. Used to keep the analyze view
   // mounted across the brief gap between `isLoading=false` and `visibleText`
   // being populated by onFinish (would otherwise flash back to UploadHero).
@@ -540,6 +595,9 @@ export default function BoostScanner() {
   const [isCopied, setIsCopied] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
   const [isEnhancing, setIsEnhancing] = useState(false);
+  // [select-agent] true while /api/select-photo is choosing which uploaded
+  // photo to optimize (only runs when 2+ photos). Drives the Enhance CTA loading.
+  const [isSelecting, setIsSelecting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [watermarkedImage, setWatermarkedImage] = useState<string | null>(null);
   const [enhancementId, setEnhancementId] = useState<string | null>(null);
@@ -550,6 +608,9 @@ export default function BoostScanner() {
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  // [2026-06-01 paywall gating] 非会员触发付费时弹的全屏会员墙（新版 PaywallView）。
+  // 会员缺积分则走 activeModal === 'credits_shop'。见 gateInsufficientCredits。
+  const [showMembershipPaywall, setShowMembershipPaywall] = useState(false);
   const [visibleText, setVisibleText] = useState<string>('');
   const [analysisJSON, setAnalysisJSON] = useState<string | null>(null);
   const [selectedPanel, setSelectedPanel] = useState<SelectedPanel>('original');
@@ -745,9 +806,9 @@ export default function BoostScanner() {
     }
     const params = new URLSearchParams(window.location.search);
     if (params.get('payment') === 'success') {
-      // [no-login pivot 2026-05-18] 付费回跳：URL 取 scan_id (兜底
-      // sessionStorage)，直接进 delivery 阶段 (DatingTrivia + GenerationProgress
-      // 等待屏)，跳过 reveal 动画 —— 用户反馈"先闪上传页再到答题"，希望直接到。
+      // [RESTORED 2026-05-29 — login revert] 订阅/积分流程的付费回跳：
+      // 只刷新积分（用户买完积分回来继续 enhance），不再进一次性的 delivery
+      // 轮询交付屏（scan-result 已停用）。
       const urlScanId = params.get('scan_id');
       const restoredScanId = urlScanId || safeGetItem(sessionStorage, 'mf_scan_id');
       if (restoredScanId) {
@@ -762,8 +823,8 @@ export default function BoostScanner() {
       safeRemoveItem(sessionStorage, 'mf_showcase_pending_download');
       safeRemoveItem(sessionStorage, 'mf_showcase_pending_download_group');
       safeRemoveItem(sessionStorage, 'mf_payment_just_completed');
-      skipExitWarningRef.current = true;
-      setPostPaymentStage('delivery');
+      // [RESTORED] 不再 setPostPaymentStage('delivery')（一次性轮询交付屏）。
+      // setPostPaymentStage('delivery');
     }
     if (params.get('download_error') === 'insufficient_credits') { params.delete('download_error'); window.history.replaceState({}, '', params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname); setActiveModal('download_unlock'); }
   }, []);
@@ -775,28 +836,22 @@ export default function BoostScanner() {
       setIsLoggedIn(!!session);
       if (session) fetch('/api/credits').then(r => r.json()).then(data => { if (typeof data.isSubscribed === 'boolean') setIsSubscribed(data.isSubscribed); }).catch(() => { });
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setIsLoggedIn(!!session);
-      // [DISABLED 2026-05-16 — no-login pivot]
-      // 旧的 SIGNED_IN 自动续跑分支：登录回来后翻掉付费墙、直接调用 handleEnhance。
-      // 现在没有登录，但 supabase-js 在 stale session / token refresh 时仍可能触发
-      // SIGNED_IN，把 isGuestEnhanced 翻成 false，导致付费墙秒消失 → 看到
-      // "Generating your photo" 卡住的 bug。一次性买卖流程下整段无意义，先停用。
-      // 未来恢复登录时，把整段注释解开，并把外层 useEffect 的 deps 改回
-      // [preview, analysisJSON, visibleText] 即可（handleEnhance 闭包需要它们）。
-      // if (event === 'SIGNED_IN' && session) {
-      //   setIsGuestEnhanced(false); trackEvent('guest_signin_after_enhance');
-      //   const hasPending = safeGetItem(sessionStorage, 'mf_pending_enhance') === 'true' || safeGetItem(localStorage, 'mf_pending_enhance') === 'true';
-      //   safeRemoveItem(localStorage, 'mf_pending_enhance'); safeRemoveItem(localStorage, 'mf_guest_enhanced'); safeRemoveItem(localStorage, 'mf_preview'); safeRemoveItem(localStorage, 'mf_analysisJSON'); safeRemoveItem(localStorage, 'mf_visibleText');
-      //   if (hasPending) { safeRemoveItem(sessionStorage, 'mf_pending_enhance'); handleEnhance(safeGetItem(sessionStorage, 'mf_analysisJSON') || analysisJSON, (safeGetItem(sessionStorage, 'mf_visibleText') || visibleText) ?? undefined); }
-      //   dispatchCreditsUpdate();
-      // }
+      // [RESTORED 2026-05-29 — login revert] 登录回来后：翻掉游客锁屏 +
+      // 若有 pending 分析则自动续跑 handleEnhance（登录门控 enhance）。
+      if (event === 'SIGNED_IN' && session) {
+        setIsGuestEnhanced(false); trackEvent('guest_signin_after_enhance');
+        const hasPending = safeGetItem(sessionStorage, 'mf_pending_enhance') === 'true' || safeGetItem(localStorage, 'mf_pending_enhance') === 'true';
+        safeRemoveItem(localStorage, 'mf_pending_enhance'); safeRemoveItem(localStorage, 'mf_guest_enhanced'); safeRemoveItem(localStorage, 'mf_preview'); safeRemoveItem(localStorage, 'mf_analysisJSON'); safeRemoveItem(localStorage, 'mf_visibleText');
+        if (hasPending) { safeRemoveItem(sessionStorage, 'mf_pending_enhance'); handleEnhance(safeGetItem(sessionStorage, 'mf_analysisJSON') || analysisJSON, (safeGetItem(sessionStorage, 'mf_visibleText') || visibleText) ?? undefined); }
+        dispatchCreditsUpdate();
+      }
     });
     return () => subscription.unsubscribe();
-    // [no-login pivot] deps 从 [preview, analysisJSON, visibleText] 改成 []：
-    // 上面的 SIGNED_IN 分支停用后不再需要闭包里的最新值，订阅一次即可，
-    // 避免每次分析状态变化都重订阅 listener。
-  }, []);
+    // deps 含 preview/analysisJSON/visibleText：handleEnhance 闭包需要最新值。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview, analysisJSON, visibleText]);
 
   // [DISABLED 2026-05-16 — no-login pivot]
   // 旧的 One-Tap auto-resume：登录态恢复后自动跑 handleEnhance。
@@ -1060,6 +1115,33 @@ export default function BoostScanner() {
   const handleTryAnotherConfirm = useCallback(() => { setActiveModal(null); handleReset(); skipExitWarningRef.current = false; pendingNavigationRef.current = null; }, [handleReset]);
 
   // ── Enhance ────────────────────────────────────────────────
+  // [2026-06-01 paywall gating] 生成(enhance)触发付费时的分流：
+  //   · 非会员            → 弹全屏会员购买墙（新版 PaywallView）
+  //   · 已是会员但积分不足 → 弹积分购买弹窗（credits_shop）
+  // 先实时拉一次 /api/credits 拿最新订阅态，失败则用已有 isSubscribed 兜底。
+  const gateInsufficientCredits = async () => {
+    let subscribed = isSubscribed;
+    try {
+      const r = await fetch('/api/credits');
+      if (r.ok) {
+        const d = await r.json();
+        if (typeof d.isSubscribed === 'boolean') {
+          subscribed = d.isSubscribed;
+          setIsSubscribed(d.isSubscribed);
+        }
+      }
+    } catch { /* 用已有 state 兜底 */ }
+
+    if (subscribed) {
+      trackEvent('paywall_gate', { branch: 'credits_shop' });
+      setActiveModal('credits_shop');
+    } else {
+      trackEvent('paywall_gate', { branch: 'membership' });
+      setActiveModal(null);
+      setShowMembershipPaywall(true);
+    }
+  };
+
   const handleEnhance = async (jsonFromFinish?: string | null, textFromFinish?: string) => {
     if (!preview) return;
     // getSession() reads from local storage (no network), so it's resilient to transient
@@ -1088,7 +1170,7 @@ export default function BoostScanner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.code === 'INSUFFICIENT_CREDITS') { setActiveModal('enhance'); return; }
+        if (data.code === 'INSUFFICIENT_CREDITS') { await gateInsufficientCredits(); return; }
 
         // Route transient upstream failures (overload / timeout / no-image-retryable)
         // to ai_busy with auto-countdown; only true content issues (SAFETY_BLOCKED /
@@ -1208,36 +1290,41 @@ export default function BoostScanner() {
       fetch('/api/meta-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: `lead_${Date.now()}` }) }).catch(err => console.error('[Meta CAPI] Lead event failed:', err));
       dispatchCreditsUpdate(); router.refresh();
     
-      try {
-        const parsed = json ? JSON.parse(json) : null;
-        if (parsed?.route === 'needs_real_photo') {
-          trackEvent('boost_blocked_unusable_photo');
-          // [pre-pay analyzing 2026-05-18] 用户在 AnalyzingFlow 等了一段，发现
-          // 是 needs_real_photo —— handleReset 会把 analyzingActive 也清零。
-          handleReset();
-          toast({
-            title: tToast.needRealPhotoTitle,
-            description: tToast.needRealPhotoDesc,
-          });
-          return;
-        }
-      } catch { /* ignore */ }
+      // [DISABLED 2026-05-22] 关掉前端人脸/真实照片检测拦截。
+      // 即使 scanner 判定 needs_real_photo，也照常进入付费墙，不再 reset + toast。
+      // TODO[no-face-gate] 决定是否同步清理 scanner prompt 里的 authenticity 章节。
+      // try {
+      //   const parsed = json ? JSON.parse(json) : null;
+      //   if (parsed?.route === 'needs_real_photo') {
+      //     trackEvent('boost_blocked_unusable_photo');
+      //     handleReset();
+      //     toast({
+      //       title: tToast.needRealPhotoTitle,
+      //       description: tToast.needRealPhotoDesc,
+      //     });
+      //     return;
+      //   }
+      // } catch { /* ignore */ }
 
-      // [pre-pay analyzing 2026-05-18] 分析正常结束 → 拉满进度条然后进付费墙
-      // 进度条结尾的 100% 由 effect 监听 isLoading→false 来拉，这里只触发 paywall
-      setIsGuestEnhanced(true);
-      trackEvent('paywall_enter_after_analyze');
-      void mergedJson; void text;
+      // [RESTORED 2026-05-29 — login revert] 分析结束后自动触发登录门控 enhance：
+      // handleEnhance 内部判 session — 已登录则调 /api/enhance-photo 扣积分出图，
+      // 未登录则 setIsGuestEnhanced(true) 走 GuestLockOverlay 引导登录。
+      handleEnhance(mergedJson, text);
     },
     // ...
     onError: (error) => {
+      // [fix] scanner 失败时必须退出"分析中"态，否则 hasStartedAnalysis 一直为
+      // true，ScanningOverlay (见 `hasStartedAnalysis && !visibleText`) 会一直转，
+      // 且 Enhance 按钮 (gated on !hasStartedAnalysis) 消失 → 用户关掉弹窗后
+      // 卡死、再点没反应。复位后下面各分支再弹对应 modal。
+      setHasStartedAnalysis(false);
       try {
         const d = JSON.parse(error.message);
 
         // Credits 不足 → 走原来的逻辑
         if (d.code === 'INSUFFICIENT_CREDITS' || (d.error && d.error.includes('Insufficient credits'))) {
           trackEvent('boost_failed', { reason: 'insufficient_credits' });
-          setActiveModal('enhance');
+          gateInsufficientCredits();
           return;
         }
 
@@ -1257,7 +1344,7 @@ export default function BoostScanner() {
       } catch {
         // JSON 解析失败
         if (error.message.includes('402')) {
-          setActiveModal('enhance');
+          gateInsufficientCredits();
         } else {
           trackEvent('boost_failed', { reason: 'parse_error' });
           setActiveModal('ai_busy');
@@ -1287,7 +1374,7 @@ export default function BoostScanner() {
       if (f.type.startsWith('image/') && f.size <= 10 * 1024 * 1024) altFiles.push(f);
     }
     if (altFiles.length > 0) {
-      Promise.all(altFiles.map((f) => compressImage(f, { maxSize: 800, quality: 0.75 })))
+      Promise.all(altFiles.map((f) => compressImage(f, { maxSize: 1024, quality: 0.82 })))
         .then((arr) => setAltPhotos(arr))
         .catch(() => {});
     }
@@ -1298,7 +1385,7 @@ export default function BoostScanner() {
     const hero = document.getElementById('scanner-hero');
     if (hero) hero.style.display = '';
     // 后台压缩，完成后替换预览并存 session
-    const compressed = await compressImage(file, { maxSize: 800, quality: 0.75 });
+    const compressed = await compressImage(file, { maxSize: 1024, quality: 0.82 });
     URL.revokeObjectURL(quickPreview);
     setPreview(compressed);
     scheduleIdle(() => {
@@ -1307,19 +1394,29 @@ export default function BoostScanner() {
     // NB: no auto-submit. User confirms via UploadHero CTA.
   };
 
-  // Add an alt photo from the review tray "+" slot (single-file picker).
-  // Appends to altPhotos if there's room (max MAX_PHOTOS-1 alts).
+  // Add alt photo(s) from the review tray "+" slot.
+  // [select-agent] multi-file: append as many as fit (cap MAX_PHOTOS-1 alts),
+  // so users can bulk-add the rest of their profile photos in one pick.
   const handleAltPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    if (!file.type.startsWith('image/')) { alert(tCommon.onlyBoostImages); return; }
-    if (file.size > 10 * 1024 * 1024) { alert(tCommon.fileTooLarge); return; }
-    if (altPhotos.length >= MAX_PHOTOS - 1) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    // How many more alts we can still accept.
+    const room = (MAX_PHOTOS - 1) - altPhotos.length;
+    if (room <= 0) { e.target.value = ''; return; }
+    const valid: File[] = [];
+    for (let i = 0; i < files.length && valid.length < room; i++) {
+      const f = files[i];
+      if (f.type.startsWith('image/') && f.size <= 10 * 1024 * 1024) valid.push(f);
+    }
+    if (valid.length === 0) { alert(tCommon.onlyBoostImages); e.target.value = ''; return; }
     try {
-      const compressed = await compressImage(file, { maxSize: 800, quality: 0.75 });
-      setAltPhotos((cur) => (cur.length >= MAX_PHOTOS - 1 ? cur : [...cur, compressed]));
-      trackEvent('boost_alt_photo_added', { file_size: Math.round(file.size / 1024) });
+      const compressed = await Promise.all(
+        valid.map((f) => compressImage(f, { maxSize: 1024, quality: 0.82 })),
+      );
+      setAltPhotos((cur) => [...cur, ...compressed].slice(0, MAX_PHOTOS - 1));
+      trackEvent('boost_alt_photo_added', { count: compressed.length });
     } catch {
-      // ignore — alt photo is optional
+      // ignore — alt photos are optional
     } finally {
       // Reset the input so the same file can be picked again later if removed
       e.target.value = '';
@@ -1346,8 +1443,10 @@ export default function BoostScanner() {
     setAltPhotos((cur) => cur.filter((_, i) => i !== altIdx));
   };
 
+  const stripDataPrefix = (s: string) => (s.includes(',') ? s.split(',')[1] : s);
+
   const handleSubmit = async () => {
-    if (!preview || isLoading) return;
+    if (!preview || isLoading || isSelecting) return;
     // Guard: preview can briefly be a blob URL while compressImage finishes.
     // Without this, complete() would send imageBase64=undefined and the
     // analyze view would flash back to "no analysis" state, looking stuck.
@@ -1355,6 +1454,55 @@ export default function BoostScanner() {
       toast({ title: tToast.stillProcessingTitle, description: tToast.stillProcessingDesc });
       return;
     }
+
+    // [select-agent] When 2+ photos were uploaded, let the agent pick the ONE
+    // photo with the biggest uplift as a main photo, then reorder it into the
+    // main slot so the existing scanner/enhance pipeline (which only works on
+    // slot 0) operates on the chosen photo. Single photo → skip, no change.
+    // Failures fall back silently to the user's current main (preview).
+    let mainDataUrl = preview;
+    let altDataUrls = altPhotos.filter((p) => p.startsWith('data:'));
+    const allPhotos = [mainDataUrl, ...altDataUrls];
+    if (allPhotos.length >= 2) {
+      setIsSelecting(true);
+      try {
+        const res = await fetch('/api/select-photo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            images: allPhotos.map((p) => ({ base64: stripDataPrefix(p), mimeType: 'image/jpeg' })),
+          }),
+        });
+        if (res.ok) {
+          const { selectedIndex, reason } = await res.json();
+          const idx =
+            typeof selectedIndex === 'number' && selectedIndex >= 0 && selectedIndex < allPhotos.length
+              ? Math.floor(selectedIndex)
+              : 0;
+          if (idx > 0) {
+            // Promote chosen photo to main; keep the rest as alts (order preserved).
+            mainDataUrl = allPhotos[idx];
+            altDataUrls = allPhotos.filter((_, i) => i !== idx);
+            setPreview(mainDataUrl);
+            setAltPhotos(altDataUrls);
+            scheduleIdle(() => safeSetItem(sessionStorage, 'mf_preview', mainDataUrl));
+          }
+          if (typeof reason === 'string' && reason.trim()) {
+            toast({ title: tToast.bestPhotoPickedTitle, description: reason.trim() });
+          }
+          trackEvent('select_photo_done', { selected_index: idx, count: allPhotos.length });
+        } else {
+          trackEvent('select_photo_failed', { status: res.status });
+        }
+      } catch (err) {
+        // Non-fatal: just proceed with the user's current main photo.
+        console.warn('[select-photo] failed, using user main:', err);
+        trackEvent('select_photo_failed', { reason: 'network' });
+      } finally {
+        setIsSelecting(false);
+      }
+    }
+
     // [no-login refactor 2026-05-13] 一次性买卖：分析免费且无 FREE_LIMIT 限流，
     // 不再做任何登录/积分/次数校验。所有门控都搬到付费墙。
     setHasStartedAnalysis(true);
@@ -1362,18 +1510,17 @@ export default function BoostScanner() {
     setShowCreditConfirm(false); setAutoStartChecking(false);
     setActiveModal(null); setVisibleText(''); setAnalysisJSON(null); setWatermarkedImage(null); setEnhancementId(null); setIsFreeGeneration(false); setIsDownloadFree(false); setEnhanceError(null); setSliderIndex(0); setSelectedPanel('original');
     safeRemoveItem(sessionStorage, 'mf_visibleText'); safeRemoveItem(sessionStorage, 'mf_analysisJSON'); trackEvent('boost_start_click');
-    // [pre-pay analyzing 2026-05-18] 不再瞬间打开付费墙，先进 AnalyzingFlow
-    // 的「假分析」等待屏。scanner stream 跑完 onFinish 里再把 isGuestEnhanced
-    // 翻成 true → 付费墙登场。这一步给用户更强的"AI 正在工作"锚定，提升付费墙
-    // 到价时的转化感受。needs_real_photo 边缘 case 仍在 onFinish 里走 handleReset。
-    setAnalyzingActive(true);
-    setAnalyzingProgress(0);
-    trackEvent('analyzing_start', { photo_count: 1 + altPhotos.length });
+    // [RESTORED 2026-05-29 — login revert] 不再走 AnalyzingFlow「假分析」付费墙
+    // 前置屏。分析期间由 2-col 的 ScanningOverlay 显示，onFinish 跑完直接
+    // handleEnhance（登录门控）。analyzingActive 保持 false。
+    // setAnalyzingActive(true);
+    // setAnalyzingProgress(0);
+    trackEvent('analyzing_start', { photo_count: allPhotos.length });
     // [multi-photo 2026-05-18] 把 1-3 张全部传上去，scanner 会落到
     // photo_scans.original_storage_keys 数组。imageBase64 (主图) 字段保留兼容性。
-    const stripDataPrefix = (s: string) => s.includes(',') ? s.split(',')[1] : s;
-    const mainB64 = stripDataPrefix(preview);
-    const altB64s = altPhotos.map(stripDataPrefix).filter(Boolean);
+    // [select-agent] 用重排后的 mainDataUrl/altDataUrls（不是 state，避免 setState 异步）。
+    const mainB64 = stripDataPrefix(mainDataUrl);
+    const altB64s = altDataUrls.map(stripDataPrefix).filter(Boolean);
     void complete('', {
       body: {
         imageBase64: mainB64,
@@ -1565,12 +1712,9 @@ export default function BoostScanner() {
   // "Try Another Photo" CTA only on these dead-ends — on the happy path
   // the button is just clutter that interrupts the flow.
   const analysisFailed = useMemo(() => {
-    if (!analysisJSON) return false;
-    try {
-      const parsed = JSON.parse(analysisJSON);
-      return parsed?.route === 'needs_real_photo';
-    } catch { return false; }
-  }, [analysisJSON]);
+    // [DISABLED 2026-05-22] 同上：前端人脸检测拦截已关，永远视为分析成功。
+    return false;
+  }, []);
 
   // Download whichever slide the user is currently viewing in the showcase.
   const handleShowcaseDownloadCurrent = useCallback(() => {
@@ -1863,6 +2007,7 @@ export default function BoostScanner() {
             maxPhotos={MAX_PHOTOS}
             useFusion={useFusion}
             setUseFusion={setUseFusion}
+            isSelecting={isSelecting}
           />
         )}
 
@@ -1874,72 +2019,32 @@ export default function BoostScanner() {
           <AnalyzingFlow preview={preview} progress={analyzingProgress} />
         )}
 
-        {/* ═══ PAYWALL — replaces locked AI Enhanced view (no-login refactor 2026-05-13) ═══ */}
-        {/* Fake thumbnails are display-only — onPreviewLook intentionally omitted (2026-05-15). */}
-        {preview && isGuestEnhanced && (
-          <PaywallView
-            mainPhoto={preview}
-            unlocking={isUnlocking}
-            onUnlock={async (expired) => {
-              trackEvent('paywall_unlock_click', { tier: expired ? 'regular' : 'promo' });
-              if (!scanId) {
-                toast({
-                  title: tToast.photoUploadingTitle,
-                  description: tToast.photoUploadingDesc,
-                });
-                return;
-              }
-              const productId = expired
-                ? process.env.NEXT_PUBLIC_PRODUCT_ID_BUNDLE_REGULAR
-                : process.env.NEXT_PUBLIC_PRODUCT_ID_BUNDLE_PROMO;
-              if (!productId) {
-                toast({
-                  title: tToast.checkoutMisconfiguredTitle,
-                  description: tToast.checkoutMisconfiguredDesc,
-                  variant: 'destructive',
-                });
-                return;
-              }
-              setIsUnlocking(true);
-              try {
-                // GA cookie 形如 GA1.1.<client>.<ts>，client.ts 段就是 client_id
-                const gaCookie = typeof document !== 'undefined'
-                  ? document.cookie.split('; ').find((c) => c.startsWith('_ga='))
-                  : undefined;
-                const gaClientId = gaCookie?.split('=')[1]?.split('.').slice(2).join('.') ?? '';
-
-                const res = await fetch('/api/creem/create-checkout', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ scanId, productId, gaClientId }),
-                });
-                if (!res.ok) {
-                  const data = await res.json().catch(() => ({}));
-                  throw new Error(data.error || `HTTP ${res.status}`);
-                }
-                const { checkoutUrl } = await res.json();
-                if (!checkoutUrl) throw new Error('No checkoutUrl returned');
-                // 落地 scan_id 防回跳时 URL 拿不到（如 Creem 改 successUrl 透传）
-                safeSetItem(sessionStorage, 'mf_scan_id', scanId);
-                skipExitWarningRef.current = true;
-                window.location.href = checkoutUrl;
-              } catch (err) {
-                console.error('[paywall] checkout failed:', err);
-                trackEvent('paywall_unlock_failed', { reason: (err as Error).message });
-                toast({
-                  title: tToast.checkoutFailedTitle,
-                  description: tToast.checkoutFailedDesc,
-                  variant: 'destructive',
-                });
-                setIsUnlocking(false);
-              }
-            }}
-            onReset={handleReset}
-          />
+        {/* ═══ MEMBERSHIP PAYWALL (会员购买墙) ═══ */}
+        {/* [2026-06-01] 非会员在生成(enhance)触发付费时弹出（见 gateInsufficientCredits）。
+            新版全屏订阅墙 PaywallView：H5 全屏 / 桌面双栏，Weekly $4.99 · Yearly $39.99。
+            作为 fixed 全屏覆盖层盖住 scanner，X 关闭。 */}
+        {showMembershipPaywall && preview && (
+          <div className="fixed inset-0 z-50 bg-canvas overflow-y-auto">
+            <PaywallView
+              mainPhoto={preview}
+              unlocking={isUnlocking}
+              onUnlock={() => {
+                // TODO[pricing] Weekly/Yearly 的 Creem 产品 ID 定下来后，这里直接
+                // create-checkout（带选中的 plan）。在那之前先送到 /subscribe 真实订阅页，
+                // 避免 CTA 是死按钮。
+                trackEvent('membership_paywall_continue_click');
+                setShowMembershipPaywall(false);
+                router.push('/subscribe?returnPath=' + encodeURIComponent(pathname));
+              }}
+              onReset={() => setShowMembershipPaywall(false)}
+            />
+          </div>
         )}
 
-        {/* ═══ DESKTOP: After Enhance click (analysis running or has results) ═══ */}
-        {preview && !analyzingActive && !isGuestEnhanced && (hasStartedAnalysis || isLoading || isEnhancing || !!visibleText || !!watermarkedImage) && (
+        {/* ═══ DESKTOP: analysis running / result / guest-lock ═══ */}
+        {/* [RESTORED 2026-05-29 — login revert] 允许 isGuestEnhanced 渲染本块，
+            游客锁屏 GuestLockOverlay 在 enhanced 列里显示。 */}
+        {preview && (hasStartedAnalysis || isLoading || isEnhancing || !!visibleText || !!watermarkedImage || isGuestEnhanced) && (
           <div className="hidden md:grid md:grid-cols-2 gap-5">
             <div onClick={showEnhanced ? selectOriginal : undefined}
               className={`rounded-card border-2 transition-all duration-300 overflow-hidden ${showEnhanced ? 'cursor-pointer' : ''} ${showEnhanced ? isOriginalSelected ? 'border-rausch shadow-lg ' : 'border-hairline-soft opacity-60 hover:opacity-90' : 'border-hairline-soft'} bg-canvas`}>
@@ -1974,7 +2079,7 @@ export default function BoostScanner() {
                       </button>
                     )}
                     <label className="w-full h-10 rounded-btn text-sm text-ink-muted hover:text-ink-body hover:bg-surface-soft flex items-center justify-center gap-2 cursor-pointer">
-                      <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
+                      <input type="file" accept="image/*" {...(allowMultiple ? { multiple: true } : {})} onChange={handleFileSelect} className="hidden" />
                       <RefreshCw className="w-3.5 h-3.5" /> Change photo
                     </label>
                   </div>
@@ -2027,9 +2132,10 @@ export default function BoostScanner() {
           </div>
         )}
 
-        {/* ═══ MOBILE: After Enhance click ═══ */}
+        {/* ═══ MOBILE: analysis running / result / guest-lock ═══ */}
         <div className="md:hidden">
-          {preview && !analyzingActive && !isGuestEnhanced && (hasStartedAnalysis || isLoading || isEnhancing || !!visibleText || !!watermarkedImage) && (
+          {/* [RESTORED 2026-05-29 — login revert] 允许 isGuestEnhanced 渲染 */}
+          {preview && (hasStartedAnalysis || isLoading || isEnhancing || !!visibleText || !!watermarkedImage || isGuestEnhanced) && (
             // 下面原样
             <div className="rounded-card border border-hairline bg-canvas overflow-hidden">
               {showEnhanced && (
@@ -2103,7 +2209,7 @@ export default function BoostScanner() {
                       </button>
                     )}
                     <label className="w-full h-9 rounded-btn text-xs text-ink-muted hover:text-ink-body flex items-center justify-center gap-1.5 cursor-pointer">
-                      <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
+                      <input type="file" accept="image/*" {...(allowMultiple ? { multiple: true } : {})} onChange={handleFileSelect} className="hidden" />
                       <RefreshCw className="w-3 h-3" /> Change photo
                     </label>
                   </div>
@@ -2486,11 +2592,8 @@ export default function BoostScanner() {
       {/* ═══ MODALS ═══ */}
       {activeModal === 'privacy_exit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><ShieldCheck className="size-8 text-emerald-500" /></div><h2 className="text-xl font-semibold text-ink mb-2">{tCommon.privacyExitTitle}</h2><p className="text-sm text-ink-muted mb-1 leading-relaxed">{tCommon.privacyExitBody1Pre}<span className="font-semibold text-ink">{tCommon.privacyExitBody1Bold}</span>{tCommon.privacyExitBody1Post}</p><p className="text-sm text-ink-muted mb-6 leading-relaxed">{tCommon.privacyExitBody2Pre}<span className="font-semibold text-ink">{tCommon.privacyExitBody2Bold}</span>{tCommon.privacyExitBody2Post}</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={pendingNavigationRef.current ? handlePrivacyExitConfirm : handleTryAnotherConfirm}>{pendingNavigationRef.current ? tCommon.privacyExitLeave : tCommon.privacyExitStartOver}</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={handlePrivacyExitCancel}>{tCommon.privacyExitStay}</button></div></div></div>)}
       {activeModal === 'free_limit' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-amber-500/10 mb-4 border border-amber-500/20"><Wand2 className="size-8 text-amber-500" /></div><h2 className="text-xl font-semibold text-ink mb-2">{tCommon.freeLimitTitle}</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">{tCommon.freeLimitBody1}</p><p className="text-xs text-ink-muted mb-6">{tCommon.freeLimitBody2Pre}<span className="font-bold text-emerald-400">{tCommon.freeLimitBody2Bold}</span>{tCommon.freeLimitBody2Post}</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>{tCommon.freeLimitMaybeLater}</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('free_limit_signup_click'); openAuthModal('sign-up'); }}>{tCommon.freeLimitSignUp}</button></div></div></div>)}
-      {/* [DISABLED 2026-05-13 — no-login refactor]
-          "Credits Needed" 弹窗已停用：一次性买卖不再有 credits 概念。
-          未来恢复时取消下面整行注释即可。
-       */}
-      {/* {activeModal === 'enhance' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><Coins className="size-8 text-rausch" /></div><h2 className="text-xl font-semibold text-ink mb-2">Credits Needed</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">AI photo enhancement costs <span className="font-bold text-ink">20 credits</span> for members or <span className="font-bold text-ink">25 credits</span> with a credit pack.</p><p className="text-xs text-ink-muted mb-6">Members save 5 credits per photo + get free watermark-free downloads.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>Cancel</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('upgrade_modal_click_refill'); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}>Get Credits</button></div></div></div>)} */}
+      {/* [RESTORED 2026-05-29 — login revert] Credits Needed 弹窗恢复。 */}
+      {activeModal === 'enhance' && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"><div className="w-full max-w-sm p-6 mx-4 bg-canvas border border-hairline rounded-card shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200"><div className="grid size-16 place-items-center rounded-full bg-rausch/10 mb-4 border border-rausch/20"><Coins className="size-8 text-rausch" /></div><h2 className="text-xl font-semibold text-ink mb-2">Credits Needed</h2><p className="text-sm text-ink-muted mb-2 leading-relaxed">AI photo enhancement costs <span className="font-bold text-ink">20 credits</span> for members or <span className="font-bold text-ink">25 credits</span> with a credit pack.</p><p className="text-xs text-ink-muted mb-6">Members save 5 credits per photo + get free watermark-free downloads.</p><div className="flex w-full gap-3"><Button variant="outline" className="flex-1 h-11 rounded-btn border-hairline text-ink-body hover:bg-surface-soft" onClick={() => setActiveModal(null)}>Cancel</Button><button className="flex-1 h-11 rounded-btn bg-rausch hover:bg-rausch-active text-white font-bold text-sm transition-all" onClick={() => { setActiveModal(null); trackEvent('upgrade_modal_click_refill'); router.push('/subscribe?returnPath=' + encodeURIComponent(pathname)); }}>Get Credits</button></div></div></div>)}
 
       {/* enhance_failed modal */}
       {activeModal === 'enhance_failed' && (

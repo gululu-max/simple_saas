@@ -1,8 +1,7 @@
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 import { randomUUID } from 'crypto';
-// [DISABLED 2026-05-17 — no-login pivot] createClient (server) 给登录用户读 session，
-// 现在用不到。恢复登录时把下一行解开。
-// import { createClient } from "@/utils/supabase/server";
+// [RESTORED 2026-05-29 — login revert] createClient (server) 给登录用户读 session。
+import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 import path from 'path';
@@ -66,7 +65,7 @@ interface LoadedScan {
 
 async function loadScanById(
   scanId: string,
-  _userId: string | null,
+  userId: string | null,
 ): Promise<LoadedScan | null> {
   const { data: scan, error } = await supabaseAdmin
     .from('photo_scans')
@@ -82,16 +81,11 @@ async function loadScanById(
     console.warn(`[enhance] scan ${scanId} not found`);
     return null;
   }
-  // [no-login pivot] paid 校验取代 user_id 校验
-  if (!scan.paid) {
-    console.warn(`[enhance] scan ${scanId} not paid yet`);
+  // [RESTORED 2026-05-29 — login revert] user_id 归属校验取代 paid 校验。
+  if (scan.user_id !== userId) {
+    console.warn(`[enhance] scan ${scanId} owner mismatch (scan=${scan.user_id}, req=${userId})`);
     return null;
   }
-  // [DISABLED 2026-05-17 — no-login pivot]
-  // if (scan.user_id !== _userId) {
-  //   console.warn(`[enhance] scan ${scanId} owner mismatch (scan=${scan.user_id}, req=${_userId})`);
-  //   return null;
-  // }
   if (scan.expires_at && new Date(scan.expires_at).getTime() < Date.now()) {
     console.warn(`[enhance] scan ${scanId} expired at ${scan.expires_at}`);
     return null;
@@ -240,38 +234,49 @@ function sanitizeFixPlan(plan: FixPlan): FixPlan {
 // 现有 retouch prompt（保持原样，仅在 useFusion=false 时使用）
 // ═══════════════════════════════════════════════════════════
 function buildRetouchPrompt(fixPlan: FixPlan): string {
-  return `You are an elite portrait retoucher. Your work should be invisible — viewers should think "great photo," never "edited photo."
+  return `You are an elite portrait retoucher RETOUCHING an existing DATING PROFILE photo. You are NOT creating a new portrait — you are adjusting the pixels that are already there. Think Lightroom/Photoshop on the original file: tonal and local corrections layered on top of the real photo, never a repaint. Goal: the same photo, looking like it was shot on a great day in good light — clearly more polished, but unmistakably the SAME person and a real, un-filtered photograph.
 
 ══════════════════════════════════════════════
-THREE SUPREME RULES
+EDIT IN PLACE — DO NOT REPAINT THE FACE (this is the #1 rule)
 ══════════════════════════════════════════════
 
-R1. DO LESS WHEN IN DOUBT. An under-edited real-looking photo always beats an over-edited fake-looking one. If unsure, don't edit.
+PRESERVE THE ORIGINAL FACE PIXELS. Do NOT regenerate, redraw, or "re-imagine" the face. Treat the face as locked reference geometry and only push tone, light, color, and clarity on top of the existing pixels. The single most common failure here is the output looking like a DIFFERENT person — that is a TOTAL FAILURE, worse than doing nothing.
 
-R2. NO ADDED ELEMENTS by default. Do NOT add lens flare, bokeh orbs, rim halos, film grain, or vignettes. The FIXPLAN OVERRIDES section below may explicitly enable specific edits (e.g. brighten_eyes); follow those, conservatively.
+Keep these EXACT and pixel-faithful to the original:
+- Facial bone structure and proportions: jawline, cheekbones, chin, forehead, overall face width and length
+- The exact shape, size, position, and spacing of every feature: eyes, eyebrows, nose, lips, ears
+- Underlying skin color, undertone, and ethnicity
+- Natural hair color, hairline, and hair length
+- Body shape and every clothing item
 
-R3. PRESERVE ORIGINAL COLOR. Match the original's color temperature unless FIXPLAN explicitly says warm_tone, cool_tone, or neutral_balance.
+Do NOT slim or reshape the face/jaw, enlarge or reposition the eyes, shrink the nose, alter lip shape, smooth away identifying features, or apply ANY "beauty-filter" geometry. When attractiveness and identity conflict, IDENTITY WINS every time. The test: someone who knows this person must say "great photo of them" — never "is that really them?" If in doubt about a face edit, don't make it.
 
 ══════════════════════════════════════════════
-IDENTITY LOCK
+FLATTERING PASS — ALWAYS APPLY (local, on top of the original)
 ══════════════════════════════════════════════
 
-PIXEL-LEVEL FAITHFUL to the original: facial bone structure, feature shapes, skin color, body shape, hair, every clothing item.
+Apply the subtle, universally-flattering corrections a professional does on every portrait — as local adjustments to the EXISTING pixels, never by redrawing. Enough to clearly lift the photo, never enough to change who it is:
+- Lighting: even out and gently lift shadows on the face so features read clearly and skin looks healthy; balanced, natural exposure. No new or colored light sources, no relighting that reshapes the face.
+- Skin: remove only temporary blemishes (spots, shine, stray hairs). KEEP all pores, texture, freckles, moles, and natural lines — absolutely no plastic or airbrushed skin.
+- Eyes: subtly brighten and add natural catchlight clarity; keep their exact shape and real color. Stop well before any "glow."
+- Color & tone: clean, healthy, natural white balance with gentle contrast and vibrance for a polished finish. Preserve the original color temperature.
+- Sharpness: crisp, clear focus on the eyes and face. No halos, no global over-sharpening.
+- Believability: a great shot of THIS person in good light — not a different photo and not a different face.
 
 ══════════════════════════════════════════════
-FIXPLAN OVERRIDES (active edits only)
+FIXPLAN — TARGETED ADJUSTMENTS (stronger, only where flagged)
 ══════════════════════════════════════════════
 
 ${buildActiveFixPlanLines(fixPlan)}
 
 ${fixPlan.background === 'blur' ? '- Background: apply subtle depth-of-field softening to the existing background; do NOT replace it.\n' : ''}${fixPlan.background?.startsWith('replace_') ? `- Background: replace with ${fixPlan.background.slice('replace_'.length).replace(/_/g, ' ')}. Match the original photo's focal length, light direction, and time of day.\n` : ''}${fixPlan.framing === 'crop_chest_up' ? '- Framing: crop to chest-up.\n' : ''}${fixPlan.framing === 'crop_waist_up' ? '- Framing: crop to waist-up.\n' : ''}${fixPlan.framing === 'zoom_out_slightly' ? '- Framing: zoom out slightly (extend canvas naturally).\n' : ''}
-Anything not listed above: leave untouched.
+These intensify the baseline pass for the listed dimensions only. Anything not listed gets the baseline pass and nothing more.
 
 ══════════════════════════════════════════════
 PROHIBITIONS
 ══════════════════════════════════════════════
 
-No added glow/halos/flares (unless FIXPLAN specifies). No finger/teeth anomalies. No symmetry artifacts. No edge bleeding. No global LUT. No added makeup/accessories/tattoos. No body shape change. No plastic skin (preserve pores). No text/watermark overlay. No color temperature shift outside FIXPLAN.
+No change to facial geometry, feature shapes, body shape, ethnicity, age, or hair color. No beauty-filter slimming, eye-enlarging, or skin-plastic effects. No added makeup, accessories, tattoos, or teeth veneers. No lens flare, glow, halos, bokeh orbs, film grain, or heavy vignettes. No finger/teeth anomalies, symmetry artifacts, or edge bleeding. No background replacement unless FIXPLAN says so. No text/watermark/logo overlay. The output must read as a real, un-filtered phone/camera photograph.
 
 Return only the enhanced image.`;
 }
@@ -303,8 +308,8 @@ If teeth are visible in IMAGE 1, gently brighten them to a natural off-white. Su
 IMAGE ROLES — STRICT
 ══════════════════════════════════════════════
 
-IMAGE 1 (first attached image) = PERSON. Identity reference. Use for face, hair, skin, clothing.
-IMAGE 2 (second attached image) = SCENE. Target environment. The output should feel like it was shot in this location.
+IMAGE 1 (first attached image) = PERSON. FACE reference — use IMAGE 1 to lock the facial identity (features, bone structure, skin undertone, hair color). Clothing / pose / accessories in IMAGE 1 are just context; you are free to restyle them for the scene.
+IMAGE 2 (second attached image) = SCENE. Target environment. The output should feel like it was shot in this location, with the person dressed and posed appropriately for it.
 
 There are exactly TWO input images. If you perceive more, you have miscounted — re-read.
 
@@ -325,14 +330,26 @@ R2. PRESERVE IMAGE 1's VISIBLE EXTENT exactly:
 R3. PRESERVE IMAGE 1's FACE ANGLE. If IMAGE 1 shows the back, a profile, or a turned-away angle, do NOT invent a front-facing face.
 
 ══════════════════════════════════════════════
-CORE PRINCIPLE
+CORE PRINCIPLE — FACE IS LOCKED, EVERYTHING ELSE ADAPTS
 ══════════════════════════════════════════════
 
-You are NOT pasting IMAGE 1 onto IMAGE 2. You are RE-PHOTOGRAPHING the person as if they had walked into IMAGE 2's environment and the photographer took a new picture. The person's POSE, BODY ORIENTATION, HEAD ANGLE, and HAND POSITIONS should adapt to make sense in the new scene — but their identity layer (face, hair, skin, clothing) is locked.
+You are NOT pasting IMAGE 1 onto IMAGE 2. You are RE-PHOTOGRAPHING the person as if they had walked into IMAGE 2's environment and the photographer took a new picture there. Treat IMAGE 1 as a FACE REFERENCE, not a literal template — the rest of the look should adapt to fit the scene like a stylist made appropriate choices.
 
-STRICTLY PRESERVE from IMAGE 1: facial bone structure, feature shapes (eyes/nose/mouth/ears), skin color and undertone, hair (style/color/length/texture), every clothing item (type/color/pattern/fit/logos).
+LOCKED — must survive unchanged (these are inviolable):
+- Facial bone structure and feature shapes (eyes / nose / mouth / ears / jawline / forehead)
+- Underlying skin color and undertone — adapt to scene lighting only, do NOT change ethnicity
+- Approximate age and overall body type
+- Natural hair color
 
-ADAPT to the scene: body pose, posture, orientation, arm/hand positions, head tilt, gaze direction.
+FREE — adapt to the scene with photographic judgment:
+- Pose, body orientation, head tilt, gaze direction
+- Arm / hand positions and gestures
+- Clothing — choose an outfit that fits the scene's formality, season, and activity. Do NOT feel obligated to recreate what IMAGE 1 wears.
+- Accessories — sunglasses (outdoor / sunlit scenes), hat, scarf, jewelry, watch, bag, etc. — add or omit as the scene calls for
+- Subtle expression adjustment to match the scene's mood
+- Hairstyle (length within reason, parting, up vs. down) — but keep the natural hair color from IMAGE 1
+
+CORE TEST: someone who knows this person should still recognize them instantly from their FACE alone. The clothing, pose, and styling can be entirely scene-driven — that's the whole point.
 
 ══════════════════════════════════════════════
 SCENE COMPATIBILITY DATA
@@ -409,27 +426,29 @@ PROHIBITIONS
 ══════════════════════════════════════════════
 
 - Do NOT output IMAGE 2 alone with no person from IMAGE 1.
-- Do NOT alter the person's face, hair, skin tone (beyond light-adapt), or clothing.
-- Do NOT invent a face if IMAGE 1 shows the back/side/turned-away.
-- Do NOT invent body parts beyond IMAGE 1's visible extent.
-- Do NOT add lens flare, bokeh orbs, light leaks, film grain, vignettes, or any visual element not present in IMAGE 1 or implied by IMAGE 2.
+- Do NOT alter the person's facial features, bone structure, or underlying skin tone (light-adapt only).
+- Do NOT change ethnicity, approximate age, overall body type, or natural hair color.
+- Do NOT invent a face if IMAGE 1 shows the back/side/turned-away — keep that exact angle.
+- Do NOT invent body parts beyond IMAGE 1's visible extent (see framing rules above).
+- Do NOT add lens flare, bokeh orbs, light leaks, film grain, or vignettes (these are post-processing effects, not styling — clothing/accessory choices are fine).
 - Do NOT produce compositing artifacts (edge halos, scale mismatches, floating subjects).
 - Do NOT add any other person, silhouette, or figure.
 - Do NOT add text, watermark, logo, or overlay.
-- Do NOT stylize — output must read as a real phone camera photograph.
+- Do NOT stylize as illustration / cartoon / painting / anime — output must read as a real phone camera photograph.
 
 ══════════════════════════════════════════════
 FINAL CHECK
 ══════════════════════════════════════════════
 
 1. Person from IMAGE 1 visible? (background-only = REDO)
-2. Identity preserved (face / hair / clothing / underlying skin tone)?
-3. Face angle matches IMAGE 1 (no invented front face)?
+2. FACIAL identity preserved? (features, bone structure, skin undertone, hair color — face is locked)
+3. Face angle matches IMAGE 1 (no invented front face if IMAGE 1 was profile/back)?
 4. Framing matches ${userTags.visible_body} (no invented body parts)?
 5. Person placed per subject_slot=${scene.subject_slot}?
 6. Person size matches recommended_person_size=${scene.recommended_person_size}?
 7. Lighting direction and intensity match IMAGE 2?
-8. Looks like ONE phone photograph, not a collage or magazine shoot?
+8. Clothing / accessories / pose feel scene-appropriate (not a stiff IMAGE 1 paste)?
+9. Looks like ONE phone photograph, not a collage or magazine shoot?
 
 Return only the final image.`;
 }
@@ -533,9 +552,7 @@ The output is a waist-up portrait.`,
 
     full_body: `THE USER PHOTO (IMAGE 1) SHOWS THE FULL BODY.
 
-The output CAN show the full body. IMAGE 2 can be shown as a wider scene including floor/ground.
-
-Preserve all clothing (top, bottom, shoes) exactly as they appear in IMAGE 1.`,
+The output CAN show the full body. IMAGE 2 can be shown as a wider scene including floor/ground. Choose footwear and outfit appropriate to the scene — IMAGE 1's clothing is just a reference, not a requirement.`,
   };
   return map[visibleBody] ?? map.upper_chest;
 }
@@ -1067,43 +1084,44 @@ export async function POST(req: Request) {
     let analysisResult: string | undefined = body.analysisResult;
 
     // ═══════════════════════════════════════════════════════════
-    // [no-login pivot 2026-05-17] 鉴权 + 计费整段改写
-    //
-    // 新鉴权：scan.paid = true 即可生成图。访客无 user_id，paid 状态由
-    // /api/webhooks/creem 收到 checkout.completed 后写入。
-    //
-    // 计费：完全停用积分体系。一次性买卖按 scan 收费，付费 = 解锁 3 张。
-    // 旧的 customers / credits / deduct_credits / refund_credits 整段
-    // 保留在下方注释里，恢复登录时解开。
-    //
-    // 由于不再扣积分，refundOnFailure 也不需要了 —— 失败的 enhance 只是
-    // 不写 photo_enhancements 行，前端轮询超时后展示重试按钮，scan 仍是
-    // paid，重试无需再次付费。
+    // [RESTORED 2026-05-29 — login revert] 登录鉴权 + scan 归属校验。
+    // 一次性买卖的 scan.paid 版整段保留在文件下方注释里。
     // ═══════════════════════════════════════════════════════════
-    if (!rawScanId) {
-      // 新流程下必须走 scan_id 路径，legacy imageBase64 入参不再支持
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return new Response(
-        JSON.stringify({ error: 'scanId is required', code: 'SCAN_ID_REQUIRED' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Unauthorized", code: "LOGIN_REQUIRED" }),
+        { status: 401 }
       );
     }
 
-    const loaded = await loadScanById(rawScanId, null);
-    if (!loaded) {
-      return new Response(
-        JSON.stringify({ error: 'Scan not found, not paid, or expired', code: 'SCAN_NOT_AVAILABLE' }),
-        { status: 410, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-    imageBase64 = loaded.imageBase64;
-    mimeType = loaded.mimeType;
-    if (loaded.analysisResultString) {
-      analysisResult = loaded.analysisResultString;
+    // [RESTORED 2026-05-29 — login revert] scanId 可选：
+    //   - 有 scanId（登录用户分析时已落 photo_scans）→ loadScanById 校验归属
+    //   - 无 scanId（游客分析后登录续跑）→ 走 legacy imageBase64 (body) 单图路径
+    let loaded: LoadedScan | null = null;
+    if (rawScanId) {
+      loaded = await loadScanById(rawScanId, user.id);
+      if (!loaded) {
+        return new Response(
+          JSON.stringify({ error: 'Scan not found or expired', code: 'SCAN_NOT_FOUND' }),
+          { status: 410, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      imageBase64 = loaded.imageBase64;
+      mimeType = loaded.mimeType;
+      if (loaded.analysisResultString) {
+        analysisResult = loaded.analysisResultString;
+      }
     }
 
     if (!imageBase64) {
       return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
     }
+
+    // legacy 单图路径无 originalKeys；多图路径用 loaded 的数组。
+    const allUserImages = loaded ? loaded.imageBase64s : [imageBase64];
+    const allOriginalKeys = loaded ? loaded.originalKeys : [];
 
     // ═══════════════════════════════════════════════════════════
     // [N→N 2026-05-19] Per-photo tagger
@@ -1112,8 +1130,6 @@ export async function POST(req: Request) {
     // 失败时降级：复用 pre-pay 主图 tags ×N（所有 variant 共用一份 tags，
     // 但 photo 仍 per-variant，效果略弱但不会崩）
     // ═══════════════════════════════════════════════════════════
-    const allUserImages = loaded.imageBase64s;
-    const allOriginalKeys = loaded.originalKeys;
     const N = allUserImages.length;
     console.log(`[enhance] N=${N} (scanId=${rawScanId}) | originalKeys=[${allOriginalKeys.join(', ')}]`);
 
@@ -1141,17 +1157,101 @@ export async function POST(req: Request) {
       console.warn('⚠️  FORCE_RETOUCH_MODE active — fusion request routed to retouch');
     }
 
-    // [no-login pivot] 访客无 customer 概念，免费试用 / 订阅状态都不存在
-    const isFreeTrial = false;
-    const isSubscribed = false;
-    let creditsRemaining = 0;
-    const deducted = false;
-    void COST_SUBSCRIBED; void COST_NON_SUBSCRIBED; // 暂时保留常量
+    // ═══════════════════════════════════════════════════════════
+    // [RESTORED 2026-05-29 — login revert] 积分扣费 + 失败退款恢复。
+    // ═══════════════════════════════════════════════════════════
+    const { data: customer, error: customerError } = await supabaseAdmin
+      .from("customers")
+      .select(`
+        id, credits, free_enhance_used,
+        subscriptions (status, current_period_end)
+      `)
+      .eq("user_id", user.id)
+      .single();
 
-    console.log(`🔍 [paid scan] scanId: ${rawScanId} | useFusion: ${useFusion}`);
+    if (customerError || !customer) {
+      console.error("Supabase Error:", customerError);
+      return new Response(JSON.stringify({ error: "Failed to fetch customer data" }), { status: 500 });
+    }
 
-    // [no-login pivot] refund 无意义，留个 no-op 兼容 finally 块
-    const refundOnFailure = async (_reason: string) => { /* no-op: 不再扣积分 */ };
+    const isFreeTrial = !customer.free_enhance_used;
+    const nowIso = new Date().toISOString();
+    const subs = (customer as any).subscriptions as any[] | null;
+    const subData = subs?.find((s: any) =>
+      s.status === 'active' ||
+      (s.status === 'canceled' && s.current_period_end && s.current_period_end > nowIso)
+    ) ?? null;
+    const isSubscribed = !!subData;
+
+    const costNeeded = isSubscribed ? COST_SUBSCRIBED : COST_NON_SUBSCRIBED;
+    const actionType = isSubscribed ? 'PhotoEnhance_Member' : 'PhotoEnhance_NonMember';
+    let creditsRemaining = customer.credits;
+    let deducted = false;
+
+    console.log(`🔍 user.id: ${user.id} | useFusion: ${useFusion} | scanId: ${rawScanId}`);
+
+    if (!isFreeTrial) {
+      if (customer.credits < costNeeded) {
+        return new Response(
+          JSON.stringify({
+            error: "Insufficient credits", code: "INSUFFICIENT_CREDITS",
+            needed: costNeeded, current: customer.credits, isSubscribed,
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: rpcResult, error: rpcError } = await supabaseAdmin
+        .rpc('deduct_credits', {
+          p_user_id: user.id,
+          p_amount: costNeeded,
+          p_description: actionType,
+          p_metadata: { source: 'system_deduction', action: actionType },
+        })
+        .returns<DeductCreditsResult[]>()
+        .single();
+
+      if (rpcError) {
+        console.error(`扣费RPC失败 (User: ${user.id}):`, rpcError);
+        return new Response(JSON.stringify({ error: "Failed to deduct credits" }), { status: 500 });
+      }
+      if (!rpcResult.success) {
+        return new Response(
+          JSON.stringify({
+            error: "Insufficient credits", code: "INSUFFICIENT_CREDITS",
+            needed: costNeeded, current: 0, isSubscribed,
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      creditsRemaining = rpcResult.remaining;
+      deducted = true;
+    }
+
+    const refundOnFailure = async (reason: string) => {
+      if (!deducted) return;
+      try {
+        const { data: refundResult, error: refundErr } = await supabaseAdmin
+          .rpc('refund_credits', {
+            p_user_id: user.id,
+            p_amount: costNeeded,
+            p_description: `Refund: ${reason}`,
+            p_metadata: { action: reason },
+          })
+          .returns<RefundCreditsResult[]>()
+          .single();
+
+        if (refundErr || !refundResult?.success) {
+          console.error(`退款失败 (User: ${user.id}):`, refundErr ?? refundResult);
+          return;
+        }
+        creditsRemaining = refundResult.remaining;
+        deducted = false;
+        console.log(`退款: ${costNeeded} credits, reason: ${reason}`);
+      } catch (err) {
+        console.error(`退款异常 (User: ${user.id}):`, err);
+      }
+    };
 
     // ═══════════════════════════════════════════════════════════
     // [DISABLED 2026-05-17 — no-login pivot] 旧版鉴权 + 计费整段
@@ -1316,7 +1416,7 @@ export async function POST(req: Request) {
         const geminiResult = await callGeminiRetouch(photo, mimeType, analysisResult);
         return await processVariant({
           geminiResult,
-          userId: null,
+          userId: user.id,
           isFreeTrial,
           scanId: rawScanId ?? null,
           groupId,
@@ -1390,7 +1490,7 @@ export async function POST(req: Request) {
             try {
               return await processVariant({
                 geminiResult: result.value,
-                userId: null,
+                userId: user.id,
                 isFreeTrial,
                 scanId: rawScanId ?? null,
                 groupId,
@@ -1451,7 +1551,7 @@ export async function POST(req: Request) {
                 }
                 return await processVariant({
                   geminiResult,
-                  userId: null,
+                  userId: user.id,
                   isFreeTrial,
                   scanId: rawScanId ?? null,
                   groupId,
@@ -1535,13 +1635,13 @@ export async function POST(req: Request) {
       throw new Error('All variants failed to generate');
     }
 
-    // [DISABLED 2026-05-17 — no-login pivot] 旧的 free_enhance_used 标记
-    // if (isFreeTrial) {
-    //   await supabase
-    //     .from('customers')
-    //     .update({ free_enhance_used: true })
-    //     .eq('user_id', user.id);
-    // }
+    // [RESTORED 2026-05-29 — login revert] 首次免费额度用掉后标记。
+    if (isFreeTrial) {
+      await supabase
+        .from('customers')
+        .update({ free_enhance_used: true })
+        .eq('user_id', user.id);
+    }
 
     success = true;
     const first = variants[0];

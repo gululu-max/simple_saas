@@ -20,6 +20,15 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ scanId: string }> },
 ) {
+  // [DISABLED 2026-05-29 — login revert] 一次性买卖的"付费后重试生成"端点。
+  // 登录门控/积分流程下，enhance 直接由前端登录态触发，不走这里。
+  // 恢复一次性 flow 时把下面这个守卫删掉即可。`: boolean` 标注避免 TS
+  // 把后续代码判成 unreachable 而丢失类型收窄。
+  const ONESHOT_DISABLED: boolean = true;
+  if (ONESHOT_DISABLED) {
+    return NextResponse.json({ error: 'Gone — one-shot flow disabled' }, { status: 410 });
+  }
+
   try {
     const { scanId } = await params;
     if (!scanId) {

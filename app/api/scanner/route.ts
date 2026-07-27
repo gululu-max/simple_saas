@@ -16,8 +16,8 @@ import { randomUUID } from 'crypto';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText, generateText } from 'ai';
 import { ProxyAgent } from 'undici';
-// [DISABLED 2026-05-17 — no-login pivot] 读 session 用，现在用不到
-// import { createClient } from "@/utils/supabase/server";
+// [RESTORED 2026-05-29 — login revert] 读 session 用。
+import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { TAG_PROMPT, parseSceneTags, type SceneTags } from './tag-prompt';
 import { classifyUpstreamError } from '@/lib/upstream-errors';
@@ -83,54 +83,52 @@ export async function POST(req: Request) {
     const imageBase64 = imageBase64s[0]; // 主图（用于 pre-pay 分析）
 
     // ═══════════════════════════════════════════════════════════
-    // [no-login pivot 2026-05-17] scanner 对所有访客无门槛跑分析。
-    // 旧版的 user / customer / credits / subscription / free_enhance_used
-    // 校验整段保留在下面注释里，恢复登录时解开 + 把下方 photo_scans
-    // insert 的 user_id 也改回 user.id。
+    // [RESTORED 2026-05-29 — login revert] 登录用户的积分/订阅门控恢复。
+    // 游客仍可跑分析（无 user），但不落 photo_scans（见下方 insert 守卫）。
     // ═══════════════════════════════════════════════════════════
-    // const supabase = await createClient();
-    // const { data: { user } } = await supabase.auth.getUser();
-    //
-    // if (user) {
-    //   const { data: customer, error: customerError } = await supabase
-    //     .from('customers')
-    //     .select('id, credits, free_enhance_used')
-    //     .eq('user_id', user.id)
-    //     .single();
-    //
-    //   if (customerError || !customer) {
-    //     console.error('Fetch customer error:', customerError);
-    //     return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), {
-    //       status: 500, headers: { 'Content-Type': 'application/json' },
-    //     });
-    //   }
-    //
-    //   const isFirstFreeUser = !customer.free_enhance_used;
-    //
-    //   if (!isFirstFreeUser) {
-    //     const now = new Date().toISOString();
-    //     const { data: subData } = await supabaseAdmin
-    //       .from('subscriptions')
-    //       .select('status, current_period_end')
-    //       .eq('customer_id', customer.id)
-    //       .in('status', ['active', 'canceled'])
-    //       .maybeSingle();
-    //
-    //     const isSubscribed = !!subData && (
-    //       subData.status === 'active' ||
-    //       (subData.status === 'canceled' && !!subData.current_period_end && subData.current_period_end > now)
-    //     );
-    //
-    //     const requiredCredits = isSubscribed ? 20 : 25;
-    //
-    //     if (customer.credits < requiredCredits) {
-    //       return new Response(
-    //         JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
-    //         { status: 402, headers: { 'Content-Type': 'application/json' } }
-    //       );
-    //     }
-    //   }
-    // }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('id, credits, free_enhance_used')
+        .eq('user_id', user.id)
+        .single();
+
+      if (customerError || !customer) {
+        console.error('Fetch customer error:', customerError);
+        return new Response(JSON.stringify({ error: 'Failed to fetch user credits' }), {
+          status: 500, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const isFirstFreeUser = !customer.free_enhance_used;
+
+      if (!isFirstFreeUser) {
+        const now = new Date().toISOString();
+        const { data: subData } = await supabaseAdmin
+          .from('subscriptions')
+          .select('status, current_period_end')
+          .eq('customer_id', customer.id)
+          .in('status', ['active', 'canceled'])
+          .maybeSingle();
+
+        const isSubscribed = !!subData && (
+          subData.status === 'active' ||
+          (subData.status === 'canceled' && !!subData.current_period_end && subData.current_period_end > now)
+        );
+
+        const requiredCredits = isSubscribed ? 20 : 25;
+
+        if (customer.credits < requiredCredits) {
+          return new Response(
+            JSON.stringify({ error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' }),
+            { status: 402, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
 
     let fetchOptions: Record<string, unknown> = {};
     if (process.env.NODE_ENV === 'development') {
@@ -148,21 +146,19 @@ export async function POST(req: Request) {
     const mimeType = receivedMimeType || 'image/jpeg';
 
     // ─── Start photo_scans creation ────────────────────────────────
-    // [no-login pivot 2026-05-17] 所有访客都建 scan 行（无 user_id）。
-    // scanId 是付费墙 + 后续 enhance 的 bearer token (UUID 不可猜)。
-    // [multi-photo 2026-05-18] 上传 1-3 张原图，每张独立 key，写进
-    // original_storage_keys text[]。original_storage_key 保留指向主图
-    // (索引 0)，VLM rerank 后会被更新为选中的主图 key。
+    // [RESTORED 2026-05-29 — login revert] 只对登录用户落 photo_scans，
+    // user_id = user.id。游客只跑分析、不持久化（scanId 保持 null）。
+    // 多图管线保留（处理 N=1..3），key 前缀用 user.id。
     let scanId: string | null = null;
-    let uploadPromise: Promise<string[]>;  // 改成返回 key 数组 (按上传顺序，失败的为 '')
-    let scanInsertPromise: Promise<boolean>;
+    let uploadPromise: Promise<string[]> = Promise.resolve([]);
+    let scanInsertPromise: Promise<boolean> = Promise.resolve(false);
 
-    {
+    if (user) {
       const newScanId = randomUUID();
       scanId = newScanId;
 
       const uploads = imageBase64s.map((b64, idx) => {
-        const key = `guest/scan-${newScanId}-${idx}.jpg`;
+        const key = `${user.id}/scan-${newScanId}-${idx}.jpg`;
         const buf = Buffer.from(b64, 'base64');
         return supabaseAdmin.storage
           .from(ORIGINAL_BUCKET)
@@ -184,7 +180,7 @@ export async function POST(req: Request) {
       scanInsertPromise = (async () => {
         const { error } = await supabaseAdmin
           .from('photo_scans')
-          .insert({ id: newScanId, user_id: null, mime_type: mimeType });
+          .insert({ id: newScanId, user_id: user.id, mime_type: mimeType });
         if (error) {
           console.error('[scan] initial insert failed:', error.message);
           return false;

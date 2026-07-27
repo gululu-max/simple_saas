@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Footer } from "./footer";
 
-const HIDDEN_PREFIXES = ["/subscribe/scanner"];
+const HIDDEN_PREFIXES = ["/subscribe/scanner", "/subscribe/photos"];
 
 export function FooterGate() {
   const pathname = usePathname();
