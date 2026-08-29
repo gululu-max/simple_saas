@@ -1,0 +1,4 @@
+# Local iOS settings. Keep real URLs and keys out of Git.
+Matchfix/Resources/Development.xcconfig
+DerivedData/
+
